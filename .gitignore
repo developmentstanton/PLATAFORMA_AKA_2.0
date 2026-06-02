@@ -1,0 +1,14 @@
+# ==========================================
+# Credenciales de BD — NUNCA subir (password en claro)
+# Usar las plantillas *.example.php como referencia.
+# ==========================================
+conexion/conexion_integracion.php
+conexion/conexion_stanton.php
+
+# Cache regenerable (refs/catálogos). Se mantiene la carpeta, se ignora el contenido.
+cache/*
+!cache/.gitkeep
+
+# Backups y logs
+*.bak
+*.log

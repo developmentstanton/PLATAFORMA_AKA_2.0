@@ -1,3 +1,23 @@
+<?php
+	session_start();
+	if (!isset($_SESSION['usuario'])) {
+		header("Location: index.php");
+		exit;
+	}
+
+	// Timeout de inactividad: 30 minutos
+	$timeout = 1800;
+	if (isset($_SESSION['ultima_actividad']) && (time() - $_SESSION['ultima_actividad']) > $timeout) {
+		session_unset();
+		session_destroy();
+		header("Location: index.php?expired=1");
+		exit;
+	}
+	$_SESSION['ultima_actividad'] = time();
+
+	$nombreUsuario = $_SESSION['usuario'];
+	$imagenUsuario = isset($_SESSION['imagen']) ? $_SESSION['imagen'] : '';
+?>
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -5,6 +25,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AKA 2.0 — Portal de Aliados (Preview)</title>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="awesome/css/fontawesome.min.css">
+    <link rel="stylesheet" href="awesome/css/solid.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script>window.PROVEEDOR_ACTUAL = <?= json_encode($_SESSION['proveedor'] ?? '') ?>;</script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         :root {
@@ -96,7 +121,7 @@
             position: fixed; top: 0; left: 0; bottom: 0; z-index: 100;
             display: flex; flex-direction: column;
         }
-        .sidebar-header { padding: 24px 20px; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .sidebar-header { padding: 24px 20px; border-bottom: 1px solid rgba(255,255,255,0.1); text-align: center; }
         .sidebar-header .logo-text {
             font-size: 32px; font-weight: 700; color: white; letter-spacing: 6px;
         }
@@ -439,7 +464,7 @@
 <div class="app active" id="app">
     <aside class="sidebar">
         <div class="sidebar-header">
-            <div class="logo-text">AKA</div>
+            <img src="img/logo_aka.png" alt="AKA" style="width:65%;max-width:140px;height:auto;display:block;margin:0 auto 8px;">
             <div class="logo-sub">PORTAL DE ALIADOS v2.0</div>
         </div>
         <nav class="sidebar-nav">
@@ -462,6 +487,15 @@
                 </div>
             </div>
             <div class="nav-section">
+                <div class="nav-section-title">AN&Aacute;LISIS</div>
+                <div class="nav-item" onclick="showPage('informes-o14', this)">
+                    <span class="icon"><i class="fa-solid fa-shoe-prints"></i></span> O14 &mdash; Siembra/Stock
+                </div>
+                <div class="nav-item" onclick="showPage('informes-g00', this)">
+                    <span class="icon"><i class="fa-solid fa-chart-column"></i></span> G00 &mdash; Ventas
+                </div>
+            </div>
+            <div class="nav-section">
                 <div class="nav-section-title">GESTI&Oacute;N</div>
                 <div class="nav-item" onclick="showPage('codificacion', this)">
                     <span class="icon">&#9998;</span> Codificaci&oacute;n
@@ -477,10 +511,14 @@
             </div>
         </nav>
         <div class="sidebar-footer">
-            <div class="avatar">IT</div>
+            <?php if ($imagenUsuario): ?>
+                <img src="img/<?php echo htmlspecialchars($imagenUsuario); ?>" alt="Avatar" style="width:34px;height:34px;border-radius:6px;object-fit:cover;background:rgba(255,255,255,0.85);padding:2px;">
+            <?php else: ?>
+                <div class="avatar"><?php echo strtoupper(substr($nombreUsuario, 0, 2)); ?></div>
+            <?php endif; ?>
             <div>
-                <div class="user-name">INTERTENIS S.A.S</div>
-                <div class="user-role">Aliado &mdash; Original Penguin</div>
+                <div class="user-name"><?php echo htmlspecialchars($nombreUsuario); ?></div>
+                <div class="user-role">Aliado</div>
             </div>
         </div>
     </aside>
@@ -488,10 +526,13 @@
     <div class="main">
         <div class="topbar">
             <h2 id="pageTitle">DASHBOARD</h2>
-            <div>
+            <div style="display:flex;align-items:center;gap:10px;">
                 <button class="notification-btn" onclick="showPage('alertas', document.querySelector('[onclick*=alertas]'))">
                     &#9888;<span class="dot"></span>
                 </button>
+                <a href="logout.php" class="notification-btn" title="Cerrar sesión" style="text-decoration:none;color:var(--text);">
+                    <i class="fa-solid fa-right-from-bracket"></i>
+                </a>
             </div>
         </div>
 
@@ -879,6 +920,12 @@
                 </div>
             </div>
 
+            <!-- ==================== INFORME G00 ==================== -->
+            <?php include __DIR__ . '/informes/g00.php'; ?>
+
+            <!-- ==================== INFORME O14 ==================== -->
+            <?php include __DIR__ . '/informes/o14.php'; ?>
+
             <!-- ==================== ALERTAS ==================== -->
             <div class="page" id="page-alertas">
                 <div class="filters">
@@ -1093,7 +1140,7 @@
 
 <button class="agent-fab" onclick="toggleAgent()" id="agentFab" style="display:none;">
     <span class="pulse"></span>
-    <img src="aka.ico" style="width:30px;height:30px;border-radius:50%;">
+    <img src="img/aka.ico" style="width:30px;height:30px;border-radius:50%;">
 </button>
 
 <div class="agent-panel" id="agentPanel">
@@ -1135,9 +1182,13 @@
         const titles = {
             dashboard:'DASHBOARD', ventas:'VENTAS', inventarios:'INVENTARIOS Y ENCURVAMIENTO',
             pagos:'PAGOS Y FACTURAS', codificacion:'CODIFICACI\u00d3N',
-            documentos:'DOCUMENTACI\u00d3N', alertas:'ALERTAS'
+            documentos:'DOCUMENTACI\u00d3N', alertas:'ALERTAS',
+            'informes-g00':'INFORME G00 \u2014 DASHBOARD DE VENTAS',
+            'informes-o14':'INFORME O14 \u2014 SIEMBRA & STOCK x TIENDA x TALLA'
         };
         document.getElementById('pageTitle').textContent = titles[pageId] || pageId;
+        if (pageId === 'informes-g00' && typeof g00OnEnter === 'function') g00OnEnter();
+        if (pageId === 'informes-o14' && typeof o14OnEnter === 'function') o14OnEnter();
         updateAgentContext(pageId);
     }
     document.getElementById('modalCodificacion').addEventListener('click', function(e) {
