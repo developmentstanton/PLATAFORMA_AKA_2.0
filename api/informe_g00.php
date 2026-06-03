@@ -400,12 +400,19 @@ $sqlConsolidado = cteVentas() . "
     , ventas_enriq AS (
         SELECT v.FECHA, v.BODEGA, v.CANTIDAD, v.VALOR, v.MARGEN,
                ISNULL(b.GRUPO, 'SIN GRUPO') AS GRUPO,
-               i.MARCA AS MARCA
+               i.MARCA AS MARCA,
+               i.TIPO  AS TIPO
         FROM ventas v
         INNER JOIN #refs i                                 ON i.REFERENCIA = v.REFERENCIA
         LEFT  JOIN INTEGRACION.dbo.Bodegas b WITH (NOLOCK) ON b.COD        = v.BODEGA AND b.CIA = 7
         WHERE (v.FECHA BETWEEN ? AND ? OR v.FECHA BETWEEN ? AND ?)
           $filtroExtra
+          AND EXISTS (
+                SELECT 1 FROM INTEGRACION.dbo.Bodegas sb WITH (NOLOCK)
+                WHERE sb.COD = v.BODEGA AND sb.CIA = 7
+                  AND (sb.FECHA_APERTURA IS NULL OR sb.FECHA_APERTURA <= ?)
+                  AND (sb.FECHA_CIERRE   IS NULL OR sb.FECHA_CIERRE   >= ?)
+          )
     )
     SELECT
         GROUPING_ID(YEAR(FECHA), MONTH(FECHA), GRUPO, MARCA) AS gid,
@@ -432,6 +439,7 @@ $paramsConsolidado = array_merge(
     [$gmin, $gmax, $gmin, $gmax],   // CTE pushdown PBI + Acum
     [$desdeAct, $hastaAct, $desdeAnt, $hastaAnt],  // ventas_enriq OR-filter exacto
     $paramsExtra,
+    [$desdeAnt, $hastaAct],         // EXISTS same-store (va tras $filtroExtra en el SQL)
     [$desdeAct,$hastaAct, $desdeAnt,$hastaAnt,    // val_act / val_ant
      $desdeAct,$hastaAct, $desdeAnt,$hastaAnt,    // ups_act / ups_ant
      $desdeAct,$hastaAct,                          // margen_prom
