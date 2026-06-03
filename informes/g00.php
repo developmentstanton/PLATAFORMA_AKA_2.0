@@ -118,8 +118,8 @@
     .g00-coming-soon p { font-size: 12px; max-width: 420px; margin: 0 auto; line-height: 1.5; }
 
     /* Toggle de modo (Día a Día / Retail / Same) */
-    .g00-modo-bar .g00-modo[data-modo="diaadia"],
-    .g00-modo-bar .g00-modo[data-modo="retail"] {
+    .g00-modo-bar .g00-modo[data-modo="retail"],
+    .g00-modo-bar .g00-modo[data-modo="same"] {
         opacity: 0.45; cursor: not-allowed;
     }
     /* Tablas comparativas tipo Power BI */
@@ -210,9 +210,9 @@
 
         <!-- Toggle Día a Día / Retail / Same -->
         <div class="tab-bar g00-modo-bar" style="margin-bottom:16px;">
-            <div class="tab g00-modo" data-modo="diaadia" onclick="g00ModoInerte()">Día a Día</div>
+            <div class="tab g00-modo active" data-modo="diaadia">Día a Día</div>
             <div class="tab g00-modo" data-modo="retail" onclick="g00ModoInerte()">Retail</div>
-            <div class="tab g00-modo active" data-modo="same">Same</div>
+            <div class="tab g00-modo" data-modo="same" onclick="g00ModoInerte()">Same</div>
         </div>
 
         <!-- Tabla 1: Por Grupo Tiendas -->

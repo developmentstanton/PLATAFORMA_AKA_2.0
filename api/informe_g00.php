@@ -34,6 +34,7 @@ $desdeIn = $_GET['desde'] ?? '';
 $hastaIn = $_GET['hasta'] ?? '';
 $grupo   = trim($_GET['grupo'] ?? '');
 $marca   = trim($_GET['marca'] ?? '');
+$sss     = strtolower(trim($_GET['sss'] ?? 'nosame')); // S.S.S: 'same' aplica same-store; default 'nosame' = todas
 
 if ($desdeIn && $hastaIn) {
     $desdeAct = $desdeIn;
@@ -390,12 +391,23 @@ if ($tab === 'productos') {
 // TAB: DETAL (default) — 4 queries consolidadas en 1 con GROUPING SETS
 // ====================================================================
 //
-// GROUPING_ID(YEAR, MONTH, GRUPO, MARCA) interpretado por bit (1 = NULL en ese nivel):
-//   gid = 15 (1111) → KPIs totales (nada agrupado)
-//   gid =  3 (0011) → mensual (YEAR+MONTH agrupados)
-//   gid = 13 (1101) → por grupo
-//   gid = 14 (1110) → por marca
+// GROUPING_ID(YEAR, MONTH, GRUPO, MARCA, TIPO) por bit (1 = NULL en ese nivel):
+//   gid 31 → KPIs totales | 7 → mensual | 27 → grupo | 29 → marca | 28 → marca+tipo
 //
+// S.S.S (same-store): SOLO se aplica cuando ?sss=same. Por defecto (No Same) NO se
+// filtra → se muestran todas las tiendas activas en el periodo.
+$sameStoreClause = '';
+$sameStoreParams = [];
+if ($sss === 'same') {
+    $sameStoreClause = "
+          AND EXISTS (
+                SELECT 1 FROM INTEGRACION.dbo.Bodegas sb WITH (NOLOCK)
+                WHERE sb.COD = v.BODEGA AND sb.CIA = 7
+                  AND (sb.FECHA_APERTURA IS NULL OR sb.FECHA_APERTURA <= ?)
+                  AND (sb.FECHA_CIERRE   IS NULL OR sb.FECHA_CIERRE   >= ?)
+          )";
+    $sameStoreParams = [$desdeAnt, $hastaAct];
+}
 $sqlConsolidado = cteVentas() . "
     , ventas_enriq AS (
         SELECT v.FECHA, v.BODEGA, v.CANTIDAD, v.VALOR, v.MARGEN,
@@ -407,12 +419,7 @@ $sqlConsolidado = cteVentas() . "
         LEFT  JOIN INTEGRACION.dbo.Bodegas b WITH (NOLOCK) ON b.COD        = v.BODEGA AND b.CIA = 7
         WHERE (v.FECHA BETWEEN ? AND ? OR v.FECHA BETWEEN ? AND ?)
           $filtroExtra
-          AND EXISTS (
-                SELECT 1 FROM INTEGRACION.dbo.Bodegas sb WITH (NOLOCK)
-                WHERE sb.COD = v.BODEGA AND sb.CIA = 7
-                  AND (sb.FECHA_APERTURA IS NULL OR sb.FECHA_APERTURA <= ?)
-                  AND (sb.FECHA_CIERRE   IS NULL OR sb.FECHA_CIERRE   >= ?)
-          )
+          $sameStoreClause
     )
     SELECT
         GROUPING_ID(YEAR(FECHA), MONTH(FECHA), GRUPO, MARCA, TIPO) AS gid,
@@ -441,7 +448,7 @@ $paramsConsolidado = array_merge(
     [$gmin, $gmax, $gmin, $gmax],   // CTE pushdown PBI + Acum
     [$desdeAct, $hastaAct, $desdeAnt, $hastaAnt],  // ventas_enriq OR-filter exacto
     $paramsExtra,
-    [$desdeAnt, $hastaAct],         // EXISTS same-store (va tras $filtroExtra en el SQL)
+    $sameStoreParams,               // EXISTS same-store SOLO si sss=same (vacío por defecto)
     [$desdeAct,$hastaAct, $desdeAnt,$hastaAnt,    // val_act / val_ant
      $desdeAct,$hastaAct, $desdeAnt,$hastaAnt,    // ups_act / ups_ant
      $desdeAct,$hastaAct,                          // margen_prom
