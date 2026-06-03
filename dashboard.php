@@ -492,7 +492,7 @@
                     <span class="icon"><i class="fa-solid fa-shoe-prints"></i></span> O14 &mdash; Siembra/Stock
                 </div>
                 <div class="nav-item" onclick="showPage('informes-g00', this)">
-                    <span class="icon"><i class="fa-solid fa-chart-column"></i></span> G00 &mdash; Ventas
+                    <span class="icon"><i class="fa-solid fa-chart-column"></i></span> Ventas
                 </div>
             </div>
             <div class="nav-section">
@@ -1183,7 +1183,7 @@
             dashboard:'DASHBOARD', ventas:'VENTAS', inventarios:'INVENTARIOS Y ENCURVAMIENTO',
             pagos:'PAGOS Y FACTURAS', codificacion:'CODIFICACI\u00d3N',
             documentos:'DOCUMENTACI\u00d3N', alertas:'ALERTAS',
-            'informes-g00':'INFORME G00 \u2014 DASHBOARD DE VENTAS',
+            'informes-g00':'DASHBOARD DE VENTAS',
             'informes-o14':'INFORME O14 \u2014 SIEMBRA & STOCK x TIENDA x TALLA'
         };
         document.getElementById('pageTitle').textContent = titles[pageId] || pageId;
