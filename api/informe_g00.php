@@ -564,25 +564,78 @@ $deltaUps     = $upsAnt    > 0 ? (($upsAct    - $upsAnt)    / $upsAnt)    * 100 
 $deltaTiendas = $tiendasAn > 0 ? (($tiendasAc - $tiendasAn) / $tiendasAn) * 100 : 0;
 $ticketProm   = $upsAct    > 0 ?  $ventasAct / $upsAct                          : 0;
 
-// Serie mensual — agrupar por (year, month) y formar buckets 1..12 con valor Y unidades
-$mapMesVal = []; $mapMesUps = [];
-foreach ($mensualRows as $row) {
-    $y = (int)$row['anio']; $m = (int)$row['mes'];
-    // Las dos fact tables no se solapan: una (year,month) trae SOLO act O ant.
-    $mapMesVal[$y][$m] = (float)$row['val_act'] + (float)$row['val_ant'];
-    $mapMesUps[$y][$m] = (float)$row['ups_act'] + (float)$row['ups_ant'];
+// Mensual: SIEMPRE Ene→hoy (ignora el filtro de fecha). El período anterior usa
+// la alineación del Calendario: -1 año (diaadia) o -364 días (retail), de modo que
+// ambos años quedan "al corte del mismo día".
+$hoy        = date('Y-m-d');
+$mensDesA   = date('Y-01-01');
+$mensHasA   = $hoy;
+if ($cal === 'retail') {
+    $mensDesB = date('Y-m-d', strtotime($mensDesA . ' -364 days'));
+    $mensHasB = date('Y-m-d', strtotime($mensHasA . ' -364 days'));
+    $shiftToActualDays = 364; // sumar a una fecha 'ant' para mapearla al mes 'act'
+} else {
+    $mensDesB = date('Y-m-d', strtotime($mensDesA . ' -1 year'));
+    $mensHasB = date('Y-m-d', strtotime($mensHasA . ' -1 year'));
+    $shiftToActualDays = 0;   // diaadia: el mes calendario ya coincide (mismo mes, -1 año)
 }
-$yearAct = (int)date('Y', strtotime($hastaAct));
-$yearAnt = $yearAct - 1;
+$mensGmin = min($mensDesB, $mensDesA);
+$mensGmax = max($mensHasA, $mensHasB);
+
+// Para 'ant' (retail) el mes se mapea sumando 364 días para que caiga en el mes 'act'
+// equivalente; para 'diaadia' el mes 'ant' ya es el mismo mes calendario.
+$mesAntExpr = $shiftToActualDays > 0
+    ? "MONTH(DATEADD(DAY, $shiftToActualDays, FECHA))"
+    : "MONTH(FECHA)";
+$sqlMensual = cteVentas() . "
+    , vm AS (
+        SELECT v.FECHA, v.CANTIDAD, v.VALOR
+        FROM ventas v
+        INNER JOIN #refs i                                 ON i.REFERENCIA = v.REFERENCIA
+        LEFT  JOIN INTEGRACION.dbo.Bodegas b WITH (NOLOCK) ON b.COD = v.BODEGA AND b.CIA = 7
+        WHERE (v.FECHA BETWEEN ? AND ? OR v.FECHA BETWEEN ? AND ?)
+          $filtroExtra
+          $sameStoreClause
+    )
+    SELECT
+        CASE WHEN FECHA BETWEEN ? AND ? THEN MONTH(FECHA) ELSE $mesAntExpr END AS mes,
+        SUM(CASE WHEN FECHA BETWEEN ? AND ? THEN VALOR    ELSE 0 END) AS val_act,
+        SUM(CASE WHEN FECHA BETWEEN ? AND ? THEN VALOR    ELSE 0 END) AS val_ant,
+        SUM(CASE WHEN FECHA BETWEEN ? AND ? THEN CANTIDAD ELSE 0 END) AS ups_act,
+        SUM(CASE WHEN FECHA BETWEEN ? AND ? THEN CANTIDAD ELSE 0 END) AS ups_ant
+    FROM vm
+    GROUP BY (CASE WHEN FECHA BETWEEN ? AND ? THEN MONTH(FECHA) ELSE $mesAntExpr END)
+";
+$pMensual = array_merge(
+    [$mensGmin, $mensGmax, $mensGmin, $mensGmax],   // cte pushdown
+    [$mensDesA, $mensHasA, $mensDesB, $mensHasB],   // vm OR-filter (act, ant)
+    $paramsExtra,
+    $sameStoreParams,
+    [$mensDesA, $mensHasA],                          // SELECT CASE mes (act)
+    [$mensDesA, $mensHasA, $mensDesB, $mensHasB,     // val_act / val_ant
+     $mensDesA, $mensHasA, $mensDesB, $mensHasB],    // ups_act / ups_ant
+    [$mensDesA, $mensHasA]                           // GROUP BY CASE mes (act)
+);
+$mensual = run($dbConnect, $sqlMensual, $pMensual);
+if (isset($mensual['error'])) jsonFail($mensual, $dbConnect);
+$mapMV = []; $mapMU = [];
+foreach ($mensual as $r) {
+    $mi = (int)$r['mes'];
+    if ($mi < 1 || $mi > 12) continue;
+    $mapMV[$mi] = ['val_act' => (float)$r['val_act'], 'val_ant' => (float)$r['val_ant']];
+    $mapMU[$mi] = ['ups_act' => (float)$r['ups_act'], 'ups_ant' => (float)$r['ups_ant']];
+}
 $labelsMes = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+$mesActual = (int)date('n');
+$yearAct = (int)date('Y');
 $serieMensual = [];
-for ($m = 1; $m <= 12; $m++) {
+for ($m = 1; $m <= $mesActual; $m++) {   // Ene → mes actual
     $serieMensual[] = [
         'mes'     => $labelsMes[$m-1],
-        'val_act' => $mapMesVal[$yearAct][$m] ?? 0,
-        'val_ant' => $mapMesVal[$yearAnt][$m] ?? 0,
-        'ups_act' => $mapMesUps[$yearAct][$m] ?? 0,
-        'ups_ant' => $mapMesUps[$yearAnt][$m] ?? 0,
+        'val_act' => $mapMV[$m]['val_act'] ?? 0,
+        'val_ant' => $mapMV[$m]['val_ant'] ?? 0,
+        'ups_act' => $mapMU[$m]['ups_act'] ?? 0,
+        'ups_ant' => $mapMU[$m]['ups_ant'] ?? 0,
     ];
 }
 
