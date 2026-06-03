@@ -415,11 +415,12 @@ $sqlConsolidado = cteVentas() . "
           )
     )
     SELECT
-        GROUPING_ID(YEAR(FECHA), MONTH(FECHA), GRUPO, MARCA) AS gid,
+        GROUPING_ID(YEAR(FECHA), MONTH(FECHA), GRUPO, MARCA, TIPO) AS gid,
         YEAR(FECHA)  AS anio,
         MONTH(FECHA) AS mes,
         GRUPO        AS grupo,
         MARCA        AS marca,
+        TIPO         AS tipo,
         SUM(CASE WHEN FECHA BETWEEN ? AND ? THEN VALOR    ELSE 0 END) AS val_act,
         SUM(CASE WHEN FECHA BETWEEN ? AND ? THEN VALOR    ELSE 0 END) AS val_ant,
         SUM(CASE WHEN FECHA BETWEEN ? AND ? THEN CANTIDAD ELSE 0 END) AS ups_act,
@@ -432,7 +433,8 @@ $sqlConsolidado = cteVentas() . "
         (),
         (YEAR(FECHA), MONTH(FECHA)),
         (GRUPO),
-        (MARCA)
+        (MARCA),
+        (MARCA, TIPO)
     )
 ";
 $paramsConsolidado = array_merge(
@@ -450,18 +452,16 @@ $consolidado = run($dbConnect, $sqlConsolidado, $paramsConsolidado);
 if (isset($consolidado['error'])) jsonFail($consolidado, $dbConnect);
 
 // Demultiplex por gid.
-$kpi = []; $mensualRows = []; $porGrupo = []; $porMarca = [];
+// Con 5 dims GROUPING_ID(YEAR,MONTH,GRUPO,MARCA,TIPO) (bit4=YEAR…bit0=TIPO; bit=1⇒NULL):
+//   total=31 (11111), mensual=7 (00111), grupo=27 (11011), marca=29 (11101), marca+tipo=28 (11100)
+$kpi = []; $mensualRows = []; $porGrupo = []; $porMarca = []; $porMarcaTipo = [];
 foreach ($consolidado as $r) {
     $gid = (int)$r['gid'];
-    if ($gid === 15) {
-        $kpi = $r;
-    } elseif ($gid === 3) {
-        $mensualRows[] = $r;
-    } elseif ($gid === 13) {
-        $porGrupo[] = $r;
-    } elseif ($gid === 14) {
-        $porMarca[] = $r;
-    }
+    if      ($gid === 31) { $kpi = $r; }
+    elseif  ($gid === 7)  { $mensualRows[]  = $r; }
+    elseif  ($gid === 27) { $porGrupo[]     = $r; }
+    elseif  ($gid === 29) { $porMarca[]     = $r; }
+    elseif  ($gid === 28) { $porMarcaTipo[] = $r; }
 }
 
 $catalogos = getCatalogos($dbConnect, $proveedor);
@@ -479,13 +479,13 @@ $deltaUps     = $upsAnt    > 0 ? (($upsAct    - $upsAnt)    / $upsAnt)    * 100 
 $deltaTiendas = $tiendasAn > 0 ? (($tiendasAc - $tiendasAn) / $tiendasAn) * 100 : 0;
 $ticketProm   = $upsAct    > 0 ?  $ventasAct / $upsAct                          : 0;
 
-// Serie mensual — agrupar por (year, month) y formar buckets 1..12 para actual/anterior
-$mapMes = [];
+// Serie mensual — agrupar por (year, month) y formar buckets 1..12 con valor Y unidades
+$mapMesVal = []; $mapMesUps = [];
 foreach ($mensualRows as $row) {
     $y = (int)$row['anio']; $m = (int)$row['mes'];
-    // Como las dos fact tables no se solapan, una (year,month) row tiene SOLO val_act OR val_ant.
-    $valor = (float)$row['val_act'] + (float)$row['val_ant'];
-    $mapMes[$y][$m] = $valor;
+    // Las dos fact tables no se solapan: una (year,month) trae SOLO act O ant.
+    $mapMesVal[$y][$m] = (float)$row['val_act'] + (float)$row['val_ant'];
+    $mapMesUps[$y][$m] = (float)$row['ups_act'] + (float)$row['ups_ant'];
 }
 $yearAct = (int)date('Y', strtotime($hastaAct));
 $yearAnt = $yearAct - 1;
@@ -493,29 +493,53 @@ $labelsMes = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov',
 $serieMensual = [];
 for ($m = 1; $m <= 12; $m++) {
     $serieMensual[] = [
-        'mes'      => $labelsMes[$m-1],
-        'actual'   => $mapMes[$yearAct][$m] ?? 0,
-        'anterior' => $mapMes[$yearAnt][$m] ?? 0,
+        'mes'     => $labelsMes[$m-1],
+        'val_act' => $mapMesVal[$yearAct][$m] ?? 0,
+        'val_ant' => $mapMesVal[$yearAnt][$m] ?? 0,
+        'ups_act' => $mapMesUps[$yearAct][$m] ?? 0,
+        'ups_ant' => $mapMesUps[$yearAnt][$m] ?? 0,
     ];
 }
 
-$mapDelta = function ($rows, $keyDim) {
-    $out = [];
-    foreach ($rows as $r) {
-        $a = (float)$r['val_act'];
-        $b = (float)$r['val_ant'];
-        $out[] = [
-            'label'      => $r[$keyDim] ?? '',
-            'actual'     => $a,
-            'anterior'   => $b,
-            'delta_pct'  => $b > 0 ? (($a - $b) / $b) * 100 : 0,
-            'ups_actual' => (float)($r['ups_act'] ?? 0),
-        ];
-    }
-    // Sort by actual desc (la query original lo hacía con ORDER BY actual DESC pero GROUPING SETS no garantiza orden por set).
-    usort($out, fn($x, $y) => $y['actual'] <=> $x['actual']);
-    return $out;
+$rowFields = function ($r, $keyDim) {
+    return [
+        'label'       => trim((string)($r[$keyDim] ?? '')),
+        'val_act'     => (float)($r['val_act']     ?? 0),
+        'val_ant'     => (float)($r['val_ant']     ?? 0),
+        'ups_act'     => (float)($r['ups_act']     ?? 0),
+        'ups_ant'     => (float)($r['ups_ant']     ?? 0),
+        'margen'      => (float)($r['margen_prom'] ?? 0),
+        'tiendas_act' => (int)  ($r['tiendas_act'] ?? 0),
+        'tiendas_ant' => (int)  ($r['tiendas_ant'] ?? 0),
+    ];
 };
+
+// Por grupo (ordenado por $ actual desc)
+$grupoArr = array_map(fn($r) => $rowFields($r, 'grupo'), $porGrupo);
+usort($grupoArr, fn($x, $y) => $y['val_act'] <=> $x['val_act']);
+
+// Por marca con tipos anidados
+$marcaMap = [];
+foreach ($porMarca as $r) {
+    $m = trim((string)$r['marca']);
+    $marcaMap[$m] = $rowFields($r, 'marca');
+    $marcaMap[$m]['children'] = [];
+}
+foreach ($porMarcaTipo as $r) {
+    $m = trim((string)$r['marca']);
+    if (!isset($marcaMap[$m])) { // defensa: marca sin fila propia
+        $marcaMap[$m] = $rowFields($r, 'marca');
+        $marcaMap[$m]['label'] = $m;
+        $marcaMap[$m]['children'] = [];
+    }
+    $marcaMap[$m]['children'][] = $rowFields($r, 'tipo');
+}
+$marcaArr = array_values($marcaMap);
+usort($marcaArr, fn($x, $y) => $y['val_act'] <=> $x['val_act']);
+foreach ($marcaArr as &$mref) {
+    usort($mref['children'], fn($x, $y) => $y['val_act'] <=> $x['val_act']);
+}
+unset($mref);
 
 $out = [
     'ok'        => true,
@@ -541,8 +565,8 @@ $out = [
         'margen_prom'      => $margenPr,
     ],
     'mensual'   => $serieMensual,
-    'por_grupo' => $mapDelta($porGrupo, 'grupo'),
-    'por_marca' => $mapDelta($porMarca, 'marca'),
+    'por_grupo' => $grupoArr,
+    'por_marca' => $marcaArr,
     'catalogos' => $catalogos,
 ];
 
