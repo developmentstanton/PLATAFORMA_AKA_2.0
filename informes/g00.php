@@ -116,6 +116,19 @@
     }
     .g00-coming-soon h4 { color: var(--primary); font-size: 16px; margin-bottom: 6px; }
     .g00-coming-soon p { font-size: 12px; max-width: 420px; margin: 0 auto; line-height: 1.5; }
+
+    /* Toggle de modo (Día a Día / Retail / Same) */
+    .g00-modo-bar .g00-modo[data-modo="diaadia"],
+    .g00-modo-bar .g00-modo[data-modo="retail"] {
+        opacity: 0.45; cursor: not-allowed;
+    }
+    /* Tablas comparativas tipo Power BI */
+    table.disp-table th, table.disp-table td { white-space: nowrap; font-size: 12px; }
+    table.disp-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+    table.disp-table tr.g00-total td { background: #fdf6e3; font-weight: 700; }
+    table.disp-table tr.g00-tipo td:first-child { padding-left: 26px; color: var(--text-light); font-weight: 500; }
+    table.disp-table .pos { color: var(--success); }
+    table.disp-table .neg { color: var(--danger); }
 </style>
 
 <div class="page" id="page-informes-g00">
@@ -176,77 +189,54 @@
     <!-- ============ TAB DETAL ============ -->
     <div class="g00-tab-panel active" id="g00-panel-detal">
 
-        <!-- KPIs -->
-        <div class="stats-grid" style="grid-template-columns: repeat(5, 1fr);">
-            <div class="g00-kpi">
-                <div class="g00-kpi-head">
-                    <span class="g00-kpi-label">Ventas YTD</span>
-                    <span class="g00-kpi-delta up" id="g00-kpi-ventas-delta">—</span>
-                </div>
-                <div class="g00-kpi-value" id="g00-kpi-ventas">
-                    <span class="g00-skeleton" style="width:120px;height:26px;"></span>
-                </div>
-                <div class="g00-kpi-sub" id="g00-kpi-ventas-sub">vs. año anterior</div>
+        <!-- Franja de 3 KPIs (estilo Power BI) -->
+        <div class="stats-grid" style="grid-template-columns: repeat(3, 1fr);">
+            <div class="g00-kpi accent">
+                <div class="g00-kpi-head"><span class="g00-kpi-label">Tiendas <span id="g00-kpi-anio-1">—</span></span></div>
+                <div class="g00-kpi-value" id="g00-kpi-tiendas"><span class="g00-skeleton" style="width:60px;height:26px;"></span></div>
+                <div class="g00-kpi-sub">bodegas con venta</div>
             </div>
-            <div class="g00-kpi info">
-                <div class="g00-kpi-head">
-                    <span class="g00-kpi-label">Unidades</span>
-                    <span class="g00-kpi-delta up" id="g00-kpi-ups-delta">—</span>
-                </div>
-                <div class="g00-kpi-value" id="g00-kpi-ups">
-                    <span class="g00-skeleton" style="width:90px;height:26px;"></span>
-                </div>
-                <div class="g00-kpi-sub">pares vendidos YTD</div>
-            </div>
-            <div class="g00-kpi success" title="Valor total vendido ÷ unidades vendidas">
-                <div class="g00-kpi-head">
-                    <span class="g00-kpi-label">Ticket Promedio</span>
-                    <i class="fa-solid fa-circle-info" style="color:var(--text-light);font-size:11px;"></i>
-                </div>
-                <div class="g00-kpi-value" id="g00-kpi-ticket">
-                    <span class="g00-skeleton" style="width:100px;height:26px;"></span>
-                </div>
-                <div class="g00-kpi-sub">$ ingreso promedio por par</div>
+            <div class="g00-kpi success">
+                <div class="g00-kpi-head"><span class="g00-kpi-label">$ Prom <span id="g00-kpi-anio-2">—</span></span></div>
+                <div class="g00-kpi-value" id="g00-kpi-ticket"><span class="g00-skeleton" style="width:100px;height:26px;"></span></div>
+                <div class="g00-kpi-sub">$ por par (valor ÷ unidades)</div>
             </div>
             <div class="g00-kpi warning">
-                <div class="g00-kpi-head">
-                    <span class="g00-kpi-label">Margen Promedio</span>
-                </div>
-                <div class="g00-kpi-value" id="g00-kpi-margen">
-                    <span class="g00-skeleton" style="width:70px;height:26px;"></span>
-                </div>
-                <div class="g00-kpi-sub">% sobre PVP</div>
-            </div>
-            <div class="g00-kpi accent">
-                <div class="g00-kpi-head">
-                    <span class="g00-kpi-label">Tiendas con Ventas</span>
-                    <span class="g00-kpi-delta up" id="g00-kpi-tiendas-delta">—</span>
-                </div>
-                <div class="g00-kpi-value" id="g00-kpi-tiendas">
-                    <span class="g00-skeleton" style="width:60px;height:26px;"></span>
-                </div>
-                <div class="g00-kpi-sub" id="g00-kpi-tiendas-sub">bodegas distintas con venta</div>
+                <div class="g00-kpi-head"><span class="g00-kpi-label">MB</span></div>
+                <div class="g00-kpi-value" id="g00-kpi-margen"><span class="g00-skeleton" style="width:70px;height:26px;"></span></div>
+                <div class="g00-kpi-sub">margen %</div>
             </div>
         </div>
 
-        <!-- GRÁFICAS: mensual + grupo -->
-        <div class="grid-2" style="grid-template-columns: 1.6fr 1fr;">
-            <div class="card">
-                <div class="card-title">
-                    Ventas Mensuales <span style="color:var(--text-light);font-weight:500;">&mdash; <span id="g00-anio-label">—</span> vs año anterior</span>
-                </div>
-                <div id="g00-chart-mensual" style="width:100%;height:340px;"></div>
-            </div>
-            <div class="card">
-                <div class="card-title">Ventas por Grupo Tienda</div>
-                <div id="g00-chart-grupo" style="width:100%;height:340px;"></div>
-            </div>
+        <!-- Toggle Día a Día / Retail / Same -->
+        <div class="tab-bar g00-modo-bar" style="margin-bottom:16px;">
+            <div class="tab g00-modo" data-modo="diaadia" onclick="g00ModoInerte()">Día a Día</div>
+            <div class="tab g00-modo" data-modo="retail" onclick="g00ModoInerte()">Retail</div>
+            <div class="tab g00-modo active" data-modo="same">Same</div>
         </div>
 
-        <!-- GRÁFICA: por marca -->
+        <!-- Tabla 1: Por Grupo Tiendas -->
         <div class="card">
-            <div class="card-title">Ventas por Marca <span style="color:var(--text-light);font-weight:500;">&mdash; comparativo YoY</span></div>
-            <div id="g00-chart-marca" style="width:100%;height:320px;"></div>
+            <div class="card-title">Resumen Ventas Por Grupo Tiendas</div>
+            <div style="overflow-x:auto;">
+                <table id="g00-tabla-grupo" class="disp-table"></table>
+            </div>
+        </div>
+
+        <!-- Tabla 2: Por Marca / Tipo -->
+        <div class="card">
+            <div class="card-title">Resumen Ventas Por Marca / Tipo</div>
+            <div style="overflow-x:auto;">
+                <table id="g00-tabla-marca" class="disp-table"></table>
+            </div>
+        </div>
+
+        <!-- Tabla 3: Mensual -->
+        <div class="card">
+            <div class="card-title">Resumen Ventas Mensual</div>
+            <div style="overflow-x:auto;">
+                <table id="g00-tabla-mensual" class="disp-table"></table>
+            </div>
         </div>
 
     </div>
