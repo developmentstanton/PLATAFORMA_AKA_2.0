@@ -111,6 +111,7 @@ function getRefsCached($conn, $proveedor) {
     }
     $sql = "SELECT REFERENCIA,
                 ISNULL(MARCA,    'SIN MARCA')  AS MARCA,
+                ISNULL(TIPO,     'SIN TIPO')   AS TIPO,
                 ISNULL(LINEA,    'SIN LINEA')  AS LINEA,
                 ISNULL(SUBLINEA, '')           AS SUBLINEA,
                 ISNULL(CATEGORIA,'')           AS CATEGORIA
@@ -132,17 +133,17 @@ function getRefsCached($conn, $proveedor) {
 function buildRefsTemp($conn, $refs) {
     $ok = sqlsrv_query($conn, "CREATE TABLE #refs (
         REFERENCIA varchar(50) NOT NULL PRIMARY KEY,
-        MARCA varchar(40), LINEA varchar(40), SUBLINEA varchar(40), CATEGORIA varchar(40))");
+        MARCA varchar(40), TIPO varchar(40), LINEA varchar(40), SUBLINEA varchar(40), CATEGORIA varchar(40))");
     if ($ok === false) return false;
     sqlsrv_free_stmt($ok);
     if (empty($refs)) return true;
     foreach (array_chunk($refs, 200) as $chunk) {
         $vals = []; $params = [];
         foreach ($chunk as $r) {
-            $vals[] = '(?,?,?,?,?)';
-            array_push($params, $r['REFERENCIA'], $r['MARCA'], $r['LINEA'], $r['SUBLINEA'], $r['CATEGORIA']);
+            $vals[] = '(?,?,?,?,?,?)';
+            array_push($params, $r['REFERENCIA'], $r['MARCA'], $r['TIPO'], $r['LINEA'], $r['SUBLINEA'], $r['CATEGORIA']);
         }
-        $sql = "INSERT INTO #refs (REFERENCIA,MARCA,LINEA,SUBLINEA,CATEGORIA) VALUES " . implode(',', $vals);
+        $sql = "INSERT INTO #refs (REFERENCIA,MARCA,TIPO,LINEA,SUBLINEA,CATEGORIA) VALUES " . implode(',', $vals);
         $ins = sqlsrv_query($conn, $sql, $params);
         if ($ins === false) return false;
         sqlsrv_free_stmt($ins);
