@@ -897,7 +897,7 @@
     };
 
     window.g00ShowTab = function (name, el) {
-        document.querySelectorAll('#page-informes-g00 .tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('#page-informes-g00 .tab-bar:not(.g00-modo-bar) .tab').forEach(t => t.classList.remove('active'));
         document.querySelectorAll('#page-informes-g00 .g00-tab-panel').forEach(p => p.classList.remove('active'));
         if (el) el.classList.add('active');
         document.getElementById('g00-panel-' + name).classList.add('active');
