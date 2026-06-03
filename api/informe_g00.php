@@ -627,7 +627,9 @@ foreach ($mensual as $r) {
 }
 $labelsMes = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 $mesActual = (int)date('n');
-$yearAct = (int)date('Y');
+// Año para los rótulos de las tablas (Grupo/Marca/KPI respetan el filtro de fecha).
+// En uso por defecto (filtro = año en curso) coincide con el año actual.
+$yearAct = (int)date('Y', strtotime($hastaAct));
 $serieMensual = [];
 for ($m = 1; $m <= $mesActual; $m++) {   // Ene → mes actual
     $serieMensual[] = [
