@@ -43,8 +43,17 @@ if ($desdeIn && $hastaIn) {
     $desdeAct = date('Y-01-01');
     $hastaAct = date('Y-m-d');
 }
-$desdeAnt = date('Y-m-d', strtotime($desdeAct . ' -1 year'));
-$hastaAnt = date('Y-m-d', strtotime($hastaAct . ' -1 year'));
+// Calendario: 'diaadia' (default) → período anterior = -1 año (alineación calendario).
+//             'retail'            → período anterior = -364 días (52 semanas, preserva día de semana).
+$cal = strtolower(trim($_GET['cal'] ?? 'diaadia'));
+if ($cal === 'retail') {
+    $desdeAnt = date('Y-m-d', strtotime($desdeAct . ' -364 days'));
+    $hastaAnt = date('Y-m-d', strtotime($hastaAct . ' -364 days'));
+} else {
+    $cal = 'diaadia';
+    $desdeAnt = date('Y-m-d', strtotime($desdeAct . ' -1 year'));
+    $hastaAnt = date('Y-m-d', strtotime($hastaAct . ' -1 year'));
+}
 
 // Rango global para el pushdown de fecha en el CTE.
 $gmin = ($desdeAnt < $desdeAct) ? $desdeAnt : $desdeAct;
