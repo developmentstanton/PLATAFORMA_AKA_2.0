@@ -331,10 +331,78 @@
 (function () {
     'use strict';
 
-    let selectsPopulated = false;
     let currentTab = 'detal';
     let proveedorActual = (window.PROVEEDOR_ACTUAL || '');
     const tabState = { detal: false, tiendas: false, periodos: false, productos: false };
+
+    const FILTER_FIELDS = ['marca','tipo','categoria','subcategoria','genero','publico','referencia','depto','ciudad'];
+    const tom = {};            // field -> instancia TomSelect
+    let combos = [];           // catálogo de combinaciones del proveedor
+    let cascadeBusy = false;   // evita recursión al actualizar opciones
+
+    function segValue(id) {
+        const el = document.querySelector('#' + id + ' .g00-seg-btn.active');
+        return el ? el.getAttribute('data-val') : '';
+    }
+    function initSeg(id) {
+        document.querySelectorAll('#' + id + ' .g00-seg-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('#' + id + ' .g00-seg-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                g00Load();
+            });
+        });
+    }
+
+    function selectedOf(field) { return tom[field] ? tom[field].getValue() : []; }
+
+    // Opciones disponibles de un campo = valores distintos en combos que cumplen
+    // la selección de TODOS los demás campos (cascada bidireccional).
+    function availableFor(field) {
+        const sels = {};
+        FILTER_FIELDS.forEach(f => { if (f !== field) { const v = selectedOf(f); if (v.length) sels[f] = new Set(v); } });
+        const out = new Set();
+        for (const c of combos) {
+            let ok = true;
+            for (const f in sels) { if (!sels[f].has(c[f])) { ok = false; break; } }
+            if (ok && c[field] !== '' && c[field] != null) out.add(c[field]);
+        }
+        return Array.from(out).sort((a,b) => a.localeCompare(b, 'es'));
+    }
+
+    function refreshOptions() {
+        if (cascadeBusy) return;
+        cascadeBusy = true;
+        FILTER_FIELDS.forEach(field => {
+            const ts = tom[field]; if (!ts) return;
+            const keep = ts.getValue();
+            const opts = availableFor(field).map(v => ({ value: v, text: v }));
+            // conservar seleccionados aunque la cascada los excluya (para poder deseleccionar)
+            const keepArr = Array.isArray(keep) ? keep : (keep ? [keep] : []);
+            keepArr.forEach(v => { if (!opts.find(o => o.value === v)) opts.push({ value: v, text: v }); });
+            ts.clearOptions();
+            ts.addOptions(opts);
+            ts.refreshOptions(false);
+        });
+        cascadeBusy = false;
+    }
+
+    function initFiltros() {
+        FILTER_FIELDS.forEach(field => {
+            tom[field] = new TomSelect('#g00-f-' + field, {
+                plugins: ['remove_button'],
+                maxOptions: 1000,
+                placeholder: 'Todas',
+                onChange: () => { refreshOptions(); }
+            });
+        });
+        initSeg('g00-cal');
+        initSeg('g00-sss');
+        fetch('api/informe_g00.php?tab=filtros', { credentials: 'same-origin' })
+            .then(r => r.json())
+            .then(data => { combos = (data && data.combos) ? data.combos : []; refreshOptions(); })
+            .catch(() => { combos = []; });
+    }
 
     function showLoading(accion) {
         const prov = proveedorActual ? ' del proveedor <strong>' + esc(proveedorActual) + '</strong>' : '';
@@ -393,23 +461,6 @@
         animate(document.getElementById('g00-kpi-margen'),  k.margen_prom,    (n) => n.toFixed(2) + '%');
     }
 
-    function populateSelects(catalogos) {
-        if (selectsPopulated || !catalogos) return;
-        const gSel = document.getElementById('g00-filtro-grupo');
-        const mSel = document.getElementById('g00-filtro-marca');
-        (catalogos.grupos || []).forEach(g => {
-            if (!g) return;
-            const o = document.createElement('option'); o.value = g; o.textContent = g;
-            gSel.appendChild(o);
-        });
-        (catalogos.marcas || []).forEach(m => {
-            if (!m) return;
-            const o = document.createElement('option'); o.value = m; o.textContent = m;
-            mSel.appendChild(o);
-        });
-        selectsPopulated = true;
-    }
-
     function showError(msg) {
         const host = document.getElementById('page-informes-g00');
         let banner = host.querySelector('.g00-error');
@@ -427,12 +478,13 @@
         if (tab) p.append('tab', tab);
         const d = document.getElementById('g00-filtro-desde').value;
         const h = document.getElementById('g00-filtro-hasta').value;
-        const g = document.getElementById('g00-filtro-grupo').value;
-        const m = document.getElementById('g00-filtro-marca').value;
         if (d) p.append('desde', d);
         if (h) p.append('hasta', h);
-        if (g) p.append('grupo', g);
-        if (m) p.append('marca', m);
+        FILTER_FIELDS.forEach(field => {
+            (selectedOf(field) || []).forEach(v => p.append(field + '[]', v));
+        });
+        p.append('cal', segValue('g00-cal') || 'diaadia');
+        p.append('sss', segValue('g00-sss') || 'nosame');
         return p.toString();
     }
 
@@ -445,7 +497,6 @@
                 if (!data.ok) { hideLoading(); showError(data.error || 'Error cargando datos'); return; }
                 const host = document.getElementById('page-informes-g00');
                 const banner = host.querySelector('.g00-error'); if (banner) banner.remove();
-                populateSelects(data.catalogos);
                 proveedorActual = data.proveedor || '';
                 document.getElementById('g00-proveedor').textContent = data.proveedor || '—';
                 const r0 = data.rango || {};
@@ -891,7 +942,9 @@
         loadCurrentTab();
     };
 
+    let filtrosInit = false;
     window.g00OnEnter = function () {
+        if (!filtrosInit) { initFiltros(); filtrosInit = true; }
         if (!tabState.detal) loadDetal();
         else Object.values(charts).forEach(c => c && c.resize());
     };
