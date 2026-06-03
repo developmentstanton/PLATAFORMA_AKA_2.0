@@ -347,7 +347,6 @@
         if (window.Swal && Swal.isVisible()) Swal.close();
     }
     const charts = {
-        mensual: null, grupo: null, marca: null,
         treemapTiendas: null,
         calendar: null, dow: null, tendencia: null,
         treemapProd: null, pareto: null,
@@ -383,19 +382,11 @@
     }
 
     function renderKpis(k, anio) {
-        document.getElementById('g00-anio-label').textContent = anio;
-        animate(document.getElementById('g00-kpi-ventas'),  k.ventas_actual,  fmtMoney);
-        animate(document.getElementById('g00-kpi-ups'),     k.ups_actual,     fmtInt);
+        document.getElementById('g00-kpi-anio-1').textContent = anio;
+        document.getElementById('g00-kpi-anio-2').textContent = anio;
+        animate(document.getElementById('g00-kpi-tiendas'), k.tiendas_actual, (n) => Math.round(n).toString());
         animate(document.getElementById('g00-kpi-ticket'),  k.ticket_prom,    fmtMoneyFull);
         animate(document.getElementById('g00-kpi-margen'),  k.margen_prom,    (n) => n.toFixed(2) + '%');
-        animate(document.getElementById('g00-kpi-tiendas'), k.tiendas_actual, (n) => Math.round(n).toString());
-        setDelta(document.getElementById('g00-kpi-ventas-delta'),  k.delta_ventas);
-        setDelta(document.getElementById('g00-kpi-ups-delta'),     k.delta_ups);
-        setDelta(document.getElementById('g00-kpi-tiendas-delta'), k.delta_tiendas);
-        document.getElementById('g00-kpi-ventas-sub').textContent =
-            'vs ' + fmtMoney(k.ventas_anterior) + ' año anterior';
-        document.getElementById('g00-kpi-tiendas-sub').textContent =
-            'vs ' + (k.tiendas_anterior || 0) + ' año anterior';
     }
 
     function populateSelects(catalogos) {
@@ -413,102 +404,6 @@
             mSel.appendChild(o);
         });
         selectsPopulated = true;
-    }
-
-    function initChartMensual(serie, anio) {
-        const el = document.getElementById('g00-chart-mensual');
-        if (!charts.mensual) charts.mensual = echarts.init(el);
-        const labels = serie.map(r => r.mes);
-        const actual = serie.map(r => r.actual);
-        const anterior = serie.map(r => r.anterior);
-        charts.mensual.setOption({
-            color: ['#4A4782', '#ff001e'],
-            tooltip: {
-                trigger: 'axis',
-                backgroundColor: 'rgba(45,43,78,0.95)',
-                borderWidth: 0,
-                textStyle: { color: '#fff', fontFamily: 'Space Grotesk' },
-                formatter: (params) => {
-                    let h = '<b>' + params[0].axisValue + '</b><br/>';
-                    params.forEach(p => { h += p.marker + ' ' + p.seriesName + ': <b>' + fmtMoneyFull(p.value) + '</b><br/>'; });
-                    return h;
-                }
-            },
-            legend: { data: [String(anio), String(anio - 1)], right: 10, top: 0, textStyle: { fontFamily: 'Space Grotesk', fontSize: 11 } },
-            grid: { left: 55, right: 18, top: 32, bottom: 28 },
-            xAxis: {
-                type: 'category', data: labels,
-                axisLine: { lineStyle: { color: '#e0dfe8' } },
-                axisLabel: { color: '#7b7894', fontFamily: 'Space Grotesk', fontSize: 11 }
-            },
-            yAxis: {
-                type: 'value',
-                axisLine: { show: false }, splitLine: { lineStyle: { color: '#f0eff5' } },
-                axisLabel: { color: '#7b7894', fontFamily: 'Space Grotesk', fontSize: 10, formatter: fmtMoney }
-            },
-            series: [
-                {
-                    name: String(anio), type: 'line', data: actual, smooth: true, symbol: 'circle', symbolSize: 7,
-                    lineStyle: { width: 3 },
-                    areaStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-                        { offset: 0, color: 'rgba(74,71,130,0.35)' }, { offset: 1, color: 'rgba(74,71,130,0.02)' }
-                    ]) },
-                    emphasis: { focus: 'series' }
-                },
-                {
-                    name: String(anio - 1), type: 'line', data: anterior, smooth: true, symbol: 'circle', symbolSize: 5,
-                    lineStyle: { width: 2, type: 'dashed' },
-                    emphasis: { focus: 'series' }
-                }
-            ],
-            animationDuration: 1000,
-            animationEasing: 'cubicOut'
-        });
-    }
-
-    function initChartBarras(id, key, data, anio) {
-        const el = document.getElementById(id);
-        if (!charts[key]) charts[key] = echarts.init(el);
-        const top = data.slice(0, 8).reverse();
-        const labels = top.map(r => r.label);
-        charts[key].setOption({
-            color: ['#4A4782', '#c9c7dd'],
-            tooltip: {
-                trigger: 'axis', axisPointer: { type: 'shadow' },
-                backgroundColor: 'rgba(45,43,78,0.95)', borderWidth: 0,
-                textStyle: { color: '#fff', fontFamily: 'Space Grotesk' },
-                formatter: (params) => {
-                    const idx = params[0].dataIndex;
-                    const row = top[idx];
-                    const delta = row.delta_pct;
-                    const deltaTxt = (delta >= 0 ? '▲ ' : '▼ ') + Math.abs(delta).toFixed(1) + '%';
-                    let h = '<b>' + row.label + '</b><br/>';
-                    h += params[0].marker + ' ' + anio + ': <b>' + fmtMoneyFull(row.actual) + '</b><br/>';
-                    h += params[1].marker + ' ' + (anio - 1) + ': <b>' + fmtMoneyFull(row.anterior) + '</b><br/>';
-                    h += '<span style="color:' + (delta >= 0 ? '#34d399' : '#ff6b80') + ';font-weight:700;">' + deltaTxt + '</span>';
-                    return h;
-                }
-            },
-            legend: { data: [String(anio), String(anio - 1)], right: 10, top: 0, textStyle: { fontFamily: 'Space Grotesk', fontSize: 11 } },
-            grid: { left: 110, right: 20, top: 32, bottom: 18 },
-            xAxis: {
-                type: 'value',
-                axisLine: { show: false }, splitLine: { lineStyle: { color: '#f0eff5' } },
-                axisLabel: { color: '#7b7894', fontFamily: 'Space Grotesk', fontSize: 10, formatter: fmtMoney }
-            },
-            yAxis: {
-                type: 'category', data: labels,
-                axisLine: { lineStyle: { color: '#e0dfe8' } },
-                axisLabel: { color: '#2d2b4e', fontFamily: 'Space Grotesk', fontSize: 11, fontWeight: 600 }
-            },
-            series: [
-                { name: String(anio),     type: 'bar', data: top.map(r => r.actual),   barWidth: 14, itemStyle: { borderRadius: [0, 4, 4, 0] } },
-                { name: String(anio - 1), type: 'bar', data: top.map(r => r.anterior), barWidth: 14, itemStyle: { borderRadius: [0, 4, 4, 0] } }
-            ],
-            animationDuration: 1100,
-            animationDelay: (i) => i * 60,
-            animationEasing: 'cubicOut'
-        });
     }
 
     function showError(msg) {
@@ -554,9 +449,9 @@
                     ? 'Periodo: ' + r0.desde_actual + ' → ' + r0.hasta_actual + ' (vs ' + r0.desde_anterior + ' → ' + r0.hasta_anterior + ')'
                     : 'Datos al ' + new Date(data.generado).toLocaleDateString('es-CO');
                 renderKpis(data.kpis, data.anio);
-                initChartMensual(data.mensual, data.anio);
-                initChartBarras('g00-chart-grupo', 'grupo', data.por_grupo, data.anio);
-                initChartBarras('g00-chart-marca', 'marca', data.por_marca, data.anio);
+                renderTablaGrupo(data.por_grupo, data.anio);
+                renderTablaMarcaTipo(data.por_marca, data.anio);
+                renderTablaMensual(data.mensual, data.anio);
                 tabState.detal = true;
                 hideLoading();
             })
@@ -860,6 +755,127 @@
     }
 
     function esc(s) { return (s == null ? '' : String(s)).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]); }
+
+    // Métricas derivadas de una fila cruda {val_act,val_ant,ups_act,ups_ant,margen,tiendas_act,tiendas_ant}
+    function difCell(act, ant, fmt) {
+        const d = (act || 0) - (ant || 0);
+        const cls = d >= 0 ? 'pos' : 'neg';
+        return '<td class="num ' + cls + '">' + (d >= 0 ? '+' : '') + fmt(d) + '</td>';
+    }
+    function pctCell(act, ant) {
+        if (!ant) return '<td class="num">—</td>';
+        const p = ((act - ant) / ant) * 100;
+        const cls = p >= 0 ? 'pos' : 'neg';
+        return '<td class="num ' + cls + '">' + (p >= 0 ? '+' : '') + p.toFixed(1) + '%</td>';
+    }
+    const prom = (val, ups) => (ups > 0 ? val / ups : 0);
+
+    function renderTablaGrupo(rows, anio) {
+        const a = anio, b = anio - 1;
+        let h = '<thead><tr>'
+            + '<th>Grupo</th>'
+            + '<th class="num">'+b+'</th><th class="num">'+a+'</th><th class="num">Dif Q</th><th class="num">%Q</th>'
+            + '<th class="num">$'+b+'</th><th class="num">$'+a+'</th><th class="num">Dif $</th><th class="num">%$</th>'
+            + '<th class="num">MB</th>'
+            + '<th class="num">$Prom '+b+'</th><th class="num">$Prom '+a+'</th><th class="num">%Prom</th>'
+            + '<th class="num">Tdas '+b+'</th><th class="num">Tdas '+a+'</th><th class="num">≠Tdas</th>'
+            + '</tr></thead><tbody>';
+        const tot = {ua:0,ub:0,va:0,vb:0,ta:0,tb:0};
+        (rows||[]).forEach(r => {
+            tot.ua+=r.ups_act; tot.ub+=r.ups_ant; tot.va+=r.val_act; tot.vb+=r.val_ant;
+            h += rowGrupo(r, false);
+        });
+        // Fila Total (sumas; MB total = promedio simple de filas con dato — aprox. consistente)
+        const margenes = (rows||[]).map(r=>r.margen).filter(m=>m>0);
+        const mbTot = margenes.length ? margenes.reduce((x,y)=>x+y,0)/margenes.length : 0;
+        h += rowGrupo({label:'Total', ups_act:tot.ua,ups_ant:tot.ub, val_act:tot.va,val_ant:tot.vb,
+                       margen:mbTot, tiendas_act:0, tiendas_ant:0}, true);
+        h += '</tbody>';
+        document.getElementById('g00-tabla-grupo').innerHTML = h;
+    }
+    function rowGrupo(r, isTotal) {
+        const pa = prom(r.val_act, r.ups_act), pb = prom(r.val_ant, r.ups_ant);
+        const difT = (r.tiendas_act||0) - (r.tiendas_ant||0);
+        return '<tr class="'+(isTotal?'g00-total':'')+'">'
+            + '<td>'+esc(r.label)+'</td>'
+            + '<td class="num">'+fmtInt(r.ups_ant)+'</td><td class="num">'+fmtInt(r.ups_act)+'</td>'
+            + difCell(r.ups_act, r.ups_ant, fmtInt) + pctCell(r.ups_act, r.ups_ant)
+            + '<td class="num">'+fmtMoneyFull(r.val_ant)+'</td><td class="num">'+fmtMoneyFull(r.val_act)+'</td>'
+            + difCell(r.val_act, r.val_ant, fmtMoneyFull) + pctCell(r.val_act, r.val_ant)
+            + '<td class="num">'+(r.margen?r.margen.toFixed(2)+'%':'—')+'</td>'
+            + '<td class="num">'+fmtMoneyFull(pb)+'</td><td class="num">'+fmtMoneyFull(pa)+'</td>'
+            + pctCell(pa, pb)
+            + (isTotal
+                ? '<td class="num">—</td><td class="num">—</td><td class="num">—</td>'
+                : '<td class="num">'+fmtInt(r.tiendas_ant)+'</td><td class="num">'+fmtInt(r.tiendas_act)+'</td>'
+                  + '<td class="num '+(difT>=0?'pos':'neg')+'">'+(difT>=0?'+':'')+fmtInt(difT)+'</td>')
+            + '</tr>';
+    }
+
+    function renderTablaMarcaTipo(rows, anio) {
+        const a = anio, b = anio - 1;
+        let h = '<thead><tr>'
+            + '<th>Marca / Tipo</th>'
+            + '<th class="num">'+b+'</th><th class="num">'+a+'</th><th class="num">Dif Q</th><th class="num">%Q</th>'
+            + '<th class="num">$'+b+'</th><th class="num">$'+a+'</th><th class="num">Dif $</th><th class="num">%$</th>'
+            + '<th class="num">MB</th><th class="num">$Prom '+b+'</th><th class="num">$Prom '+a+'</th>'
+            + '</tr></thead><tbody>';
+        const tot = {ua:0,ub:0,va:0,vb:0};
+        (rows||[]).forEach(m => {
+            tot.ua+=m.ups_act; tot.ub+=m.ups_ant; tot.va+=m.val_act; tot.vb+=m.val_ant;
+            h += rowMarca(m, false, false);
+            (m.children||[]).forEach(t => { h += rowMarca(t, false, true); });
+        });
+        const margenes = (rows||[]).map(r=>r.margen).filter(x=>x>0);
+        const mbTot = margenes.length ? margenes.reduce((x,y)=>x+y,0)/margenes.length : 0;
+        h += rowMarca({label:'Total',ups_act:tot.ua,ups_ant:tot.ub,val_act:tot.va,val_ant:tot.vb,margen:mbTot}, true, false);
+        h += '</tbody>';
+        document.getElementById('g00-tabla-marca').innerHTML = h;
+    }
+    function rowMarca(r, isTotal, isTipo) {
+        const pa = prom(r.val_act, r.ups_act), pb = prom(r.val_ant, r.ups_ant);
+        const cls = isTotal ? 'g00-total' : (isTipo ? 'g00-tipo' : '');
+        return '<tr class="'+cls+'">'
+            + '<td>'+esc(r.label)+'</td>'
+            + '<td class="num">'+fmtInt(r.ups_ant)+'</td><td class="num">'+fmtInt(r.ups_act)+'</td>'
+            + difCell(r.ups_act, r.ups_ant, fmtInt) + pctCell(r.ups_act, r.ups_ant)
+            + '<td class="num">'+fmtMoneyFull(r.val_ant)+'</td><td class="num">'+fmtMoneyFull(r.val_act)+'</td>'
+            + difCell(r.val_act, r.val_ant, fmtMoneyFull) + pctCell(r.val_act, r.val_ant)
+            + '<td class="num">'+(r.margen?r.margen.toFixed(2)+'%':'—')+'</td>'
+            + '<td class="num">'+fmtMoneyFull(pb)+'</td><td class="num">'+fmtMoneyFull(pa)+'</td>'
+            + '</tr>';
+    }
+
+    function renderTablaMensual(rows, anio) {
+        const a = anio, b = anio - 1;
+        let h = '<thead><tr>'
+            + '<th>Mes</th>'
+            + '<th class="num">'+b+'</th><th class="num">'+a+'</th><th class="num">Dif Q</th><th class="num">%Q</th>'
+            + '<th class="num">$'+b+'</th><th class="num">$'+a+'</th><th class="num">Dif $</th><th class="num">%$</th>'
+            + '</tr></thead><tbody>';
+        const tot = {ua:0,ub:0,va:0,vb:0};
+        (rows||[]).forEach(r => {
+            // Omitir meses totalmente vacíos (ambos años en 0)
+            if (!r.val_act && !r.val_ant && !r.ups_act && !r.ups_ant) return;
+            tot.ua+=r.ups_act; tot.ub+=r.ups_ant; tot.va+=r.val_act; tot.vb+=r.val_ant;
+            h += rowMensual(r, false);
+        });
+        h += rowMensual({mes:'Total',ups_act:tot.ua,ups_ant:tot.ub,val_act:tot.va,val_ant:tot.vb}, true);
+        h += '</tbody>';
+        document.getElementById('g00-tabla-mensual').innerHTML = h;
+    }
+    function rowMensual(r, isTotal) {
+        return '<tr class="'+(isTotal?'g00-total':'')+'">'
+            + '<td>'+esc(r.mes)+'</td>'
+            + '<td class="num">'+fmtInt(r.ups_ant)+'</td><td class="num">'+fmtInt(r.ups_act)+'</td>'
+            + difCell(r.ups_act, r.ups_ant, fmtInt) + pctCell(r.ups_act, r.ups_ant)
+            + '<td class="num">'+fmtMoneyFull(r.val_ant)+'</td><td class="num">'+fmtMoneyFull(r.val_act)+'</td>'
+            + difCell(r.val_act, r.val_ant, fmtMoneyFull) + pctCell(r.val_act, r.val_ant)
+            + '</tr>';
+    }
+    window.g00ModoInerte = function () {
+        Swal.fire({icon:'info', title:'Modo no disponible', text:'Por ahora solo está activo el modo "Same".', confirmButtonColor:'#4A4782'});
+    };
 
     // ============ DISPATCHER ============
     function loadCurrentTab() {
