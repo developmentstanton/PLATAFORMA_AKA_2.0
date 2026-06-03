@@ -231,6 +231,54 @@ if (!buildRefsTemp($dbConnect, $refsProv)) {
 $tab = $_GET['tab'] ?? 'detal';
 
 // ====================================================================
+// TAB: FILTROS — catálogo de combinaciones para la cascada (cacheado diario).
+// Devuelve combos distintos (atributos de referencia + depto/ciudad de las
+// bodegas donde el proveedor vendió). El front resuelve la cascada en memoria.
+// ====================================================================
+if ($tab === 'filtros') {
+    $cacheDir = __DIR__ . '/../cache';
+    if (!is_dir($cacheDir)) @mkdir($cacheDir, 0755, true);
+    $cacheFile = $cacheDir . '/g00_filtros_' . md5($proveedor) . '.json';
+    if (file_exists($cacheFile) && date('Y-m-d', filemtime($cacheFile)) === date('Y-m-d')) {
+        $cached = json_decode(file_get_contents($cacheFile), true);
+        if (is_array($cached)) { sqlsrv_close($dbConnect); echo json_encode($cached, JSON_UNESCAPED_UNICODE); exit; }
+    }
+    // Parejas distintas (referencia, bodega) que el proveedor vendió (scan 1x/día).
+    $sql = "
+        SELECT DISTINCT
+            i.MARCA, i.TIPO, i.CATEGORIA, i.SUBCATEGORIA, i.GENERO, i.PUBLICO_OBJETIVO,
+            i.REFERENCIA,
+            ISNULL(b.DEPTO,'')  AS DEPTO,
+            ISNULL(b.CIUDAD,'') AS CIUDAD
+        FROM (
+            SELECT DISTINCT REFERENCIA, BODEGA FROM INTEGRACION.dbo.Ventas_Detal_PBI      WITH (NOLOCK)
+            UNION
+            SELECT DISTINCT REFERENCIA, BODEGA FROM INTEGRACION.dbo.Ventas_Detal_Acum_PBI WITH (NOLOCK)
+        ) v
+        INNER JOIN #refs i                                 ON i.REFERENCIA = v.REFERENCIA
+        LEFT  JOIN INTEGRACION.dbo.Bodegas b WITH (NOLOCK) ON b.COD = v.BODEGA AND b.CIA = 7
+    ";
+    $rows = run($dbConnect, $sql);
+    if (isset($rows['error'])) jsonFail($rows, $dbConnect);
+    $combos = array_map(fn($r) => [
+        'marca'        => trim((string)$r['MARCA']),
+        'tipo'         => trim((string)$r['TIPO']),
+        'categoria'    => trim((string)$r['CATEGORIA']),
+        'subcategoria' => trim((string)$r['SUBCATEGORIA']),
+        'genero'       => trim((string)$r['GENERO']),
+        'publico'      => trim((string)$r['PUBLICO_OBJETIVO']),
+        'referencia'   => trim((string)$r['REFERENCIA']),
+        'depto'        => trim((string)$r['DEPTO']),
+        'ciudad'       => trim((string)$r['CIUDAD']),
+    ], $rows);
+    $payload = ['ok' => true, 'combos' => $combos];
+    @file_put_contents($cacheFile, json_encode($payload));
+    sqlsrv_close($dbConnect);
+    echo json_encode($payload, JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+// ====================================================================
 // TAB: TIENDAS
 // ====================================================================
 if ($tab === 'tiendas') {
