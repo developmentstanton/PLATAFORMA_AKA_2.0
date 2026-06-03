@@ -117,11 +117,14 @@
     .g00-coming-soon h4 { color: var(--primary); font-size: 16px; margin-bottom: 6px; }
     .g00-coming-soon p { font-size: 12px; max-width: 420px; margin: 0 auto; line-height: 1.5; }
 
-    /* Toggle de modo (Día a Día / Retail / Same) */
-    .g00-modo-bar .g00-modo[data-modo="retail"],
-    .g00-modo-bar .g00-modo[data-modo="same"] {
-        opacity: 0.45; cursor: not-allowed;
-    }
+    /* Botones segmentados (Calendario / S.S.S) */
+    .g00-seg { display:inline-flex; border:1px solid var(--border); border-radius:6px; overflow:hidden; }
+    .g00-seg-btn { border:none; background:white; color:var(--text); font-family:'Space Grotesk',sans-serif;
+        font-size:12px; padding:6px 12px; cursor:pointer; }
+    .g00-seg-btn.active { background:var(--primary); color:white; font-weight:600; }
+    /* Tom Select compacto acorde a la barra */
+    .g00-filters .ts-control { min-width:150px; font-size:12px; border-radius:6px; border-color:var(--border); }
+    .g00-filters .ts-wrapper { min-width:150px; }
     /* Tablas comparativas tipo Power BI */
     table.disp-table th, table.disp-table td { white-space: nowrap; font-size: 12px; }
     table.disp-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
@@ -154,27 +157,35 @@
 
     <!-- ============ FILTROS ============ -->
     <div class="g00-filters">
-        <div class="filter-group">
-            <label>Desde</label>
-            <input type="date" id="g00-filtro-desde">
-        </div>
-        <div class="filter-group">
-            <label>Hasta</label>
-            <input type="date" id="g00-filtro-hasta">
-        </div>
+        <div class="filter-group"><label>Desde</label><input type="date" id="g00-filtro-desde"></div>
+        <div class="filter-group"><label>Hasta</label><input type="date" id="g00-filtro-hasta"></div>
+        <div class="divider"></div>
+        <div class="filter-group"><label>Marca</label><select id="g00-f-marca" multiple></select></div>
+        <div class="filter-group"><label>Tipo</label><select id="g00-f-tipo" multiple></select></div>
+        <div class="filter-group"><label>Categoría</label><select id="g00-f-categoria" multiple></select></div>
+        <div class="filter-group"><label>Subcategoría</label><select id="g00-f-subcategoria" multiple></select></div>
+        <div class="filter-group"><label>Género</label><select id="g00-f-genero" multiple></select></div>
+        <div class="filter-group"><label>Público</label><select id="g00-f-publico" multiple></select></div>
+        <div class="filter-group"><label>Referencia</label><select id="g00-f-referencia" multiple></select></div>
+        <div class="filter-group"><label>Departamento</label><select id="g00-f-depto" multiple></select></div>
+        <div class="filter-group"><label>Ciudad</label><select id="g00-f-ciudad" multiple></select></div>
         <div class="divider"></div>
         <div class="filter-group">
-            <label>Grupo</label>
-            <select id="g00-filtro-grupo"><option value="">Todos</option></select>
+            <label>Calendario</label>
+            <div class="g00-seg" id="g00-cal">
+                <button type="button" class="g00-seg-btn active" data-val="diaadia">Día a Día</button>
+                <button type="button" class="g00-seg-btn" data-val="retail">Retail</button>
+            </div>
         </div>
         <div class="filter-group">
-            <label>Marca</label>
-            <select id="g00-filtro-marca"><option value="">Todas</option></select>
+            <label>S.S.S</label>
+            <div class="g00-seg" id="g00-sss">
+                <button type="button" class="g00-seg-btn active" data-val="nosame">No Same</button>
+                <button type="button" class="g00-seg-btn" data-val="same">Same</button>
+            </div>
         </div>
         <div style="margin-left:auto;">
-            <button class="g00-btn-refresh" onclick="g00Load()">
-                <i class="fa-solid fa-filter"></i> Aplicar
-            </button>
+            <button class="g00-btn-refresh" onclick="g00Load()"><i class="fa-solid fa-filter"></i> Aplicar</button>
         </div>
     </div>
 
@@ -206,13 +217,6 @@
                 <div class="g00-kpi-value" id="g00-kpi-margen"><span class="g00-skeleton" style="width:70px;height:26px;"></span></div>
                 <div class="g00-kpi-sub">margen %</div>
             </div>
-        </div>
-
-        <!-- Toggle Día a Día / Retail / Same -->
-        <div class="tab-bar g00-modo-bar" style="margin-bottom:16px;">
-            <div class="tab g00-modo active" data-modo="diaadia">Día a Día</div>
-            <div class="tab g00-modo" data-modo="retail" onclick="g00ModoInerte()">Retail</div>
-            <div class="tab g00-modo" data-modo="same" onclick="g00ModoInerte()">Same</div>
         </div>
 
         <!-- Tabla 1: Por Grupo Tiendas -->
@@ -873,10 +877,6 @@
             + difCell(r.val_act, r.val_ant, fmtMoneyFull) + pctCell(r.val_act, r.val_ant)
             + '</tr>';
     }
-    window.g00ModoInerte = function () {
-        Swal.fire({icon:'info', title:'Modo no disponible', text:'Por ahora solo está activo el modo "Same".', confirmButtonColor:'#4A4782'});
-    };
-
     // ============ DISPATCHER ============
     function loadCurrentTab() {
         if (currentTab === 'tiendas')        loadTiendas();

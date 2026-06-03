@@ -29,6 +29,8 @@
     <link rel="stylesheet" href="awesome/css/solid.min.css">
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
     <script>window.PROVEEDOR_ACTUAL = <?= json_encode($_SESSION['proveedor'] ?? '') ?>;</script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
