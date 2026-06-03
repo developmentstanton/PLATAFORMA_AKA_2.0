@@ -32,8 +32,6 @@ $proveedor = $proveedorSesion !== '' ? $proveedorSesion : '__SIN_PROVEEDOR__';
 
 $desdeIn = $_GET['desde'] ?? '';
 $hastaIn = $_GET['hasta'] ?? '';
-$grupo   = trim($_GET['grupo'] ?? '');
-$marca   = trim($_GET['marca'] ?? '');
 $sss     = strtolower(trim($_GET['sss'] ?? 'nosame')); // S.S.S: 'same' aplica same-store; default 'nosame' = todas
 
 if ($desdeIn && $hastaIn) {
@@ -83,12 +81,30 @@ function cteVentas() {
     ";
 }
 
-// Filtros opcionales aplicables al cuerpo principal de cada query.
-// i = #refs (tiene MARCA), b = Bodegas (tiene GRUPO).
+// Filtros multi-valor (Inc 2A). Cada uno: WHERE <col> IN (?,?,...). Vacío = sin filtro.
+// Grano referencia → alias #refs (i). Grano tienda → alias Bodegas (b).
+$FILTROS_MULTI = [
+    'marca'        => 'i.MARCA',
+    'tipo'         => 'i.TIPO',
+    'categoria'    => 'i.CATEGORIA',
+    'subcategoria' => 'i.SUBCATEGORIA',
+    'genero'       => 'i.GENERO',
+    'publico'      => 'i.PUBLICO_OBJETIVO',
+    'referencia'   => 'i.REFERENCIA',
+    'depto'        => 'b.DEPTO',
+    'ciudad'       => 'b.CIUDAD',
+];
 $filtroExtra = '';
 $paramsExtra = [];
-if ($grupo !== '') { $filtroExtra .= " AND ISNULL(b.GRUPO, 'SIN GRUPO') = ? "; $paramsExtra[] = $grupo; }
-if ($marca !== '') { $filtroExtra .= " AND i.MARCA = ? "; $paramsExtra[] = $marca; }
+foreach ($FILTROS_MULTI as $key => $col) {
+    $vals = $_GET[$key] ?? [];
+    if (!is_array($vals)) $vals = ($vals === '' ? [] : [$vals]);
+    $vals = array_values(array_filter(array_map('trim', $vals), fn($v) => $v !== ''));
+    if (empty($vals)) continue;
+    $ph = implode(',', array_fill(0, count($vals), '?'));
+    $filtroExtra .= " AND $col IN ($ph) ";
+    foreach ($vals as $v) $paramsExtra[] = $v;
+}
 
 function run($conn, $sql, $params = []) {
     $stmt = sqlsrv_query($conn, $sql, $params);
@@ -571,7 +587,7 @@ $out = [
         'desde_actual'   => $desdeAct, 'hasta_actual'   => $hastaAct,
         'desde_anterior' => $desdeAnt, 'hasta_anterior' => $hastaAnt,
     ],
-    'filtros_activos' => ['grupo' => $grupo, 'marca' => $marca],
+    'filtros_activos' => $paramsExtra ? array_keys(array_filter($FILTROS_MULTI, fn($c,$k)=>!empty($_GET[$k]), ARRAY_FILTER_USE_BOTH)) : [],
     'kpis' => [
         'ventas_actual'    => $ventasAct,
         'ventas_anterior'  => $ventasAnt,
