@@ -310,55 +310,93 @@ if ($tab === 'filtros') {
 // TAB: TIENDAS
 // ====================================================================
 if ($tab === 'tiendas') {
+    // Resumen por tienda + negocio (REFERENCIA-COLOR), 1 query con GROUPING SETS.
+    // GROUPING_ID(BODEGA, REFERENCIA, COLOR): 7=() KPIs grand total, 3=(BODEGA) tienda, 0=(BODEGA,REF,COLOR) negocio.
     $sql = cteVentas() . "
+        , vt AS (
+            SELECT v.FECHA, v.BODEGA, v.CANTIDAD, v.VALOR, v.MARGEN,
+                   ISNULL(b.NOMBRE, v.BODEGA)   AS NOMBRE,
+                   ISNULL(b.GRUPO, 'SIN GRUPO') AS GRUPO,
+                   v.REFERENCIA,
+                   ISNULL(v.COLOR, '')          AS COLOR
+            FROM ventas v
+            INNER JOIN #refs i                                 ON i.REFERENCIA = v.REFERENCIA
+            LEFT  JOIN INTEGRACION.dbo.Bodegas b WITH (NOLOCK) ON b.COD = v.BODEGA AND b.CIA = 7
+            WHERE (v.FECHA BETWEEN ? AND ? OR v.FECHA BETWEEN ? AND ?)
+              $filtroExtra
+        )
         SELECT
-            v.BODEGA                              AS cod,
-            ISNULL(b.NOMBRE,  v.BODEGA)           AS nombre,
-            ISNULL(b.GRUPO,   'SIN GRUPO')        AS grupo,
-            ISNULL(b.CIUDAD,  '')                 AS ciudad,
-            ISNULL(b.DEPTO,   '')                 AS depto,
-            ISNULL(b.COORDENADAS, '')             AS coord,
-            ISNULL(b.ESTADO,  '')                 AS estado,
-            SUM(CASE WHEN v.FECHA BETWEEN ? AND ? THEN v.VALOR    ELSE 0 END) AS actual,
-            SUM(CASE WHEN v.FECHA BETWEEN ? AND ? THEN v.VALOR    ELSE 0 END) AS anterior,
-            SUM(CASE WHEN v.FECHA BETWEEN ? AND ? THEN v.CANTIDAD ELSE 0 END) AS ups_actual
-        FROM ventas v
-        INNER JOIN #refs i                                 ON i.REFERENCIA = v.REFERENCIA
-        LEFT  JOIN INTEGRACION.dbo.Bodegas b WITH (NOLOCK) ON b.COD        = v.BODEGA AND b.CIA = 7
-        WHERE 1=1
-          $filtroExtra
-        GROUP BY v.BODEGA, b.NOMBRE, b.GRUPO, b.CIUDAD, b.DEPTO, b.COORDENADAS, b.ESTADO
-        HAVING SUM(CASE WHEN v.FECHA BETWEEN ? AND ? THEN v.VALOR ELSE 0 END) > 0
-            OR SUM(CASE WHEN v.FECHA BETWEEN ? AND ? THEN v.VALOR ELSE 0 END) > 0
-        ORDER BY actual DESC
+            GROUPING_ID(BODEGA, REFERENCIA, COLOR) AS gid,
+            BODEGA      AS cod,
+            MAX(NOMBRE) AS nombre,
+            MAX(GRUPO)  AS grupo,
+            REFERENCIA  AS referencia,
+            COLOR       AS color,
+            SUM(CASE WHEN FECHA BETWEEN ? AND ? THEN VALOR    ELSE 0 END) AS val_act,
+            SUM(CASE WHEN FECHA BETWEEN ? AND ? THEN VALOR    ELSE 0 END) AS val_ant,
+            SUM(CASE WHEN FECHA BETWEEN ? AND ? THEN CANTIDAD ELSE 0 END) AS ups_act,
+            SUM(CASE WHEN FECHA BETWEEN ? AND ? THEN CANTIDAD ELSE 0 END) AS ups_ant,
+            AVG(CASE WHEN FECHA BETWEEN ? AND ? AND CANTIDAD > 0 THEN CAST(MARGEN AS float) END) AS margen_prom
+        FROM vt
+        GROUP BY GROUPING SETS ( (), (BODEGA), (BODEGA, REFERENCIA, COLOR) )
     ";
     $params = array_merge(
-        [$gmin, $gmax, $gmin, $gmax],                              // CTE pushdown
-        [$desdeAct,$hastaAct, $desdeAnt,$hastaAnt, $desdeAct,$hastaAct],  // SUM CASE
+        [$gmin, $gmax, $gmin, $gmax],                 // CTE pushdown
+        [$desdeAct, $hastaAct, $desdeAnt, $hastaAnt], // vt OR-filter (act, ant)
         $paramsExtra,
-        [$desdeAct,$hastaAct, $desdeAnt,$hastaAnt]                 // HAVING
+        [$desdeAct,$hastaAct, $desdeAnt,$hastaAnt,    // val_act / val_ant
+         $desdeAct,$hastaAct, $desdeAnt,$hastaAnt,    // ups_act / ups_ant
+         $desdeAct,$hastaAct]                          // margen_prom
     );
     $rows = run($dbConnect, $sql, $params);
     if (isset($rows['error'])) jsonFail($rows, $dbConnect);
-    $tiendas = [];
-    foreach ($rows as $r) {
-        $a = (float)$r['actual']; $b = (float)$r['anterior'];
-        $tiendas[] = [
-            'cod'        => trim($r['cod']),
-            'nombre'     => trim($r['nombre']),
-            'grupo'      => trim($r['grupo']),
-            'ciudad'     => trim($r['ciudad']),
-            'depto'      => trim($r['depto']),
-            'coord'      => trim($r['coord']),
-            'estado'     => trim($r['estado']),
-            'actual'     => $a,
-            'anterior'   => $b,
-            'delta_pct'  => $b > 0 ? (($a - $b) / $b) * 100 : 0,
-            'ups_actual' => (float)$r['ups_actual'],
+
+    $rowFieldsT = function ($r) {
+        $va=(float)$r['val_act']; $vb=(float)$r['val_ant'];
+        $ua=(float)$r['ups_act']; $ub=(float)$r['ups_ant'];
+        return [
+            'val_act'=>$va, 'val_ant'=>$vb, 'ups_act'=>$ua, 'ups_ant'=>$ub,
+            'margen'=>(float)$r['margen_prom'],
+            'prom_act'=>$ua>0?$va/$ua:0, 'prom_ant'=>$ub>0?$vb/$ub:0,
         ];
+    };
+    $kpi = ['val_act'=>0,'ups_act'=>0,'margen'=>0];
+    $tiendaMap = [];   // cod => fila tienda
+    $hijos = [];       // cod => [children negocio]
+    foreach ($rows as $r) {
+        $gid = (int)$r['gid'];
+        if ($gid === 7) {                       // grand total → KPIs
+            $kpi = $rowFieldsT($r);
+        } elseif ($gid === 3) {                 // tienda
+            $f = $rowFieldsT($r);
+            if ($f['val_act']==0 && $f['val_ant']==0) continue;
+            $cod = trim((string)$r['cod']);
+            $f['cod']=$cod; $f['nombre']=trim((string)$r['nombre']); $f['grupo']=trim((string)$r['grupo']);
+            $f['children']=[];
+            $tiendaMap[$cod]=$f;
+        } elseif ($gid === 0) {                 // negocio (referencia-color)
+            $f = $rowFieldsT($r);
+            if ($f['val_act']==0 && $f['val_ant']==0) continue;
+            $f['negocio']=trim((string)$r['referencia']).'-'.trim((string)$r['color']);
+            $hijos[trim((string)$r['cod'])][] = $f;
+        }
     }
+    foreach ($hijos as $cod=>$hs) {
+        if (!isset($tiendaMap[$cod])) continue;
+        usort($hs, fn($x,$y)=>$y['val_act']<=>$x['val_act']);
+        $tiendaMap[$cod]['children']=$hs;
+    }
+    $tiendas = array_values($tiendaMap);
+    usort($tiendas, fn($x,$y)=>$y['val_act']<=>$x['val_act']);
+
+    $tiendasAct = 0; foreach ($tiendas as $t) if ($t['val_act']>0) $tiendasAct++;
+    $kpis = [
+        'tiendas_actual' => $tiendasAct,
+        'ticket_prom'    => $kpi['ups_act']>0 ? $kpi['val_act']/$kpi['ups_act'] : 0,
+        'margen_prom'    => $kpi['margen'],
+    ];
     sqlsrv_close($dbConnect);
-    echo json_encode(['ok'=>true,'tiendas'=>$tiendas], JSON_UNESCAPED_UNICODE);
+    echo json_encode(['ok'=>true,'kpis'=>$kpis,'anio'=>(int)date('Y',strtotime($hastaAct)),'tiendas'=>$tiendas], JSON_UNESCAPED_UNICODE);
     exit;
 }
 
