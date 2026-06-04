@@ -33,14 +33,15 @@ Reorganizar la barra de filtros del G00 en **tres subsecciones visuales** (cada 
 
 ## Diseño
 
-### 1. Layout (3 filas, división solo visual, sin subtítulos)
+### 1. Layout (4 filas, división solo visual, sin subtítulos)
 
-Contenedor `.g00-filters` pasa de una sola fila *wrap* a **tres filas** (`flex-direction: column`, cada fila un `div.g00-filter-row` con sus `.filter-group` en *wrap*). Separación visual entre filas con un borde/espaciado sutil (sin texto de título).
+Contenedor `.g00-filters` pasa de una sola fila *wrap* a **cuatro filas** (`flex-direction: column`, cada fila un `div.g00-filter-row` con sus `.filter-group` en *wrap*). Separación visual entre filas con un borde/espaciado sutil (sin texto de título). **Color y Talla van en su propia fila** (Fila 3), separados de Criterios de Referencia — separación **solo visual**; en la cascada Color/Talla siguen perteneciendo al cluster de referencia (ver "Cascada").
 
 ```
-Fila 1 (tiempo):        [Desde m/d] [Hasta m/d] [Calendario] [S.S.S]                        [Aplicar →]
-Fila 2 (ref criterios): [Marca][Tipo][Categoría][Subcategoría][Género][Público][Referencia][Color][Talla]
-Fila 3 (bodega):        [Grupo][Tienda][Centro comercial][Departamento][Ciudad]
+Fila 1 (tiempo):     [Desde m/d] [Hasta m/d] [Calendario] [S.S.S]              [Aplicar →]
+Fila 2 (referencia): [Marca][Tipo][Categoría][Subcategoría][Género][Público][Referencia]
+Fila 3 (color/talla):[Color][Talla]
+Fila 4 (bodega):     [Grupo][Tienda][Centro comercial][Departamento][Ciudad]
 ```
 
 El botón **Aplicar** queda alineado a la derecha de la Fila 1.
