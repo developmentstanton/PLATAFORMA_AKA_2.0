@@ -32,7 +32,9 @@
     .g00-filter-row:last-child { border-bottom:none; padding-bottom:0; }
     .g00-md { display:flex; gap:4px; }
     .g00-md select { min-width:56px; }
-    .g00-filters .filter-group { display: flex; flex-direction: column; gap: 4px; }
+    .g00-filters .filter-group { display: flex; align-items: center; gap: 6px; }
+    /* Solo la barra nueva (4 filas) apila label sobre control; O14 reusa .g00-filters y conserva su layout. */
+    .g00-filters .g00-filter-row .filter-group { flex-direction: column; align-items: flex-start; gap: 4px; }
     .g00-filters label {
         font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px;
         color: var(--text-light); font-weight: 600;
