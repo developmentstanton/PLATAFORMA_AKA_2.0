@@ -372,6 +372,7 @@
     const REF_FIELDS    = ['marca','tipo','categoria','subcategoria','genero','publico','referencia'];
     const SKU_FIELDS    = ['color','talla'];
     const BODEGA_FIELDS = ['grupo','tienda','centro_comercial','depto','ciudad'];
+    const COMBO_FIELDS  = [...REF_FIELDS, ...BODEGA_FIELDS];   // campos presentes en una fila de `combos`
     const FILTER_FIELDS = [...REF_FIELDS, ...SKU_FIELDS, ...BODEGA_FIELDS];
     const tom = {};            // field -> instancia TomSelect
     let combos = [];           // catálogo (ref + bodega) del proveedor
@@ -409,7 +410,7 @@
 
     // ¿la fila combos cumple las selecciones de campos combos (ref+bodega) excepto 'exclude'?
     function comboMatches(c, exclude) {
-        for (const f of [...REF_FIELDS, ...BODEGA_FIELDS]) {
+        for (const f of COMBO_FIELDS) {
             if (f === exclude) continue;
             const sel = selectedOf(f);
             if (sel.length && !sel.includes(c[f])) return false;
