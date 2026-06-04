@@ -241,7 +241,8 @@ if ($tab === 'filtros') {
     $cacheFile = $cacheDir . '/g00_filtros_' . md5($proveedor) . '.json';
     if (file_exists($cacheFile) && date('Y-m-d', filemtime($cacheFile)) === date('Y-m-d')) {
         $cached = json_decode(file_get_contents($cacheFile), true);
-        if (is_array($cached)) { sqlsrv_close($dbConnect); echo json_encode($cached, JSON_UNESCAPED_UNICODE); exit; }
+        // Exigir 'sku' invalida de hecho cualquier caché vieja (Inc 2A, sin sku) del mismo día.
+        if (is_array($cached) && isset($cached['sku'])) { sqlsrv_close($dbConnect); echo json_encode($cached, JSON_UNESCAPED_UNICODE); exit; }
     }
     // Parejas distintas (referencia, bodega) que el proveedor vendió (scan 1x/día).
     $sql = "
