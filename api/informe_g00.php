@@ -248,6 +248,9 @@ if ($tab === 'filtros') {
         SELECT DISTINCT
             i.MARCA, i.TIPO, i.CATEGORIA, i.SUBCATEGORIA, i.GENERO, i.PUBLICO_OBJETIVO,
             i.REFERENCIA,
+            ISNULL(b.GRUPO,'')            AS GRUPO,
+            ISNULL(b.NOMBRE,'')           AS NOMBRE,
+            ISNULL(b.CENTRO_COMERCIAL,'') AS CENTRO_COMERCIAL,
             ISNULL(b.DEPTO,'')  AS DEPTO,
             ISNULL(b.CIUDAD,'') AS CIUDAD
         FROM (
@@ -261,17 +264,33 @@ if ($tab === 'filtros') {
     $rows = run($dbConnect, $sql);
     if (isset($rows['error'])) jsonFail($rows, $dbConnect);
     $combos = array_map(fn($r) => [
-        'marca'        => trim((string)$r['MARCA']),
-        'tipo'         => trim((string)$r['TIPO']),
-        'categoria'    => trim((string)$r['CATEGORIA']),
-        'subcategoria' => trim((string)$r['SUBCATEGORIA']),
-        'genero'       => trim((string)$r['GENERO']),
-        'publico'      => trim((string)$r['PUBLICO_OBJETIVO']),
-        'referencia'   => trim((string)$r['REFERENCIA']),
-        'depto'        => trim((string)$r['DEPTO']),
-        'ciudad'       => trim((string)$r['CIUDAD']),
+        'marca'            => trim((string)$r['MARCA']),
+        'tipo'             => trim((string)$r['TIPO']),
+        'categoria'        => trim((string)$r['CATEGORIA']),
+        'subcategoria'     => trim((string)$r['SUBCATEGORIA']),
+        'genero'           => trim((string)$r['GENERO']),
+        'publico'          => trim((string)$r['PUBLICO_OBJETIVO']),
+        'referencia'       => trim((string)$r['REFERENCIA']),
+        'grupo'            => trim((string)$r['GRUPO']),
+        'tienda'           => trim((string)$r['NOMBRE']),
+        'centro_comercial' => trim((string)$r['CENTRO_COMERCIAL']),
+        'depto'            => trim((string)$r['DEPTO']),
+        'ciudad'           => trim((string)$r['CIUDAD']),
     ], $rows);
-    $payload = ['ok' => true, 'combos' => $combos];
+    // SKU del proveedor (referencia → color/talla) desde el maestro. Liviano (no escanea hechos).
+    $sqlSku = "
+        SELECT DISTINCT m.REFERENCIA, m.COLOR, m.TALLA
+        FROM INTEGRACION.dbo.Maestro_Ref_Plataforma_AKA m WITH (NOLOCK)
+        INNER JOIN #refs i ON i.REFERENCIA = m.REFERENCIA
+    ";
+    $rowsSku = run($dbConnect, $sqlSku);
+    if (isset($rowsSku['error'])) jsonFail($rowsSku, $dbConnect);
+    $sku = array_map(fn($r) => [
+        'referencia' => trim((string)$r['REFERENCIA']),
+        'color'      => trim((string)$r['COLOR']),
+        'talla'      => trim((string)$r['TALLA']),
+    ], $rowsSku);
+    $payload = ['ok' => true, 'combos' => $combos, 'sku' => $sku];
     @file_put_contents($cacheFile, json_encode($payload));
     sqlsrv_close($dbConnect);
     echo json_encode($payload, JSON_UNESCAPED_UNICODE);
