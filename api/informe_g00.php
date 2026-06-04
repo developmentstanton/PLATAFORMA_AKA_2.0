@@ -401,61 +401,49 @@ if ($tab === 'tiendas') {
 }
 
 // ====================================================================
-// TAB: PERIODOS — consolidado en 1 query con GROUPING SETS (diario + dow)
+// TAB: PERIODOS — datos a grano (mes, día) para el drill-down Semestre→Trimestre→Mes→Día.
+// act = año actual; ant = mismo periodo −1 año, alineado por CALENDARIO (no retail).
 // ====================================================================
 if ($tab === 'periodos') {
-    // GROUPING_ID(dia, dow): dia es bit alto, dow es bit bajo. Bit=1 → columna NULL.
-    //   gid = 1 (01) → row DIARIA (dia agrupado bit=0, dow NULL bit=1)
-    //   gid = 2 (10) → row DOW    (dia NULL bit=1, dow agrupado bit=0)
+    $pAntDesde = date('Y-m-d', strtotime($desdeAct . ' -1 year'));
+    $pAntHasta = date('Y-m-d', strtotime($hastaAct . ' -1 year'));
+    $pGmin = ($pAntDesde < $desdeAct) ? $pAntDesde : $desdeAct;
+    $pGmax = ($hastaAct   > $pAntHasta) ? $hastaAct  : $pAntHasta;
     $sql = cteVentas() . "
         SELECT
-            GROUPING_ID(CONVERT(varchar(10), v.FECHA, 120), DATEPART(WEEKDAY, v.FECHA)) AS gid,
-            CONVERT(varchar(10), v.FECHA, 120) AS dia,
-            DATEPART(WEEKDAY, v.FECHA)         AS dow,
-            SUM(v.VALOR)    AS valor,
-            SUM(v.CANTIDAD) AS ups
+            MONTH(FECHA) AS mes,
+            DAY(FECHA)   AS dia,
+            SUM(CASE WHEN FECHA BETWEEN ? AND ? THEN VALOR    ELSE 0 END) AS val_act,
+            SUM(CASE WHEN FECHA BETWEEN ? AND ? THEN VALOR    ELSE 0 END) AS val_ant,
+            SUM(CASE WHEN FECHA BETWEEN ? AND ? THEN CANTIDAD ELSE 0 END) AS ups_act,
+            SUM(CASE WHEN FECHA BETWEEN ? AND ? THEN CANTIDAD ELSE 0 END) AS ups_ant
         FROM ventas v
         INNER JOIN #refs i                                 ON i.REFERENCIA = v.REFERENCIA
         LEFT  JOIN INTEGRACION.dbo.Bodegas b WITH (NOLOCK) ON b.COD        = v.BODEGA AND b.CIA = 7
-        WHERE v.FECHA BETWEEN ? AND ?
+        WHERE 1=1
           $filtroExtra
-        GROUP BY GROUPING SETS (
-            (CONVERT(varchar(10), v.FECHA, 120)),
-            (DATEPART(WEEKDAY, v.FECHA))
-        )
+        GROUP BY MONTH(FECHA), DAY(FECHA)
     ";
-    $params = array_merge([$desdeAct, $hastaAct, $desdeAct, $hastaAct, $desdeAct, $hastaAct], $paramsExtra);
-
+    $params = array_merge(
+        [$pGmin, $pGmax, $pGmin, $pGmax],            // CTE pushdown
+        [$desdeAct,$hastaAct, $pAntDesde,$pAntHasta, // val_act / val_ant
+         $desdeAct,$hastaAct, $pAntDesde,$pAntHasta],// ups_act / ups_ant
+        $paramsExtra
+    );
     $rows = run($dbConnect, $sql, $params);
     if (isset($rows['error'])) jsonFail($rows, $dbConnect);
-
-    $diarioArr = []; $dowArr = [];
+    $dias = [];
     foreach ($rows as $r) {
-        $gid = (int)$r['gid'];
-        if ($gid === 1) {
-            $diarioArr[] = [
-                'dia'   => $r['dia'],
-                'valor' => (float)$r['valor'],
-                'ups'   => (float)$r['ups'],
-            ];
-        } elseif ($gid === 2) {
-            $dowArr[] = [
-                'dow'   => (int)$r['dow'],
-                'valor' => (float)$r['valor'],
-                'ups'   => (float)$r['ups'],
-            ];
-        }
+        $va=(float)$r['val_act']; $vb=(float)$r['val_ant'];
+        $ua=(float)$r['ups_act']; $ub=(float)$r['ups_ant'];
+        if ($va==0 && $vb==0 && $ua==0 && $ub==0) continue;
+        $dias[] = [
+            'mes'=>(int)$r['mes'], 'dia'=>(int)$r['dia'],
+            'val_act'=>$va, 'val_ant'=>$vb, 'ups_act'=>$ua, 'ups_ant'=>$ub,
+        ];
     }
-    usort($diarioArr, fn($a, $b) => strcmp($a['dia'], $b['dia']));
-    usort($dowArr, fn($a, $b) => $a['dow'] - $b['dow']);
-
     sqlsrv_close($dbConnect);
-    echo json_encode([
-        'ok' => true,
-        'rango' => ['desde' => $desdeAct, 'hasta' => $hastaAct],
-        'diario' => $diarioArr,
-        'por_dow' => $dowArr,
-    ], JSON_UNESCAPED_UNICODE);
+    echo json_encode(['ok'=>true,'anio'=>(int)date('Y',strtotime($hastaAct)),'dias'=>$dias], JSON_UNESCAPED_UNICODE);
     exit;
 }
 
