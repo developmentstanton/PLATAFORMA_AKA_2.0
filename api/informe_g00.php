@@ -70,11 +70,11 @@ if ($dbConnect === false) {
 function cteVentas() {
     return "
     WITH ventas AS (
-        SELECT FECHA, BODEGA, REFERENCIA, CANTIDAD, VALOR, MARGEN
+        SELECT FECHA, BODEGA, REFERENCIA, CANTIDAD, VALOR, MARGEN, COLOR, TALLA
         FROM INTEGRACION.dbo.Ventas_Detal_PBI WITH (NOLOCK)
         WHERE FECHA BETWEEN ? AND ?
         UNION ALL
-        SELECT FECHA, BODEGA, REFERENCIA, CANTIDAD, VALOR, MARGEN
+        SELECT FECHA, BODEGA, REFERENCIA, CANTIDAD, VALOR, MARGEN, COLOR, TALLA
         FROM INTEGRACION.dbo.Ventas_Detal_Acum_PBI WITH (NOLOCK)
         WHERE FECHA BETWEEN ? AND ?
     )
@@ -84,15 +84,20 @@ function cteVentas() {
 // Filtros multi-valor (Inc 2A). Cada uno: WHERE <col> IN (?,?,...). Vacío = sin filtro.
 // Grano referencia → alias #refs (i). Grano tienda → alias Bodegas (b).
 $FILTROS_MULTI = [
-    'marca'        => 'i.MARCA',
-    'tipo'         => 'i.TIPO',
-    'categoria'    => 'i.CATEGORIA',
-    'subcategoria' => 'i.SUBCATEGORIA',
-    'genero'       => 'i.GENERO',
-    'publico'      => 'i.PUBLICO_OBJETIVO',
-    'referencia'   => 'i.REFERENCIA',
-    'depto'        => 'b.DEPTO',
-    'ciudad'       => 'b.CIUDAD',
+    'marca'            => 'i.MARCA',
+    'tipo'             => 'i.TIPO',
+    'categoria'        => 'i.CATEGORIA',
+    'subcategoria'     => 'i.SUBCATEGORIA',
+    'genero'           => 'i.GENERO',
+    'publico'          => 'i.PUBLICO_OBJETIVO',
+    'referencia'       => 'i.REFERENCIA',
+    'color'            => 'v.COLOR',
+    'talla'            => 'v.TALLA',
+    'grupo'            => 'b.GRUPO',
+    'tienda'           => 'b.NOMBRE',
+    'centro_comercial' => 'b.CENTRO_COMERCIAL',
+    'depto'            => 'b.DEPTO',
+    'ciudad'           => 'b.CIUDAD',
 ];
 $filtroExtra = '';
 $paramsExtra = [];

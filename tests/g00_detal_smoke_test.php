@@ -35,6 +35,20 @@ $cat = call_endpoint($php, $runner, $prov, 'tab=filtros', $nul);
 $marca = '';
 foreach (($cat['combos'] ?? []) as $c) { if (trim($c['marca'] ?? '') !== '') { $marca = $c['marca']; break; } }
 
+// Deriva valores reales del catálogo para cubrir los filtros nuevos.
+$color = $talla = $grupo = $tienda = $cc = '';
+foreach (($cat['sku'] ?? []) as $s) {
+    if ($color === '' && trim($s['color'] ?? '') !== '') $color = $s['color'];
+    if ($talla === '' && trim($s['talla'] ?? '') !== '') $talla = $s['talla'];
+    if ($color !== '' && $talla !== '') break;
+}
+foreach (($cat['combos'] ?? []) as $c) {
+    if ($grupo  === '' && trim($c['grupo'] ?? '') !== '')            $grupo  = $c['grupo'];
+    if ($tienda === '' && trim($c['tienda'] ?? '') !== '')          $tienda = $c['tienda'];
+    if ($cc     === '' && trim($c['centro_comercial'] ?? '') !== '') $cc     = $c['centro_comercial'];
+    if ($grupo !== '' && $tienda !== '' && $cc !== '') break;
+}
+
 $perms = [
     'tab=detal',
     'tab=detal&cal=retail',
@@ -42,6 +56,11 @@ $perms = [
     'tab=detal&cal=retail&sss=same',
 ];
 if ($marca !== '') $perms[] = 'tab=detal&cal=retail&sss=same&marca[]=' . rawurlencode($marca);
+if ($color !== '') $perms[] = 'tab=detal&color[]=' . rawurlencode($color);
+if ($talla !== '') $perms[] = 'tab=detal&talla[]=' . rawurlencode($talla);
+if ($grupo !== '') $perms[] = 'tab=detal&grupo[]=' . rawurlencode($grupo);
+if ($tienda !== '') $perms[] = 'tab=detal&tienda[]=' . rawurlencode($tienda);
+if ($cc !== '') $perms[] = 'tab=detal&centro_comercial[]=' . rawurlencode($cc);
 
 $fail = 0;
 foreach ($perms as $qs) {
