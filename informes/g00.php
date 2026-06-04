@@ -145,20 +145,21 @@
 
 
     <!-- ============ FILTROS ============ -->
+    <?php $MESES_FILTRO = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']; ?>
     <div class="g00-filters">
         <!-- Fila 1: tiempo -->
         <div class="g00-filter-row">
             <div class="filter-group">
                 <label>Desde</label>
                 <div class="g00-md">
-                    <select id="g00-desde-mes"><?php for($m=1;$m<=12;$m++) printf('<option value="%02d"%s>%02d</option>',$m,$m==1?' selected':'',$m); ?></select>
+                    <select id="g00-desde-mes"><?php for($m=1;$m<=12;$m++) printf('<option value="%02d"%s>%s</option>',$m,$m==1?' selected':'',$MESES_FILTRO[$m-1]); ?></select>
                     <select id="g00-desde-dia"><?php for($d=1;$d<=31;$d++) printf('<option value="%02d"%s>%02d</option>',$d,$d==1?' selected':'',$d); ?></select>
                 </div>
             </div>
             <div class="filter-group">
                 <label>Hasta</label>
                 <div class="g00-md">
-                    <select id="g00-hasta-mes"><?php $cm=(int)date('n'); for($m=1;$m<=12;$m++) printf('<option value="%02d"%s>%02d</option>',$m,$m==$cm?' selected':'',$m); ?></select>
+                    <select id="g00-hasta-mes"><?php $cm=(int)date('n'); for($m=1;$m<=12;$m++) printf('<option value="%02d"%s>%s</option>',$m,$m==$cm?' selected':'',$MESES_FILTRO[$m-1]); ?></select>
                     <select id="g00-hasta-dia"><?php $cd=(int)date('j'); for($d=1;$d<=31;$d++) printf('<option value="%02d"%s>%02d</option>',$d,$d==$cd?' selected':'',$d); ?></select>
                 </div>
             </div>
