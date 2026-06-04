@@ -66,6 +66,9 @@ if ($dbConnect === false) {
 
 /**
  * CTE `ventas` con pushdown de fecha. Cada query inyecta @gmin, @gmax (2 veces, una por tabla).
+ * Expone COLOR y TALLA aunque casi ninguna query las re-seleccione: los filtros `v.COLOR`/
+ * `v.TALLA` de $FILTROS_MULTI viven en el WHERE que lee del CTE base `ventas v`, así que basta
+ * con que estén disponibles aquí (las CTEs internas como ventas_enriq/vm filtran sobre `v`).
  */
 function cteVentas() {
     return "
