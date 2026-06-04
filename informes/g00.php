@@ -275,34 +275,24 @@
 
     <!-- ============ TAB DETALLE TIENDAS ============ -->
     <div class="g00-tab-panel" id="g00-panel-tiendas">
-        <div class="grid-2" style="grid-template-columns: 1.4fr 1fr;">
-            <div class="card">
-                <div class="card-title">Mapa de Tiendas <span style="color:var(--text-light);font-weight:500;">&mdash; tamaño = ventas, color = Δ%</span></div>
-                <div id="g00-chart-treemap-tiendas" style="width:100%;height:440px;"></div>
+        <div class="stats-grid" style="grid-template-columns: repeat(3, 1fr);">
+            <div class="g00-kpi accent" title="bodegas con venta">
+                <div class="g00-kpi-head"><span class="g00-kpi-label">Tiendas <span id="g00t-kpi-anio-1">—</span></span></div>
+                <div class="g00-kpi-value" id="g00t-kpi-tiendas"><span class="g00-skeleton" style="width:60px;height:26px;"></span></div>
             </div>
-            <div class="card">
-                <div class="card-title">Top 10 Tiendas</div>
-                <div style="max-height:440px;overflow-y:auto;">
-                    <table id="g00-tabla-top-tiendas">
-                        <thead><tr><th>Tienda</th><th>Ciudad</th><th style="text-align:right;">Ventas</th><th style="text-align:right;">Δ%</th></tr></thead>
-                        <tbody><tr><td colspan="4" style="text-align:center;color:var(--text-light);padding:20px;">Cargando…</td></tr></tbody>
-                    </table>
-                </div>
+            <div class="g00-kpi success" title="$ por par (valor ÷ unidades)">
+                <div class="g00-kpi-head"><span class="g00-kpi-label">$ Prom <span id="g00t-kpi-anio-2">—</span></span></div>
+                <div class="g00-kpi-value" id="g00t-kpi-ticket"><span class="g00-skeleton" style="width:100px;height:26px;"></span></div>
+            </div>
+            <div class="g00-kpi warning" title="margen %">
+                <div class="g00-kpi-head"><span class="g00-kpi-label">MB</span></div>
+                <div class="g00-kpi-value" id="g00t-kpi-margen"><span class="g00-skeleton" style="width:70px;height:26px;"></span></div>
             </div>
         </div>
         <div class="card">
-            <div class="card-title">Detalle Completo de Tiendas</div>
+            <div class="card-title">Resumen Ventas Por Tienda <span style="color:var(--text-light);font-weight:500;">&mdash; clic en la tienda para ver Referencia-Color</span></div>
             <div style="overflow-x:auto;">
-                <table id="g00-tabla-tiendas" class="disp-table">
-                    <thead><tr>
-                        <th>Grupo</th><th>Código</th><th>Tienda</th><th>Ciudad</th><th>Depto</th><th>Estado</th>
-                        <th style="text-align:right;">Ventas</th>
-                        <th style="text-align:right;">Año Ant.</th>
-                        <th style="text-align:right;">Δ%</th>
-                        <th style="text-align:right;">UPS</th>
-                    </tr></thead>
-                    <tbody><tr><td colspan="10" style="text-align:center;color:var(--text-light);padding:20px;">Cargando…</td></tr></tbody>
-                </table>
+                <table id="g00-tabla-tienda" class="disp-table"></table>
             </div>
         </div>
     </div>
@@ -555,12 +545,13 @@
         el.textContent = fmtPct(pct);
     }
 
-    function renderKpis(k, anio) {
-        document.getElementById('g00-kpi-anio-1').textContent = anio;
-        document.getElementById('g00-kpi-anio-2').textContent = anio;
-        animate(document.getElementById('g00-kpi-tiendas'), k.tiendas_actual, (n) => Math.round(n).toString());
-        animate(document.getElementById('g00-kpi-ticket'),  k.ticket_prom,    fmtMoneyFull);
-        animate(document.getElementById('g00-kpi-margen'),  k.margen_prom,    (n) => n.toFixed(2) + '%');
+    function renderKpis(k, anio, pfx) {
+        pfx = pfx || 'g00-kpi-';
+        document.getElementById(pfx+'anio-1').textContent = anio;
+        document.getElementById(pfx+'anio-2').textContent = anio;
+        animate(document.getElementById(pfx+'tiendas'), k.tiendas_actual, (n) => Math.round(n).toString());
+        animate(document.getElementById(pfx+'ticket'),  k.ticket_prom,    fmtMoneyFull);
+        animate(document.getElementById(pfx+'margen'),  k.margen_prom,    (n) => n.toFixed(2) + '%');
     }
 
     function showError(msg) {
@@ -625,95 +616,73 @@
             .then(r => r.json())
             .then(data => {
                 if (!data.ok) { hideLoading(); showError(data.error || 'Error cargando tiendas'); return; }
-                renderTreemapTiendas(data.tiendas);
-                renderTopTiendas(data.tiendas);
-                renderTablaTiendas(data.tiendas);
+                renderKpis(data.kpis, data.anio, 'g00t-kpi-');
+                renderTablaTienda(data.tiendas, data.anio);
                 tabState.tiendas = true;
                 hideLoading();
             })
             .catch(err => { hideLoading(); showError('No se pudo cargar tiendas: ' + err.message); });
     }
 
-    function renderTreemapTiendas(tiendas) {
-        const el = document.getElementById('g00-chart-treemap-tiendas');
-        if (!charts.treemapTiendas) charts.treemapTiendas = echarts.init(el);
-        if (!tiendas || tiendas.length === 0) {
-            charts.treemapTiendas.setOption({ title: { text: 'Sin datos en el período', left: 'center', top: 'middle', textStyle: { color: '#7b7894', fontSize: 13 } } }, true);
-            return;
+    // Tabla "Resumen Ventas Por Tienda": fila tienda (colapsable) → negocios REF-COLOR. Columnas como "Por Marca".
+    function renderTablaTienda(tiendas, anio) {
+        const a = anio, b = anio - 1;
+        let h = '<thead><tr>'
+            + '<th>Tienda / Negocio</th>'
+            + '<th class="num">'+b+'</th><th class="num">'+a+'</th><th class="num">Dif Q</th><th class="num">%Q</th>'
+            + '<th class="num">$'+b+'</th><th class="num">$'+a+'</th><th class="num">Dif $</th><th class="num">%$</th>'
+            + '<th class="num">MB</th><th class="num">$Prom '+b+'</th><th class="num">$Prom '+a+'</th>'
+            + '</tr></thead><tbody>';
+        if (!tiendas || !tiendas.length) {
+            h += '<tr><td colspan="12" style="text-align:center;color:var(--text-light);padding:20px;">Sin datos</td></tr></tbody>';
+            document.getElementById('g00-tabla-tienda').innerHTML = h; return;
         }
-        const data = tiendas.filter(t => t.actual > 0).map(t => ({
-            name: t.nombre || t.cod,
-            value: t.actual,
-            delta: t.delta_pct,
-            grupo: t.grupo,
-            ciudad: t.ciudad,
-            itemStyle: {
-                color: t.delta_pct >= 15 ? '#10b981'
-                     : t.delta_pct >= 0  ? '#4A4782'
-                     : t.delta_pct >= -15 ? '#f59e0b'
-                     : '#ef4444'
-            }
-        }));
-        charts.treemapTiendas.setOption({
-            tooltip: {
-                backgroundColor: 'rgba(45,43,78,0.95)', borderWidth: 0,
-                textStyle: { color: '#fff', fontFamily: 'Space Grotesk' },
-                formatter: (p) => {
-                    const d = p.data;
-                    return '<b>' + d.name + '</b><br/>'
-                        + (d.grupo ? 'Grupo: ' + d.grupo + '<br/>' : '')
-                        + (d.ciudad ? d.ciudad + '<br/>' : '')
-                        + 'Ventas: <b>' + fmtMoneyFull(d.value) + '</b><br/>'
-                        + 'Δ%: <b style="color:' + (d.delta >= 0 ? '#34d399' : '#ff6b80') + ';">' + fmtPct(d.delta) + '</b>';
-                }
-            },
-            series: [{
-                type: 'treemap', data: data, roam: false, nodeClick: false,
-                breadcrumb: { show: false },
-                label: { show: true, fontFamily: 'Space Grotesk', fontSize: 11, color: '#fff', formatter: (p) => p.name },
-                itemStyle: { borderColor: '#fff', borderWidth: 1, gapWidth: 2 },
-                animationDuration: 900
-            }]
-        }, true);
+        const tot = {ua:0,ub:0,va:0,vb:0};
+        tiendas.forEach((t, i) => {
+            tot.ua+=t.ups_act; tot.ub+=t.ups_ant; tot.va+=t.val_act; tot.vb+=t.val_ant;
+            const kids = (t.children||[]);
+            h += rowTienda(t, false, false, {idx:i, hasChildren:kids.length});
+            kids.forEach(k => { h += rowTienda(k, false, true, {parent:i}); });
+        });
+        const margenes = tiendas.map(t=>t.margen).filter(x=>x>0);
+        const mbTot = margenes.length ? margenes.reduce((x,y)=>x+y,0)/margenes.length : 0;
+        h += rowTienda({nombre:'Total',ups_act:tot.ua,ups_ant:tot.ub,val_act:tot.va,val_ant:tot.vb,margen:mbTot}, true, false);
+        h += '</tbody>';
+        document.getElementById('g00-tabla-tienda').innerHTML = h;
     }
-
-    function renderTopTiendas(tiendas) {
-        const tbody = document.querySelector('#g00-tabla-top-tiendas tbody');
-        const top = (tiendas || []).filter(t => t.actual > 0).slice(0, 10);
-        if (top.length === 0) { tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text-light);padding:20px;">Sin datos</td></tr>'; return; }
-        tbody.innerHTML = top.map(t => {
-            const cls = t.delta_pct >= 0 ? 'up' : 'down';
-            return '<tr>'
-                + '<td><strong>' + esc(t.nombre || t.cod) + '</strong><br/><span style="font-size:10px;color:var(--text-light);">' + esc(t.grupo) + '</span></td>'
-                + '<td style="font-size:12px;">' + esc(t.ciudad) + '</td>'
-                + '<td style="text-align:right;font-weight:600;">' + fmtMoney(t.actual) + '</td>'
-                + '<td style="text-align:right;"><span class="g00-kpi-delta ' + cls + '" style="font-size:10px;">' + fmtPct(t.delta_pct) + '</span></td>'
-                + '</tr>';
-        }).join('');
+    function rowTienda(r, isTotal, isChild, opts) {
+        opts = opts || {};
+        const pa = prom(r.val_act, r.ups_act), pb = prom(r.val_ant, r.ups_ant);
+        const cls = isTotal ? 'g00-total' : (isChild ? 'g00-tipo' : '');
+        const label = isChild ? r.negocio : (r.nombre || r.cod || '');
+        let trOpen, labelCell;
+        if (opts.parent != null) {                 // negocio (ref-color): oculto por defecto
+            trOpen = '<tr class="'+cls+'" data-tparent="'+opts.parent+'" style="display:none">';
+            labelCell = '<td>'+esc(label)+'</td>';
+        } else if (opts.hasChildren) {             // tienda con negocios: arranca colapsada
+            trOpen = '<tr class="'+cls+' g00-marca-row g00-collapsed" data-tienda="'+opts.idx+'" onclick="g00ToggleTienda('+opts.idx+',this)">';
+            labelCell = '<td><span class="g00-caret">▸</span>'+esc(label)+'</td>';
+        } else {                                   // total o tienda sin negocios
+            trOpen = '<tr class="'+cls+'">';
+            labelCell = '<td>'+esc(label)+'</td>';
+        }
+        return trOpen
+            + labelCell
+            + '<td class="num">'+fmtInt(r.ups_ant)+'</td><td class="num">'+fmtInt(r.ups_act)+'</td>'
+            + difCell(r.ups_act, r.ups_ant, fmtInt) + pctCell(r.ups_act, r.ups_ant)
+            + '<td class="num">'+fmtMoneyFull(r.val_ant)+'</td><td class="num">'+fmtMoneyFull(r.val_act)+'</td>'
+            + difCell(r.val_act, r.val_ant, fmtMoneyFull) + pctCell(r.val_act, r.val_ant)
+            + '<td class="num">'+(r.margen?r.margen.toFixed(2)+'%':'—')+'</td>'
+            + '<td class="num">'+fmtMoneyFull(pb)+'</td><td class="num">'+fmtMoneyFull(pa)+'</td>'
+            + '</tr>';
     }
-
-    function renderTablaTiendas(tiendas) {
-        const tbody = document.querySelector('#g00-tabla-tiendas tbody');
-        if (!tiendas || tiendas.length === 0) { tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:var(--text-light);padding:20px;">Sin datos</td></tr>'; return; }
-        tbody.innerHTML = tiendas.map(t => {
-            const cls = t.delta_pct >= 0 ? 'up' : 'down';
-            const estBadge = t.estado === 'ABIERTA'
-                ? '<span class="status status-vigente">ABIERTA</span>'
-                : (t.estado === 'CERRADA' ? '<span class="status status-rechazado">CERRADA</span>' : '<span style="color:var(--text-light);">—</span>');
-            return '<tr>'
-                + '<td style="font-weight:600;">' + esc(t.grupo) + '</td>'
-                + '<td>' + esc(t.cod) + '</td>'
-                + '<td>' + esc(t.nombre) + '</td>'
-                + '<td>' + esc(t.ciudad) + '</td>'
-                + '<td>' + esc(t.depto) + '</td>'
-                + '<td>' + estBadge + '</td>'
-                + '<td style="text-align:right;font-weight:600;">' + fmtMoneyFull(t.actual) + '</td>'
-                + '<td style="text-align:right;color:var(--text-light);">' + fmtMoneyFull(t.anterior) + '</td>'
-                + '<td style="text-align:right;"><span class="g00-kpi-delta ' + cls + '" style="font-size:10px;">' + fmtPct(t.delta_pct) + '</span></td>'
-                + '<td style="text-align:right;">' + fmtInt(t.ups_actual) + '</td>'
-                + '</tr>';
-        }).join('');
-    }
+    window.g00ToggleTienda = function (idx, el) {
+        const collapsed = el.classList.toggle('g00-collapsed');
+        document.querySelectorAll('#g00-tabla-tienda tr[data-tparent="'+idx+'"]')
+            .forEach(r => { r.style.display = collapsed ? 'none' : ''; });
+        const caret = el.querySelector('.g00-caret');
+        if (caret) caret.textContent = collapsed ? '▸' : '▾';
+    };
 
     // ============ LOAD: PERIODOS ============
     function loadPeriodos() {
