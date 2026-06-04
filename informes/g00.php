@@ -137,6 +137,9 @@
     table.disp-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
     table.disp-table tr.g00-total td { background: #fdf6e3; font-weight: 700; }
     table.disp-table tr.g00-tipo td:first-child { padding-left: 26px; color: var(--text-light); font-weight: 500; }
+    table.disp-table tr.g00-marca-row { cursor: pointer; }
+    table.disp-table tr.g00-marca-row:hover td { background: #faf9fe; }
+    .g00-caret { display: inline-block; width: 14px; color: var(--text-light); font-size: 10px; }
     table.disp-table .pos { color: var(--success); }
     table.disp-table .neg { color: var(--danger); }
 </style>
@@ -589,7 +592,7 @@
                 const r0 = data.rango || {};
                 document.getElementById('pageSubtitle').textContent = r0.desde_actual
                     ? fmtFechaLarga(r0.desde_actual) + ' al ' + fmtFechaLarga(r0.hasta_actual)
-                      + ' (vs mismo período ' + (r0.hasta_anterior ? r0.hasta_anterior.slice(0, 4) : '') + ')'
+                      + ' (vs ' + fmtFechaLarga(r0.desde_anterior) + ' al ' + fmtFechaLarga(r0.hasta_anterior) + ')'
                     : 'Datos al ' + new Date(data.generado).toLocaleDateString('es-CO');
                 renderKpis(data.kpis, data.anio);
                 renderTablaGrupo(data.por_grupo, data.anio);
@@ -964,10 +967,11 @@
             + '<th class="num">MB</th><th class="num">$Prom '+b+'</th><th class="num">$Prom '+a+'</th>'
             + '</tr></thead><tbody>';
         const tot = {ua:0,ub:0,va:0,vb:0};
-        (rows||[]).forEach(m => {
+        (rows||[]).forEach((m, i) => {
             tot.ua+=m.ups_act; tot.ub+=m.ups_ant; tot.va+=m.val_act; tot.vb+=m.val_ant;
-            h += rowMarca(m, false, false);
-            (m.children||[]).forEach(t => { h += rowMarca(t, false, true); });
+            const kids = (m.children||[]);
+            h += rowMarca(m, false, false, {idx:i, hasChildren:kids.length});
+            kids.forEach(t => { h += rowMarca(t, false, true, {parent:i}); });
         });
         const margenes = (rows||[]).map(r=>r.margen).filter(x=>x>0);
         const mbTot = margenes.length ? margenes.reduce((x,y)=>x+y,0)/margenes.length : 0;
@@ -975,11 +979,23 @@
         h += '</tbody>';
         document.getElementById('g00-tabla-marca').innerHTML = h;
     }
-    function rowMarca(r, isTotal, isTipo) {
+    function rowMarca(r, isTotal, isTipo, opts) {
+        opts = opts || {};
         const pa = prom(r.val_act, r.ups_act), pb = prom(r.val_ant, r.ups_ant);
         const cls = isTotal ? 'g00-total' : (isTipo ? 'g00-tipo' : '');
-        return '<tr class="'+cls+'">'
-            + '<td>'+esc(r.label)+'</td>'
+        let trOpen, labelCell;
+        if (opts.parent != null) {                 // fila hija (tipo): se oculta/muestra al colapsar
+            trOpen = '<tr class="'+cls+'" data-parent="'+opts.parent+'">';
+            labelCell = '<td>'+esc(r.label)+'</td>';
+        } else if (opts.hasChildren) {             // fila marca con hijos: clic colapsa
+            trOpen = '<tr class="'+cls+' g00-marca-row" data-marca="'+opts.idx+'" onclick="g00ToggleMarca('+opts.idx+',this)">';
+            labelCell = '<td><span class="g00-caret">▾</span>'+esc(r.label)+'</td>';
+        } else {                                   // total o marca sin hijos
+            trOpen = '<tr class="'+cls+'">';
+            labelCell = '<td>'+esc(r.label)+'</td>';
+        }
+        return trOpen
+            + labelCell
             + '<td class="num">'+fmtInt(r.ups_ant)+'</td><td class="num">'+fmtInt(r.ups_act)+'</td>'
             + difCell(r.ups_act, r.ups_ant, fmtInt) + pctCell(r.ups_act, r.ups_ant)
             + '<td class="num">'+fmtMoneyFull(r.val_ant)+'</td><td class="num">'+fmtMoneyFull(r.val_act)+'</td>'
@@ -988,6 +1004,13 @@
             + '<td class="num">'+fmtMoneyFull(pb)+'</td><td class="num">'+fmtMoneyFull(pa)+'</td>'
             + '</tr>';
     }
+    window.g00ToggleMarca = function (idx, el) {
+        const collapsed = el.classList.toggle('g00-collapsed');
+        document.querySelectorAll('#g00-tabla-marca tr[data-parent="'+idx+'"]')
+            .forEach(r => { r.style.display = collapsed ? 'none' : ''; });
+        const caret = el.querySelector('.g00-caret');
+        if (caret) caret.textContent = collapsed ? '▸' : '▾';
+    };
 
     function renderTablaMensual(rows, anio) {
         const a = anio, b = anio - 1;
