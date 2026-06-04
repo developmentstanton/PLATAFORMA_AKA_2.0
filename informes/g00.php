@@ -23,11 +23,16 @@
 
     /* Barra de filtros del informe */
     .g00-filters {
-        display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+        display:flex; flex-direction:column; gap:10px;
         background: white; border: 1px solid var(--border); border-radius: 10px;
         padding: 12px 16px; margin-bottom: 18px;
     }
-    .g00-filters .filter-group { display: flex; align-items: center; gap: 6px; }
+    .g00-filter-row { display:flex; flex-wrap:wrap; gap:8px; align-items:flex-end;
+        padding-bottom:10px; border-bottom:1px solid var(--border); }
+    .g00-filter-row:last-child { border-bottom:none; padding-bottom:0; }
+    .g00-md { display:flex; gap:4px; }
+    .g00-md select { min-width:56px; }
+    .g00-filters .filter-group { display: flex; flex-direction: column; gap: 4px; }
     .g00-filters label {
         font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px;
         color: var(--text-light); font-weight: 600;
@@ -157,35 +162,62 @@
 
     <!-- ============ FILTROS ============ -->
     <div class="g00-filters">
-        <div class="filter-group"><label>Desde</label><input type="date" id="g00-filtro-desde"></div>
-        <div class="filter-group"><label>Hasta</label><input type="date" id="g00-filtro-hasta"></div>
-        <div class="divider"></div>
-        <div class="filter-group"><label>Marca</label><select id="g00-f-marca" multiple></select></div>
-        <div class="filter-group"><label>Tipo</label><select id="g00-f-tipo" multiple></select></div>
-        <div class="filter-group"><label>Categoría</label><select id="g00-f-categoria" multiple></select></div>
-        <div class="filter-group"><label>Subcategoría</label><select id="g00-f-subcategoria" multiple></select></div>
-        <div class="filter-group"><label>Género</label><select id="g00-f-genero" multiple></select></div>
-        <div class="filter-group"><label>Público</label><select id="g00-f-publico" multiple></select></div>
-        <div class="filter-group"><label>Referencia</label><select id="g00-f-referencia" multiple></select></div>
-        <div class="filter-group"><label>Departamento</label><select id="g00-f-depto" multiple></select></div>
-        <div class="filter-group"><label>Ciudad</label><select id="g00-f-ciudad" multiple></select></div>
-        <div class="divider"></div>
-        <div class="filter-group">
-            <label>Calendario</label>
-            <div class="g00-seg" id="g00-cal">
-                <button type="button" class="g00-seg-btn active" data-val="diaadia">Día a Día</button>
-                <button type="button" class="g00-seg-btn" data-val="retail">Retail</button>
+        <!-- Fila 1: tiempo -->
+        <div class="g00-filter-row">
+            <div class="filter-group">
+                <label>Desde</label>
+                <div class="g00-md">
+                    <select id="g00-desde-mes"><?php for($m=1;$m<=12;$m++) printf('<option value="%02d"%s>%02d</option>',$m,$m==1?' selected':'',$m); ?></select>
+                    <select id="g00-desde-dia"><?php for($d=1;$d<=31;$d++) printf('<option value="%02d"%s>%02d</option>',$d,$d==1?' selected':'',$d); ?></select>
+                </div>
+            </div>
+            <div class="filter-group">
+                <label>Hasta</label>
+                <div class="g00-md">
+                    <select id="g00-hasta-mes"><?php $cm=(int)date('n'); for($m=1;$m<=12;$m++) printf('<option value="%02d"%s>%02d</option>',$m,$m==$cm?' selected':'',$m); ?></select>
+                    <select id="g00-hasta-dia"><?php $cd=(int)date('j'); for($d=1;$d<=31;$d++) printf('<option value="%02d"%s>%02d</option>',$d,$d==$cd?' selected':'',$d); ?></select>
+                </div>
+            </div>
+            <div class="filter-group">
+                <label>Calendario</label>
+                <div class="g00-seg" id="g00-cal">
+                    <button type="button" class="g00-seg-btn active" data-val="diaadia">Día a Día</button>
+                    <button type="button" class="g00-seg-btn" data-val="retail">Retail</button>
+                </div>
+            </div>
+            <div class="filter-group">
+                <label>S.S.S</label>
+                <div class="g00-seg" id="g00-sss">
+                    <button type="button" class="g00-seg-btn active" data-val="nosame">No Same</button>
+                    <button type="button" class="g00-seg-btn" data-val="same">Same</button>
+                </div>
+            </div>
+            <div style="margin-left:auto;align-self:flex-end;">
+                <button class="g00-btn-refresh" onclick="g00Load()"><i class="fa-solid fa-filter"></i> Aplicar</button>
             </div>
         </div>
-        <div class="filter-group">
-            <label>S.S.S</label>
-            <div class="g00-seg" id="g00-sss">
-                <button type="button" class="g00-seg-btn active" data-val="nosame">No Same</button>
-                <button type="button" class="g00-seg-btn" data-val="same">Same</button>
-            </div>
+        <!-- Fila 2: criterios de referencia -->
+        <div class="g00-filter-row">
+            <div class="filter-group"><label>Marca</label><select id="g00-f-marca" multiple></select></div>
+            <div class="filter-group"><label>Tipo</label><select id="g00-f-tipo" multiple></select></div>
+            <div class="filter-group"><label>Categoría</label><select id="g00-f-categoria" multiple></select></div>
+            <div class="filter-group"><label>Subcategoría</label><select id="g00-f-subcategoria" multiple></select></div>
+            <div class="filter-group"><label>Género</label><select id="g00-f-genero" multiple></select></div>
+            <div class="filter-group"><label>Público</label><select id="g00-f-publico" multiple></select></div>
+            <div class="filter-group"><label>Referencia</label><select id="g00-f-referencia" multiple></select></div>
         </div>
-        <div style="margin-left:auto;">
-            <button class="g00-btn-refresh" onclick="g00Load()"><i class="fa-solid fa-filter"></i> Aplicar</button>
+        <!-- Fila 3: color / talla -->
+        <div class="g00-filter-row">
+            <div class="filter-group"><label>Color</label><select id="g00-f-color" multiple></select></div>
+            <div class="filter-group"><label>Talla</label><select id="g00-f-talla" multiple></select></div>
+        </div>
+        <!-- Fila 4: criterios de bodega -->
+        <div class="g00-filter-row">
+            <div class="filter-group"><label>Grupo</label><select id="g00-f-grupo" multiple></select></div>
+            <div class="filter-group"><label>Tienda</label><select id="g00-f-tienda" multiple></select></div>
+            <div class="filter-group"><label>Centro comercial</label><select id="g00-f-centro_comercial" multiple></select></div>
+            <div class="filter-group"><label>Departamento</label><select id="g00-f-depto" multiple></select></div>
+            <div class="filter-group"><label>Ciudad</label><select id="g00-f-ciudad" multiple></select></div>
         </div>
     </div>
 
