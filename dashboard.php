@@ -177,6 +177,17 @@
             display: inline-flex; align-items: center; gap: 7px;
         }
         .topbar-action:hover { filter: brightness(0.92); }
+        .topbar-actions { display: flex; align-items: center; gap: 10px; }
+        /* Modo G00: 3 secciones (tabla fechas | titulo centrado | botones) */
+        .topbar.topbar--g00 { display: grid; grid-template-columns: auto 1fr auto; gap: 16px; }
+        .topbar.topbar--g00 .topbar-titles { align-items: center; text-align: center; }
+        .topbar-dates table { border-collapse: collapse; }
+        .topbar-dates th {
+            font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px;
+            color: var(--text-light); font-weight: 700; padding: 0 10px 2px; text-align: left;
+        }
+        .topbar-dates td { font-size: 11px; color: var(--text); padding: 1px 10px; white-space: nowrap; }
+        .topbar-dates td.ant { color: var(--text-light); }
         .notification-btn {
             position: relative; background: var(--bg); border: none; width: 38px; height: 38px;
             border-radius: 8px; cursor: pointer; font-size: 16px;
@@ -535,12 +546,13 @@
     </aside>
 
     <div class="main">
-        <div class="topbar">
+        <div class="topbar" id="topbar">
+            <div id="topbarDates" class="topbar-dates" style="display:none;"></div>
             <div class="topbar-titles">
                 <h2 id="pageTitle">DASHBOARD</h2>
                 <div id="pageSubtitle" class="topbar-subtitle" style="display:none;"></div>
             </div>
-            <div style="display:flex;align-items:center;gap:10px;">
+            <div class="topbar-actions">
                 <button id="topbarG00Refresh" class="topbar-action" style="display:none;" onclick="g00Load()">
                     <i class="fa-solid fa-arrows-rotate"></i> Actualizar
                 </button>
@@ -1207,6 +1219,8 @@
         // Extras del topbar exclusivos de G00: se ocultan al cambiar de página (g00OnEnter los reactiva).
         document.getElementById('pageSubtitle').style.display = 'none';
         document.getElementById('topbarG00Refresh').style.display = 'none';
+        document.getElementById('topbar').classList.remove('topbar--g00');
+        document.getElementById('topbarDates').style.display = 'none';
         if (pageId === 'informes-g00' && typeof g00OnEnter === 'function') g00OnEnter();
         if (pageId === 'informes-o14' && typeof o14OnEnter === 'function') o14OnEnter();
         updateAgentContext(pageId);

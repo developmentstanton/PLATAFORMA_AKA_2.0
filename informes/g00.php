@@ -142,6 +142,17 @@
     .g00-caret { display: inline-block; width: 14px; color: var(--text-light); font-size: 10px; }
     table.disp-table .pos { color: var(--success); }
     table.disp-table .neg { color: var(--danger); }
+
+    /* Compactación + fuente reducida del informe G00 (acotado a #page-informes-g00, no afecta O14) */
+    #page-informes-g00 { font-size: 13px; }
+    #page-informes-g00 .g00-filters { padding: 8px 12px; gap: 6px; margin-bottom: 10px; }
+    #page-informes-g00 .g00-filter-row { padding-bottom: 6px; }
+    #page-informes-g00 .card { margin-bottom: 10px; }
+    #page-informes-g00 .stats-grid { margin-bottom: 14px; }
+    #page-informes-g00 .g00-kpi-value { font-size: 22px; }
+    #page-informes-g00 .card-title { font-size: 13px; }
+    #page-informes-g00 table.disp-table th,
+    #page-informes-g00 table.disp-table td { font-size: 11px; }
 </style>
 
 <div class="page" id="page-informes-g00">
@@ -222,20 +233,17 @@
 
         <!-- Franja de 3 KPIs (estilo Power BI) -->
         <div class="stats-grid" style="grid-template-columns: repeat(3, 1fr);">
-            <div class="g00-kpi accent">
+            <div class="g00-kpi accent" title="bodegas con venta">
                 <div class="g00-kpi-head"><span class="g00-kpi-label">Tiendas <span id="g00-kpi-anio-1">—</span></span></div>
                 <div class="g00-kpi-value" id="g00-kpi-tiendas"><span class="g00-skeleton" style="width:60px;height:26px;"></span></div>
-                <div class="g00-kpi-sub">bodegas con venta</div>
             </div>
-            <div class="g00-kpi success">
+            <div class="g00-kpi success" title="$ por par (valor ÷ unidades)">
                 <div class="g00-kpi-head"><span class="g00-kpi-label">$ Prom <span id="g00-kpi-anio-2">—</span></span></div>
                 <div class="g00-kpi-value" id="g00-kpi-ticket"><span class="g00-skeleton" style="width:100px;height:26px;"></span></div>
-                <div class="g00-kpi-sub">$ por par (valor ÷ unidades)</div>
             </div>
-            <div class="g00-kpi warning">
+            <div class="g00-kpi warning" title="margen %">
                 <div class="g00-kpi-head"><span class="g00-kpi-label">MB</span></div>
                 <div class="g00-kpi-value" id="g00-kpi-margen"><span class="g00-skeleton" style="width:70px;height:26px;"></span></div>
-                <div class="g00-kpi-sub">margen %</div>
             </div>
         </div>
 
@@ -507,6 +515,16 @@
         const dt = new Date(y, m - 1, d);   // fecha local, sin corrimiento por UTC
         return DIAS_SEM[dt.getDay()] + ' ' + String(d).padStart(2, '0') + ' de ' + MESES_ES[m - 1] + ' de ' + y;
     }
+    // Tabla 2x3 del topbar: encabezados Desde/Hasta, fila año actual, fila año anterior.
+    function renderTopbarDates(r) {
+        const f = (iso) => iso ? fmtFechaLarga(iso) : '…';
+        const ra = r || {};
+        return '<table>'
+            + '<tr><th>Desde</th><th>Hasta</th></tr>'
+            + '<tr><td>' + f(ra.desde_actual) + '</td><td>' + f(ra.hasta_actual) + '</td></tr>'
+            + '<tr><td class="ant">' + f(ra.desde_anterior) + '</td><td class="ant">' + f(ra.hasta_anterior) + '</td></tr>'
+            + '</table>';
+    }
 
     const fmtMoney = (n) => {
         if (!n) return '$0';
@@ -589,11 +607,7 @@
                 const banner = host.querySelector('.g00-error'); if (banner) banner.remove();
                 proveedorActual = data.proveedor || '';
                 document.getElementById('pageTitle').textContent = 'DASHBOARD DE VENTAS - ' + (data.proveedor || '—');
-                const r0 = data.rango || {};
-                document.getElementById('pageSubtitle').textContent = r0.desde_actual
-                    ? fmtFechaLarga(r0.desde_actual) + ' al ' + fmtFechaLarga(r0.hasta_actual)
-                      + ' vs ' + fmtFechaLarga(r0.desde_anterior) + ' al ' + fmtFechaLarga(r0.hasta_anterior)
-                    : 'Datos al ' + new Date(data.generado).toLocaleDateString('es-CO');
+                document.getElementById('topbarDates').innerHTML = renderTopbarDates(data.rango || {});
                 renderKpis(data.kpis, data.anio);
                 renderTablaGrupo(data.por_grupo, data.anio);
                 renderTablaMarcaTipo(data.por_marca, data.anio);
@@ -1055,11 +1069,13 @@
 
     let filtrosInit = false;
     window.g00OnEnter = function () {
-        // Encabezado del informe vive en el topbar: título destacado + período + botón Actualizar.
+        // Encabezado del informe vive en el topbar: 3 secciones (tabla fechas | título centrado | botones).
         const prov = proveedorActual || window.PROVEEDOR_ACTUAL || '—';
         document.getElementById('pageTitle').textContent = 'DASHBOARD DE VENTAS - ' + prov;
-        const sub = document.getElementById('pageSubtitle');
-        sub.style.display = ''; sub.textContent = 'Cargando período…';
+        document.getElementById('topbar').classList.add('topbar--g00');
+        document.getElementById('pageSubtitle').style.display = 'none';
+        const dt = document.getElementById('topbarDates');
+        dt.style.display = ''; dt.innerHTML = renderTopbarDates(null);
         document.getElementById('topbarG00Refresh').style.display = '';
         if (!filtrosInit) { initFiltros(); filtrosInit = true; }
         if (!tabState.detal) loadDetal();
