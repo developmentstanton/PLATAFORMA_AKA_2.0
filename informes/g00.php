@@ -300,17 +300,9 @@
     <!-- ============ TAB VENTAS POR PERIODOS ============ -->
     <div class="g00-tab-panel" id="g00-panel-periodos">
         <div class="card">
-            <div class="card-title">Heatmap Calendario <span style="color:var(--text-light);font-weight:500;">&mdash; intensidad de ventas por día</span></div>
-            <div id="g00-chart-calendar" style="width:100%;height:260px;"></div>
-        </div>
-        <div class="grid-2" style="grid-template-columns: 1fr 1fr;">
-            <div class="card">
-                <div class="card-title">Ventas por Día de la Semana</div>
-                <div id="g00-chart-dow" style="width:100%;height:300px;"></div>
-            </div>
-            <div class="card">
-                <div class="card-title">Tendencia Diaria <span style="color:var(--text-light);font-weight:500;">&mdash; evolución del rango</span></div>
-                <div id="g00-chart-tendencia" style="width:100%;height:300px;"></div>
+            <div class="card-title">Ventas Por Periodos <span style="color:var(--text-light);font-weight:500;">&mdash; clic para desglosar Semestre → Trimestre → Mes → Día</span></div>
+            <div style="overflow-x:auto;">
+                <table id="g00-tabla-periodos" class="disp-table"></table>
             </div>
         </div>
     </div>
@@ -691,100 +683,105 @@
             .then(r => r.json())
             .then(data => {
                 if (!data.ok) { hideLoading(); showError(data.error || 'Error cargando periodos'); return; }
-                renderCalendar(data.diario, data.rango);
-                renderDow(data.por_dow);
-                renderTendencia(data.diario);
+                renderTablaPeriodos(buildArbolPeriodos(data.dias), data.anio);
                 tabState.periodos = true;
                 hideLoading();
             })
             .catch(err => { hideLoading(); showError('No se pudo cargar periodos: ' + err.message); });
     }
 
-    function renderCalendar(diario, rango) {
-        const el = document.getElementById('g00-chart-calendar');
-        if (!charts.calendar) charts.calendar = echarts.init(el);
-        const data = (diario || []).map(d => [d.dia, d.valor]);
-        const values = data.map(d => d[1]);
-        const max = values.length ? Math.max(...values) : 0;
-        const rangeStart = rango.desde;
-        const rangeEnd = rango.hasta;
-        charts.calendar.setOption({
-            tooltip: {
-                backgroundColor: 'rgba(45,43,78,0.95)', borderWidth: 0,
-                textStyle: { color: '#fff', fontFamily: 'Space Grotesk' },
-                formatter: (p) => '<b>' + p.value[0] + '</b><br/>Ventas: <b>' + fmtMoneyFull(p.value[1]) + '</b>'
-            },
-            visualMap: {
-                min: 0, max: max || 1,
-                calculable: false, orient: 'horizontal', left: 'center', bottom: 0,
-                inRange: { color: ['#f0eff5', '#c9c7dd', '#4A4782', '#ff001e'] },
-                textStyle: { color: '#7b7894', fontFamily: 'Space Grotesk', fontSize: 10 }
-            },
-            calendar: {
-                top: 30, left: 40, right: 20, bottom: 40,
-                range: [rangeStart, rangeEnd],
-                cellSize: ['auto', 14],
-                itemStyle: { borderColor: '#fff', borderWidth: 1 },
-                splitLine: { show: false },
-                dayLabel: { color: '#7b7894', fontFamily: 'Space Grotesk', fontSize: 10, nameMap: ['D','L','M','M','J','V','S'] },
-                monthLabel: { color: '#2d2b4e', fontFamily: 'Space Grotesk', fontSize: 11, fontWeight: 600, nameMap: ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'] },
-                yearLabel: { show: false }
-            },
-            series: [{ type: 'heatmap', coordinateSystem: 'calendar', data: data, animationDuration: 900 }]
-        }, true);
+    // Arma el árbol Semestre→Trimestre→Mes→Día desde dias[] (cada día con act/ant, uds y $).
+    function buildArbolPeriodos(dias) {
+        const blank = () => ({va:0,vb:0,ua:0,ub:0});
+        const add = (o,d) => { o.va+=d.val_act; o.vb+=d.val_ant; o.ua+=d.ups_act; o.ub+=d.ups_ant; };
+        const sems = {}; const tot = blank();
+        (dias||[]).forEach(d => {
+            const sem = d.mes <= 6 ? 1 : 2, tri = Math.ceil(d.mes/3);
+            sems[sem] = sems[sem] || {m:blank(), tris:{}};
+            add(sems[sem].m, d);
+            const S = sems[sem];
+            S.tris[tri] = S.tris[tri] || {m:blank(), meses:{}};
+            add(S.tris[tri].m, d);
+            const T = S.tris[tri];
+            T.meses[d.mes] = T.meses[d.mes] || {m:blank(), dias:{}};
+            add(T.meses[d.mes].m, d);
+            const M = T.meses[d.mes];
+            M.dias[d.dia] = M.dias[d.dia] || {m:blank()};
+            add(M.dias[d.dia].m, d);
+            add(tot, d);
+        });
+        return {sems, tot};
     }
 
-    function renderDow(porDow) {
-        const el = document.getElementById('g00-chart-dow');
-        if (!charts.dow) charts.dow = echarts.init(el);
-        const labels = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
-        const vals = [0,0,0,0,0,0,0];
-        (porDow || []).forEach(r => { if (r.dow >= 1 && r.dow <= 7) vals[r.dow - 1] = r.valor; });
-        charts.dow.setOption({
-            color: ['#4A4782'],
-            tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' },
-                backgroundColor: 'rgba(45,43,78,0.95)', borderWidth: 0,
-                textStyle: { color: '#fff', fontFamily: 'Space Grotesk' },
-                formatter: (p) => '<b>' + p[0].axisValue + '</b><br/>' + fmtMoneyFull(p[0].value) },
-            grid: { left: 55, right: 18, top: 22, bottom: 24 },
-            xAxis: { type: 'category', data: labels, axisLine: { lineStyle: { color: '#e0dfe8' } }, axisLabel: { color: '#7b7894', fontFamily: 'Space Grotesk', fontSize: 11 } },
-            yAxis: { type: 'value', axisLine: { show: false }, splitLine: { lineStyle: { color: '#f0eff5' } }, axisLabel: { color: '#7b7894', fontFamily: 'Space Grotesk', fontSize: 10, formatter: fmtMoney } },
-            series: [{
-                type: 'bar', data: vals, barWidth: 28,
-                itemStyle: { borderRadius: [6,6,0,0],
-                    color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-                        { offset: 0, color: '#5c59a0' }, { offset: 1, color: '#4A4782' }
-                    ])
-                },
-                animationDuration: 900, animationDelay: (i) => i * 80
-            }]
-        }, true);
+    const share = (x, d) => d > 0 ? (x / d * 100).toFixed(1) + '%' : '—';
+    function rowPeriodo(id, pid, lvl, label, m, tot, hasChildren) {
+        const pad = 'padding-left:' + (4 + (lvl-1)*18) + 'px;';
+        const disp = lvl === 1 ? '' : 'display:none;';
+        const cls = (lvl === 4 ? 'g00-tipo' : '') + (hasChildren ? ' g00-marca-row g00-collapsed' : '');
+        const onclk = hasChildren ? ' onclick="g00TogglePeriodo(' + id + ',this)"' : '';
+        const caret = hasChildren ? '<span class="g00-caret">▸</span>' : '';
+        return '<tr class="' + cls.trim() + '" data-rid="' + id + '" data-pid="' + (pid==null?'':pid) + '" data-lvl="' + lvl + '" style="' + disp + '"' + onclk + '>'
+            + '<td style="' + pad + '">' + caret + esc(label) + '</td>'
+            + '<td class="num">' + fmtInt(m.ub) + '</td><td class="num">' + share(m.ub, tot.ub) + '</td>'
+            + '<td class="num">' + fmtInt(m.ua) + '</td><td class="num">' + share(m.ua, tot.ua) + '</td>'
+            + pctCell(m.ua, m.ub)
+            + '<td class="num">' + fmtMoneyFull(m.vb) + '</td><td class="num">' + share(m.vb, tot.vb) + '</td>'
+            + '<td class="num">' + fmtMoneyFull(m.va) + '</td><td class="num">' + share(m.va, tot.va) + '</td>'
+            + pctCell(m.va, m.vb)
+            + '</tr>';
     }
-
-    function renderTendencia(diario) {
-        const el = document.getElementById('g00-chart-tendencia');
-        if (!charts.tendencia) charts.tendencia = echarts.init(el);
-        const labels = (diario || []).map(d => d.dia);
-        const vals = (diario || []).map(d => d.valor);
-        charts.tendencia.setOption({
-            color: ['#ff001e'],
-            tooltip: { trigger: 'axis',
-                backgroundColor: 'rgba(45,43,78,0.95)', borderWidth: 0,
-                textStyle: { color: '#fff', fontFamily: 'Space Grotesk' },
-                formatter: (p) => '<b>' + p[0].axisValue + '</b><br/>' + fmtMoneyFull(p[0].value) },
-            grid: { left: 55, right: 18, top: 22, bottom: 28 },
-            xAxis: { type: 'category', data: labels, axisLine: { lineStyle: { color: '#e0dfe8' } }, axisLabel: { color: '#7b7894', fontFamily: 'Space Grotesk', fontSize: 10, showMaxLabel: true } },
-            yAxis: { type: 'value', axisLine: { show: false }, splitLine: { lineStyle: { color: '#f0eff5' } }, axisLabel: { color: '#7b7894', fontFamily: 'Space Grotesk', fontSize: 10, formatter: fmtMoney } },
-            series: [{
-                type: 'line', data: vals, smooth: true, symbol: 'none',
-                lineStyle: { width: 2 },
-                areaStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-                    { offset: 0, color: 'rgba(255,0,30,0.28)' }, { offset: 1, color: 'rgba(255,0,30,0.02)' }
-                ]) },
-                animationDuration: 1000
-            }]
-        }, true);
+    function renderTablaPeriodos(arbol, anio) {
+        const a = anio, b = anio - 1;
+        let h = '<thead><tr>'
+            + '<th>Periodo</th>'
+            + '<th class="num">Cant '+b+'</th><th class="num">%'+b+'</th><th class="num">Cant '+a+'</th><th class="num">%'+a+'</th><th class="num">Var%</th>'
+            + '<th class="num">$ '+b+'</th><th class="num">%'+b+'</th><th class="num">$ '+a+'</th><th class="num">%'+a+'</th><th class="num">Var%</th>'
+            + '</tr></thead><tbody>';
+        const T = arbol.tot;
+        const semKeys = Object.keys(arbol.sems).map(Number).sort((x,y)=>x-y);
+        if (!semKeys.length) {
+            h += '<tr><td colspan="11" style="text-align:center;color:var(--text-light);padding:20px;">Sin datos</td></tr></tbody>';
+            document.getElementById('g00-tabla-periodos').innerHTML = h; return;
+        }
+        let id = 0;
+        semKeys.forEach(sem => {
+            const S = arbol.sems[sem]; const sid = ++id;
+            h += rowPeriodo(sid, null, 1, 'Semestre ' + sem, S.m, T, true);
+            Object.keys(S.tris).map(Number).sort((x,y)=>x-y).forEach(tri => {
+                const Tq = S.tris[tri]; const tid = ++id;
+                h += rowPeriodo(tid, sid, 2, 'Trimestre ' + tri, Tq.m, T, true);
+                Object.keys(Tq.meses).map(Number).sort((x,y)=>x-y).forEach(mes => {
+                    const M = Tq.meses[mes]; const mid = ++id;
+                    h += rowPeriodo(mid, tid, 3, MESES_ES[mes-1], M.m, T, true);
+                    Object.keys(M.dias).map(Number).sort((x,y)=>x-y).forEach(dia => {
+                        h += rowPeriodo(++id, mid, 4, MESES_ES[mes-1] + '-' + String(dia).padStart(2,'0'), M.dias[dia].m, T, false);
+                    });
+                });
+            });
+        });
+        h += '<tr class="g00-total"><td>Total</td>'
+            + '<td class="num">'+fmtInt(T.ub)+'</td><td class="num">100%</td><td class="num">'+fmtInt(T.ua)+'</td><td class="num">100%</td>'+pctCell(T.ua,T.ub)
+            + '<td class="num">'+fmtMoneyFull(T.vb)+'</td><td class="num">100%</td><td class="num">'+fmtMoneyFull(T.va)+'</td><td class="num">100%</td>'+pctCell(T.va,T.vb)
+            + '</tr></tbody>';
+        document.getElementById('g00-tabla-periodos').innerHTML = h;
     }
+    window.g00TogglePeriodo = function (id, el) {
+        const collapsed = el.classList.toggle('g00-collapsed');
+        const caret = el.querySelector('.g00-caret'); if (caret) caret.textContent = collapsed ? '▸' : '▾';
+        const tbl = document.getElementById('g00-tabla-periodos');
+        if (collapsed) {
+            const hideKids = (pid) => {
+                tbl.querySelectorAll('tr[data-pid="' + pid + '"]').forEach(r => {
+                    r.style.display = 'none'; r.classList.add('g00-collapsed');
+                    const c = r.querySelector('.g00-caret'); if (c) c.textContent = '▸';
+                    hideKids(r.getAttribute('data-rid'));
+                });
+            };
+            hideKids(id);
+        } else {
+            tbl.querySelectorAll('tr[data-pid="' + id + '"]').forEach(r => { r.style.display = ''; });
+        }
+    };
 
     // ============ LOAD: PRODUCTOS ============
     function loadProductos() {
