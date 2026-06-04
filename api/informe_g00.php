@@ -587,9 +587,14 @@ $mensGmax = max($mensHasA, $mensHasB);
 $mesAntExpr = $shiftToActualDays > 0
     ? "MONTH(DATEADD(DAY, $shiftToActualDays, FECHA))"
     : "MONTH(FECHA)";
+// El mes se calcula UNA sola vez dentro del CTE (alias `mes`) y se agrupa por ese alias.
+// Antes el mismo CASE se repetía en SELECT y en GROUP BY; como cada uno usa marcadores `?`
+// distintos, SQL Server no los reconoce como la misma expresión y lanza el error 8120
+// ('FECHA' inválida fuera de agregado/GROUP BY). Con el alias, el GROUP BY no lleva params.
 $sqlMensual = cteVentas() . "
     , vm AS (
-        SELECT v.FECHA, v.CANTIDAD, v.VALOR
+        SELECT v.FECHA, v.CANTIDAD, v.VALOR,
+               CASE WHEN v.FECHA BETWEEN ? AND ? THEN MONTH(v.FECHA) ELSE $mesAntExpr END AS mes
         FROM ventas v
         INNER JOIN #refs i                                 ON i.REFERENCIA = v.REFERENCIA
         LEFT  JOIN INTEGRACION.dbo.Bodegas b WITH (NOLOCK) ON b.COD = v.BODEGA AND b.CIA = 7
@@ -598,23 +603,22 @@ $sqlMensual = cteVentas() . "
           $sameStoreClause
     )
     SELECT
-        CASE WHEN FECHA BETWEEN ? AND ? THEN MONTH(FECHA) ELSE $mesAntExpr END AS mes,
+        mes,
         SUM(CASE WHEN FECHA BETWEEN ? AND ? THEN VALOR    ELSE 0 END) AS val_act,
         SUM(CASE WHEN FECHA BETWEEN ? AND ? THEN VALOR    ELSE 0 END) AS val_ant,
         SUM(CASE WHEN FECHA BETWEEN ? AND ? THEN CANTIDAD ELSE 0 END) AS ups_act,
         SUM(CASE WHEN FECHA BETWEEN ? AND ? THEN CANTIDAD ELSE 0 END) AS ups_ant
     FROM vm
-    GROUP BY (CASE WHEN FECHA BETWEEN ? AND ? THEN MONTH(FECHA) ELSE $mesAntExpr END)
+    GROUP BY mes
 ";
 $pMensual = array_merge(
     [$mensGmin, $mensGmax, $mensGmin, $mensGmax],   // cte pushdown
-    [$mensDesA, $mensHasA, $mensDesB, $mensHasB],   // vm OR-filter (act, ant)
+    [$mensDesA, $mensHasA],                          // vm: CASE mes (rango act)
+    [$mensDesA, $mensHasA, $mensDesB, $mensHasB],   // vm WHERE OR-filter (act, ant)
     $paramsExtra,
     $sameStoreParams,
-    [$mensDesA, $mensHasA],                          // SELECT CASE mes (act)
     [$mensDesA, $mensHasA, $mensDesB, $mensHasB,     // val_act / val_ant
-     $mensDesA, $mensHasA, $mensDesB, $mensHasB],    // ups_act / ups_ant
-    [$mensDesA, $mensHasA]                           // GROUP BY CASE mes (act)
+     $mensDesA, $mensHasA, $mensDesB, $mensHasB]     // ups_act / ups_ant
 );
 $mensual = run($dbConnect, $sqlMensual, $pMensual);
 if (isset($mensual['error'])) jsonFail($mensual, $dbConnect);
