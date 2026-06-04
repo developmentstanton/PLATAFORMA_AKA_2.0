@@ -143,24 +143,6 @@
 
 <div class="page" id="page-informes-g00">
 
-    <!-- ============ HEADER ============ -->
-    <div class="informe-header">
-        <div class="informe-meta">
-            <div class="informe-code">G00</div>
-            <div>
-                <h3>Dashboard de Ventas</h3>
-                <p>Proveedor: <strong id="g00-proveedor">—</strong> &middot; <span id="g00-periodo">Cargando período…</span></p>
-            </div>
-        </div>
-        <div class="informe-actions">
-            <button class="btn btn-secondary btn-sm" onclick="g00Export()">
-                <i class="fa-solid fa-file-excel"></i> Exportar
-            </button>
-            <button class="btn btn-primary btn-sm" onclick="g00Load()">
-                <i class="fa-solid fa-arrows-rotate"></i> Actualizar
-            </button>
-        </div>
-    </div>
 
     <!-- ============ FILTROS ============ -->
     <div class="g00-filters">
@@ -513,6 +495,15 @@
         treemapProd: null, pareto: null,
     };
 
+    const DIAS_SEM = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+    const MESES_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+    function fmtFechaLarga(iso) {
+        if (!iso) return '';
+        const [y, m, d] = iso.split('-').map(Number);
+        const dt = new Date(y, m - 1, d);   // fecha local, sin corrimiento por UTC
+        return DIAS_SEM[dt.getDay()] + ' ' + String(d).padStart(2, '0') + ' de ' + MESES_ES[m - 1] + ' de ' + y;
+    }
+
     const fmtMoney = (n) => {
         if (!n) return '$0';
         const abs = Math.abs(n);
@@ -593,10 +584,11 @@
                 const host = document.getElementById('page-informes-g00');
                 const banner = host.querySelector('.g00-error'); if (banner) banner.remove();
                 proveedorActual = data.proveedor || '';
-                document.getElementById('g00-proveedor').textContent = data.proveedor || '—';
+                document.getElementById('pageTitle').textContent = 'DASHBOARD DE VENTAS - ' + (data.proveedor || '—');
                 const r0 = data.rango || {};
-                document.getElementById('g00-periodo').textContent = r0.desde_actual
-                    ? 'Periodo: ' + r0.desde_actual + ' → ' + r0.hasta_actual + ' (vs ' + r0.desde_anterior + ' → ' + r0.hasta_anterior + ')'
+                document.getElementById('pageSubtitle').textContent = r0.desde_actual
+                    ? fmtFechaLarga(r0.desde_actual) + ' al ' + fmtFechaLarga(r0.hasta_actual)
+                      + ' (vs mismo período ' + (r0.hasta_anterior ? r0.hasta_anterior.slice(0, 4) : '') + ')'
                     : 'Datos al ' + new Date(data.generado).toLocaleDateString('es-CO');
                 renderKpis(data.kpis, data.anio);
                 renderTablaGrupo(data.por_grupo, data.anio);
@@ -1039,6 +1031,12 @@
 
     let filtrosInit = false;
     window.g00OnEnter = function () {
+        // Encabezado del informe vive en el topbar: título destacado + período + botón Actualizar.
+        const prov = proveedorActual || window.PROVEEDOR_ACTUAL || '—';
+        document.getElementById('pageTitle').textContent = 'DASHBOARD DE VENTAS - ' + prov;
+        const sub = document.getElementById('pageSubtitle');
+        sub.style.display = ''; sub.textContent = 'Cargando período…';
+        document.getElementById('topbarG00Refresh').style.display = '';
         if (!filtrosInit) { initFiltros(); filtrosInit = true; }
         if (!tabState.detal) loadDetal();
         else Object.values(charts).forEach(c => c && c.resize());

@@ -168,6 +168,15 @@
             position: sticky; top: 0; z-index: 50;
         }
         .topbar h2 { font-size: 18px; font-weight: 700; color: var(--primary); }
+        .topbar-titles { display: flex; flex-direction: column; gap: 2px; }
+        .topbar-subtitle { font-size: 12px; color: var(--text-light); font-weight: 500; }
+        .topbar-action {
+            background: var(--accent); color: #fff; border: none;
+            padding: 8px 14px; border-radius: 8px; cursor: pointer;
+            font-family: 'Space Grotesk', sans-serif; font-size: 13px; font-weight: 600;
+            display: inline-flex; align-items: center; gap: 7px;
+        }
+        .topbar-action:hover { filter: brightness(0.92); }
         .notification-btn {
             position: relative; background: var(--bg); border: none; width: 38px; height: 38px;
             border-radius: 8px; cursor: pointer; font-size: 16px;
@@ -527,8 +536,14 @@
 
     <div class="main">
         <div class="topbar">
-            <h2 id="pageTitle">DASHBOARD</h2>
+            <div class="topbar-titles">
+                <h2 id="pageTitle">DASHBOARD</h2>
+                <div id="pageSubtitle" class="topbar-subtitle" style="display:none;"></div>
+            </div>
             <div style="display:flex;align-items:center;gap:10px;">
+                <button id="topbarG00Refresh" class="topbar-action" style="display:none;" onclick="g00Load()">
+                    <i class="fa-solid fa-arrows-rotate"></i> Actualizar
+                </button>
                 <button class="notification-btn" onclick="showPage('alertas', document.querySelector('[onclick*=alertas]'))">
                     &#9888;<span class="dot"></span>
                 </button>
@@ -1189,6 +1204,9 @@
             'informes-o14':'INFORME O14 \u2014 SIEMBRA & STOCK x TIENDA x TALLA'
         };
         document.getElementById('pageTitle').textContent = titles[pageId] || pageId;
+        // Extras del topbar exclusivos de G00: se ocultan al cambiar de página (g00OnEnter los reactiva).
+        document.getElementById('pageSubtitle').style.display = 'none';
+        document.getElementById('topbarG00Refresh').style.display = 'none';
         if (pageId === 'informes-g00' && typeof g00OnEnter === 'function') g00OnEnter();
         if (pageId === 'informes-o14' && typeof o14OnEnter === 'function') o14OnEnter();
         updateAgentContext(pageId);
