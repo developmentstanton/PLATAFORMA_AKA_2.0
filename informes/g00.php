@@ -592,7 +592,7 @@
                 const r0 = data.rango || {};
                 document.getElementById('pageSubtitle').textContent = r0.desde_actual
                     ? fmtFechaLarga(r0.desde_actual) + ' al ' + fmtFechaLarga(r0.hasta_actual)
-                      + ' (vs ' + fmtFechaLarga(r0.desde_anterior) + ' al ' + fmtFechaLarga(r0.hasta_anterior) + ')'
+                      + ' vs ' + fmtFechaLarga(r0.desde_anterior) + ' al ' + fmtFechaLarga(r0.hasta_anterior)
                     : 'Datos al ' + new Date(data.generado).toLocaleDateString('es-CO');
                 renderKpis(data.kpis, data.anio);
                 renderTablaGrupo(data.por_grupo, data.anio);
@@ -984,12 +984,12 @@
         const pa = prom(r.val_act, r.ups_act), pb = prom(r.val_ant, r.ups_ant);
         const cls = isTotal ? 'g00-total' : (isTipo ? 'g00-tipo' : '');
         let trOpen, labelCell;
-        if (opts.parent != null) {                 // fila hija (tipo): se oculta/muestra al colapsar
-            trOpen = '<tr class="'+cls+'" data-parent="'+opts.parent+'">';
+        if (opts.parent != null) {                 // fila hija (tipo): oculta por defecto (colapsada)
+            trOpen = '<tr class="'+cls+'" data-parent="'+opts.parent+'" style="display:none">';
             labelCell = '<td>'+esc(r.label)+'</td>';
-        } else if (opts.hasChildren) {             // fila marca con hijos: clic colapsa
-            trOpen = '<tr class="'+cls+' g00-marca-row" data-marca="'+opts.idx+'" onclick="g00ToggleMarca('+opts.idx+',this)">';
-            labelCell = '<td><span class="g00-caret">▾</span>'+esc(r.label)+'</td>';
+        } else if (opts.hasChildren) {             // fila marca con hijos: arranca colapsada, clic despliega
+            trOpen = '<tr class="'+cls+' g00-marca-row g00-collapsed" data-marca="'+opts.idx+'" onclick="g00ToggleMarca('+opts.idx+',this)">';
+            labelCell = '<td><span class="g00-caret">▸</span>'+esc(r.label)+'</td>';
         } else {                                   // total o marca sin hijos
             trOpen = '<tr class="'+cls+'">';
             labelCell = '<td>'+esc(r.label)+'</td>';
