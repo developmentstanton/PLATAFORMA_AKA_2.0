@@ -369,9 +369,13 @@
     let proveedorActual = (window.PROVEEDOR_ACTUAL || '');
     const tabState = { detal: false, tiendas: false, periodos: false, productos: false };
 
-    const FILTER_FIELDS = ['marca','tipo','categoria','subcategoria','genero','publico','referencia','depto','ciudad'];
+    const REF_FIELDS    = ['marca','tipo','categoria','subcategoria','genero','publico','referencia'];
+    const SKU_FIELDS    = ['color','talla'];
+    const BODEGA_FIELDS = ['grupo','tienda','centro_comercial','depto','ciudad'];
+    const FILTER_FIELDS = [...REF_FIELDS, ...SKU_FIELDS, ...BODEGA_FIELDS];
     const tom = {};            // field -> instancia TomSelect
-    let combos = [];           // catálogo de combinaciones del proveedor
+    let combos = [];           // catálogo (ref + bodega) del proveedor
+    let sku    = [];           // {referencia, color, talla} del maestro
     let cascadeBusy = false;   // evita recursión al actualizar opciones
 
     function segValue(id) {
@@ -390,18 +394,64 @@
 
     function selectedOf(field) { return tom[field] ? tom[field].getValue() : []; }
 
-    // Opciones disponibles de un campo = valores distintos en combos que cumplen
-    // la selección de TODOS los demás campos (cascada bidireccional).
-    function availableFor(field) {
-        const sels = {};
-        FILTER_FIELDS.forEach(f => { if (f !== field) { const v = selectedOf(f); if (v.length) sels[f] = new Set(v); } });
+    // referencias permitidas por las selecciones de color/talla (null = sin restricción)
+    function refsAllowedBySku() {
+        const selC = selectedOf('color'), selT = selectedOf('talla');
+        if (!selC.length && !selT.length) return null;
+        const cS = new Set(selC), tS = new Set(selT), out = new Set();
+        for (const s of sku) {
+            if (selC.length && !cS.has(s.color)) continue;
+            if (selT.length && !tS.has(s.talla)) continue;
+            out.add(s.referencia);
+        }
+        return out;
+    }
+
+    // ¿la fila combos cumple las selecciones de campos combos (ref+bodega) excepto 'exclude'?
+    function comboMatches(c, exclude) {
+        for (const f of [...REF_FIELDS, ...BODEGA_FIELDS]) {
+            if (f === exclude) continue;
+            const sel = selectedOf(f);
+            if (sel.length && !sel.includes(c[f])) return false;
+        }
+        return true;
+    }
+
+    // referencias activas según selecciones combos (ref+bodega), ignorando 'exclude'
+    function activeRefs(exclude) {
+        const out = new Set();
+        for (const c of combos) if (comboMatches(c, exclude)) out.add(c.referencia);
+        return out;
+    }
+
+    // opciones para un campo combos (ref o bodega): bidireccional + acotado por color/talla
+    function availableCombo(field) {
+        const skuRefs = refsAllowedBySku();
         const out = new Set();
         for (const c of combos) {
-            let ok = true;
-            for (const f in sels) { if (!sels[f].has(c[f])) { ok = false; break; } }
-            if (ok && c[field] !== '' && c[field] != null) out.add(c[field]);
+            if (skuRefs && !skuRefs.has(c.referencia)) continue;
+            if (!comboMatches(c, field)) continue;
+            if (c[field] !== '' && c[field] != null) out.add(c[field]);
         }
-        return Array.from(out).sort((a,b) => a.localeCompare(b, 'es'));
+        return Array.from(out).sort((a, b) => a.localeCompare(b, 'es'));
+    }
+
+    // opciones para color/talla: acotado por las refs activas (ref+bodega) y el otro sku-field
+    function availableSku(field) {
+        const other = field === 'color' ? 'talla' : 'color';
+        const refs = activeRefs(null);
+        const oSel = selectedOf(other), oS = new Set(oSel);
+        const out = new Set();
+        for (const s of sku) {
+            if (!refs.has(s.referencia)) continue;
+            if (oSel.length && !oS.has(s[other])) continue;
+            if (s[field] !== '' && s[field] != null) out.add(s[field]);
+        }
+        return Array.from(out).sort((a, b) => a.localeCompare(b, 'es'));
+    }
+
+    function availableFor(field) {
+        return SKU_FIELDS.includes(field) ? availableSku(field) : availableCombo(field);
     }
 
     function refreshOptions() {
@@ -434,8 +484,12 @@
         initSeg('g00-sss');
         fetch('api/informe_g00.php?tab=filtros', { credentials: 'same-origin' })
             .then(r => r.json())
-            .then(data => { combos = (data && data.combos) ? data.combos : []; refreshOptions(); })
-            .catch(() => { combos = []; });
+            .then(data => {
+                combos = (data && data.combos) ? data.combos : [];
+                sku    = (data && data.sku)    ? data.sku    : [];
+                refreshOptions();
+            })
+            .catch(() => { combos = []; sku = []; });
     }
 
     function showLoading(accion) {
@@ -507,11 +561,17 @@
         banner.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> ' + msg;
     }
 
+    function dateVal(prefix) { // prefix = 'desde' | 'hasta'
+        const m = document.getElementById('g00-' + prefix + '-mes').value;
+        const d = document.getElementById('g00-' + prefix + '-dia').value;
+        if (!m || !d) return '';
+        return new Date().getFullYear() + '-' + m + '-' + d;
+    }
+
     function buildParams(tab) {
         const p = new URLSearchParams();
         if (tab) p.append('tab', tab);
-        const d = document.getElementById('g00-filtro-desde').value;
-        const h = document.getElementById('g00-filtro-hasta').value;
+        const d = dateVal('desde'), h = dateVal('hasta');
         if (d) p.append('desde', d);
         if (h) p.append('hasta', h);
         FILTER_FIELDS.forEach(field => {
