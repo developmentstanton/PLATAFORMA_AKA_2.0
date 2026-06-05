@@ -151,6 +151,12 @@
         box-shadow: 0 6px 20px rgba(45,43,78,0.25); padding: 4px; }
     #g00-img-pop img { max-width: 260px; max-height: 320px; width: auto; height: auto; display: block; border-radius: 4px; }
 
+    /* Botón exportar a Excel (encabezado de cada tabla) */
+    .g00-btn-export { float: right; font-family: 'Space Grotesk', sans-serif; font-size: 11px;
+        border: 1px solid var(--border); background: #fff; color: var(--primary); cursor: pointer;
+        border-radius: 6px; padding: 3px 9px; font-weight: 600; line-height: 1.4; }
+    .g00-btn-export:hover { background: var(--primary); color: #fff; }
+
     /* Compactación + fuente reducida del informe G00 (acotado a #page-informes-g00, no afecta O14) */
     #page-informes-g00 { font-size: 13px; }
     #page-informes-g00 .g00-filters { padding: 8px 12px; gap: 6px; margin-bottom: 10px; }
@@ -353,6 +359,7 @@
     const COMBO_FIELDS  = [...REF_FIELDS, ...BODEGA_FIELDS];   // campos presentes en una fila de `combos`
     const FILTER_FIELDS = [...REF_FIELDS, ...SKU_FIELDS, ...BODEGA_FIELDS];
     const tom = {};            // field -> instancia TomSelect
+    let lastDetal = null, lastTiendas = null, lastPeriodos = null, lastProductos = null;
     let combos = [];           // catálogo (ref + bodega) del proveedor
     let sku    = [];           // {referencia, color, talla} del maestro
     let cascadeBusy = false;   // evita recursión al actualizar opciones
@@ -587,6 +594,7 @@
             .then(r => r.json())
             .then(data => {
                 if (!data.ok) { hideLoading(); showError(data.error || 'Error cargando datos'); return; }
+                lastDetal = data;
                 const host = document.getElementById('page-informes-g00');
                 const banner = host.querySelector('.g00-error'); if (banner) banner.remove();
                 proveedorActual = data.proveedor || '';
@@ -609,6 +617,7 @@
             .then(r => r.json())
             .then(data => {
                 if (!data.ok) { hideLoading(); showError(data.error || 'Error cargando tiendas'); return; }
+                lastTiendas = data;
                 renderKpis(data.kpis, data.anio, 'g00t-kpi-');
                 renderTablaTienda(data.tiendas, data.anio);
                 tabState.tiendas = true;
@@ -684,6 +693,7 @@
             .then(r => r.json())
             .then(data => {
                 if (!data.ok) { hideLoading(); showError(data.error || 'Error cargando periodos'); return; }
+                lastPeriodos = data;
                 renderTablaPeriodos(buildArbolPeriodos(data.dias), data.anio);
                 tabState.periodos = true;
                 hideLoading();
@@ -791,6 +801,7 @@
             .then(r => r.json())
             .then(data => {
                 if (!data.ok) { hideLoading(); showError(data.error || 'Error cargando productos'); return; }
+                lastProductos = data;
                 renderTablaArbol('g00-tabla-negocio',   data.negocios,   data.anio, {col1:'Negocio / Talla',           prefix:'neg', imgHover:true});
                 renderTablaArbol('g00-tabla-categoria', data.categorias, data.anio, {col1:'Categoría / Subcategoría',  prefix:'cat'});
                 renderTablaArbol('g00-tabla-genero',    data.generos,    data.anio, {col1:'Género / Público objetivo', prefix:'gen'});
@@ -1074,6 +1085,23 @@
             if (td && td.cellIndex === 0 && (!e.relatedTarget || !td.contains(e.relatedTarget))) hide();
         });
     })();
+    // ===== Exportar a Excel (.xlsx) con SheetJS =====
+    function expFilename(tabla) {
+        const prov = (proveedorActual || window.PROVEEDOR_ACTUAL || '').replace(/[^A-Za-z0-9]+/g, '_').replace(/^_|_$/g, '');
+        const fecha = new Date().toISOString().slice(0, 10);
+        return 'G00_' + tabla + (prov ? '_' + prov : '') + '_' + fecha + '.xlsx';
+    }
+    function exportAOA(filename, sheetName, header, aoaRows) {
+        if (typeof XLSX === 'undefined') { Swal.fire('Exportar', 'No se pudo cargar la librería de Excel.', 'error'); return; }
+        const ws = XLSX.utils.aoa_to_sheet([header, ...aoaRows]);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, sheetName.slice(0, 31));
+        XLSX.writeFile(wb, filename);
+    }
+    const eDif  = (a, b) => (a || 0) - (b || 0);
+    const ePct  = (a, b) => b ? ((a - b) / b) * 100 : '';
+    const eProm = (v, u) => (u > 0 ? v / u : 0);
+    const ePart = (x, d) => (d > 0 ? (x / d) * 100 : '');
     // ============ DISPATCHER ============
     function loadCurrentTab() {
         if (currentTab === 'tiendas')        loadTiendas();
