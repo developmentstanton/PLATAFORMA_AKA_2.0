@@ -16,15 +16,36 @@
 
   <!-- Filtros -->
   <div class="g00-filters o14-filters">
-    <div class="filter-group"><label>Compañía</label>
-      <select id="o14-cia"><option value="">Todas</option><option value="002">002 · Brahma</option><option value="007">007 · Cauchosol</option></select>
+    <div class="g00-filter-row">
+      <div class="filter-group"><label>Compañía</label>
+        <select id="o14-cia"><option value="">Todas</option><option value="002">002 · Brahma</option><option value="007">007 · Cauchosol</option></select>
+      </div>
+      <div class="filter-group"><label>Negocio</label>
+        <select id="o14-negocio" onchange="o14PickNegocio(this.value)"><option value="">— Todos —</option></select>
+      </div>
+      <button class="g00-btn-refresh" onclick="o14Load()"><i class="fa-solid fa-rotate"></i> Aplicar</button>
+      <span class="o14-hint" id="o14-c-sel"></span>
     </div>
-    <div class="filter-group"><label>Negocio</label>
-      <select id="o14-negocio" onchange="o14PickNegocio(this.value)"><option value="">— Todos —</option></select>
+    <div class="g00-filter-row">
+      <div class="filter-group"><label>Marca</label><select id="o14-f-marca" multiple></select></div>
+      <div class="filter-group"><label>Tipo</label><select id="o14-f-tipo" multiple></select></div>
+      <div class="filter-group"><label>Categoría</label><select id="o14-f-categoria" multiple></select></div>
+      <div class="filter-group"><label>Subcategoría</label><select id="o14-f-subcategoria" multiple></select></div>
+      <div class="filter-group"><label>Género</label><select id="o14-f-genero" multiple></select></div>
+      <div class="filter-group"><label>Público</label><select id="o14-f-publico" multiple></select></div>
+      <div class="filter-group"><label>Referencia</label><select id="o14-f-referencia" multiple></select></div>
     </div>
-    <div class="divider"></div>
-    <button class="g00-btn-refresh" onclick="o14Load()"><i class="fa-solid fa-rotate"></i> Aplicar</button>
-    <span class="o14-hint" id="o14-c-sel"></span>
+    <div class="g00-filter-row">
+      <div class="filter-group"><label>Color</label><select id="o14-f-color" multiple></select></div>
+      <div class="filter-group"><label>Talla</label><select id="o14-f-talla" multiple></select></div>
+    </div>
+    <div class="g00-filter-row">
+      <div class="filter-group"><label>Grupo</label><select id="o14-f-grupo" multiple></select></div>
+      <div class="filter-group"><label>Tienda</label><select id="o14-f-tienda" multiple></select></div>
+      <div class="filter-group"><label>Centro comercial</label><select id="o14-f-centro_comercial" multiple></select></div>
+      <div class="filter-group"><label>Departamento</label><select id="o14-f-depto" multiple></select></div>
+      <div class="filter-group"><label>Ciudad</label><select id="o14-f-ciudad" multiple></select></div>
+    </div>
   </div>
 
   <!-- Tabs -->
@@ -46,6 +67,8 @@
   .o14-kpi-val { font-size:20px; font-weight:700; color:var(--primary); }
   .o14-kpi-sob .o14-kpi-val { color:#9a6b00; }
   .o14-kpi-fal .o14-kpi-val { color:#c0001a; }
+  #page-informes-o14 .o14-kpis, #page-informes-o14 .g00-filters { width:100%; box-sizing:border-box; }
+  #page-informes-o14 .o14-matriz-wrap { max-width:100%; }
   .o14-filters .o14-hint { font-size:11px; color:var(--text-light); }
   .o14-tab-panel { display:none; }
   .o14-tab-panel.active { display:block; animation:o14fade .3s ease-out; }
@@ -90,6 +113,60 @@
   let shownC = null;     // datos actualmente renderizados en O14C (completo o filtrado)
   let arbolState = null; // { n:<#grupos>, g:[{exp:bool, a:[bool,...]}] }
 
+  const REF_FIELDS = ['marca','tipo','categoria','subcategoria','genero','publico','referencia'];
+  const SKU_FIELDS = ['color','talla'];
+  const BOD_FIELDS = ['grupo','tienda','centro_comercial','depto','ciudad'];
+  const COMBO_FIELDS = [...REF_FIELDS, ...BOD_FIELDS];
+  const FILTER_FIELDS = [...REF_FIELDS, ...SKU_FIELDS, ...BOD_FIELDS];
+  const tom = {};
+  let combos = [], sku = [], cascadeBusy = false, filtrosInit = false;
+  const selectedOf = (f) => tom[f] ? tom[f].getValue() : [];
+
+  function refsAllowedBySku() {
+    const selC = selectedOf('color'), selT = selectedOf('talla');
+    if (!selC.length && !selT.length) return null;
+    const cS = new Set(selC), tS = new Set(selT), out = new Set();
+    for (const s of sku) { if (selC.length && !cS.has(s.color)) continue; if (selT.length && !tS.has(s.talla)) continue; out.add(s.referencia); }
+    return out;
+  }
+  function comboMatches(c, exclude) {
+    for (const f of COMBO_FIELDS) { if (f === exclude) continue; const sel = selectedOf(f); if (sel.length && !sel.includes(c[f])) return false; }
+    return true;
+  }
+  function activeRefs(exclude) { const out = new Set(); for (const c of combos) if (comboMatches(c, exclude)) out.add(c.referencia); return out; }
+  function availableCombo(field) {
+    const skuRefs = refsAllowedBySku(), out = new Set();
+    for (const c of combos) { if (skuRefs && !skuRefs.has(c.referencia)) continue; if (!comboMatches(c, field)) continue; if (c[field] !== '' && c[field] != null) out.add(c[field]); }
+    return Array.from(out).sort((a,b)=>a.localeCompare(b,'es'));
+  }
+  function availableSku(field) {
+    const other = field === 'color' ? 'talla' : 'color';
+    const refs = activeRefs(null), oSel = selectedOf(other), oS = new Set(oSel), out = new Set();
+    for (const s of sku) { if (!refs.has(s.referencia)) continue; if (oSel.length && !oS.has(s[other])) continue; if (s[field] !== '' && s[field] != null) out.add(s[field]); }
+    return Array.from(out).sort((a,b)=>a.localeCompare(b,'es'));
+  }
+  const availableFor = (f) => SKU_FIELDS.includes(f) ? availableSku(f) : availableCombo(f);
+  function refreshOptions() {
+    if (cascadeBusy) return; cascadeBusy = true;
+    FILTER_FIELDS.forEach(field => {
+      const ts = tom[field]; if (!ts) return;
+      const keep = ts.getValue();
+      const opts = availableFor(field).map(v => ({ value:v, text:v }));
+      const keepArr = Array.isArray(keep) ? keep : (keep ? [keep] : []);
+      keepArr.forEach(v => { if (!opts.find(o => o.value === v)) opts.push({ value:v, text:v }); });
+      ts.clearOptions(); ts.addOptions(opts); ts.refreshOptions(false);
+    });
+    cascadeBusy = false;
+  }
+  function initFiltros() {
+    FILTER_FIELDS.forEach(field => {
+      tom[field] = new TomSelect('#o14-f-' + field, { plugins:['remove_button'], maxOptions:1000, placeholder:'Todas', onChange:()=>refreshOptions() });
+    });
+    fetch('api/informe_o14.php?tab=filtros', { credentials:'same-origin' })
+      .then(r=>r.json()).then(data => { combos = (data&&data.combos)?data.combos:[]; sku = (data&&data.sku)?data.sku:[]; refreshOptions(); })
+      .catch(()=>{ combos=[]; sku=[]; });
+  }
+
   function showLoading(accion){ const p=proveedorActual?(' del proveedor <strong>'+esc(proveedorActual)+'</strong>'):'';
     Swal.fire({title:accion||'Cargando',html:'Obteniendo información'+p+'…',allowOutsideClick:false,allowEscapeKey:false,showConfirmButton:false,didOpen:()=>Swal.showLoading()}); }
   function hideLoading(){ if(window.Swal && Swal.isVisible()) Swal.close(); }
@@ -98,11 +175,11 @@
   const val = (id)=>{ const e=document.getElementById(id); return e? e.value.trim():''; };
 
   function buildParams(tab){
-    // Sin filtro de fechas en O14: rango fijo YTD (1-ene → hoy) para que Ventas/Reco calculen.
     const hoy = new Date();
     const desde = hoy.getFullYear()+'-01-01', hasta = hoy.toISOString().slice(0,10);
     const p = new URLSearchParams({ tab:tab, desde:desde, hasta:hasta });
     const cia = val('o14-cia'); if(cia) p.set('cia', cia);
+    FILTER_FIELDS.forEach(f => { (selectedOf(f)||[]).forEach(v => p.append(f+'[]', v)); });
     if(tab==='reco'){ p.set('ref', negocioSel.ref); p.set('color', negocioSel.color); }
     return p.toString();
   }
@@ -309,6 +386,7 @@
     // Spacer izquierdo (col 1fr) vacío: ocupa la celda para centrar el título; sin tablita de fechas.
     const td = document.getElementById('topbarDates'); td.innerHTML = ''; td.style.display = '';
     const rb = document.getElementById('topbarO14Refresh'); if(rb) rb.style.display = '';
+    if (!filtrosInit) { initFiltros(); filtrosInit = true; }
     if(!tabState.b) loadB();
   };
 
