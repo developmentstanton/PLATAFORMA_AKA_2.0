@@ -149,7 +149,7 @@
     #g00-img-pop { position: fixed; display: none; z-index: 9999; pointer-events: none;
         background: #fff; border: 1px solid var(--border); border-radius: 8px;
         box-shadow: 0 6px 20px rgba(45,43,78,0.25); padding: 4px; }
-    #g00-img-pop img { width: 160px; height: auto; max-height: 200px; display: block; border-radius: 4px; }
+    #g00-img-pop img { max-width: 260px; max-height: 320px; width: auto; height: auto; display: block; border-radius: 4px; }
 
     /* Compactación + fuente reducida del informe G00 (acotado a #page-informes-g00, no afecta O14) */
     #page-informes-g00 { font-size: 13px; }
@@ -1046,7 +1046,7 @@
         function hide() { if (pop) pop.style.display = 'none'; }
         function position(e) {
             if (!pop) return;
-            const off = 16, w = 176, h = 216;
+            const off = 16, w = 276, h = 336;
             let x = e.clientX + off, y = e.clientY + off;
             if (x + w > window.innerWidth)  x = e.clientX - off - w;
             if (y + h > window.innerHeight) y = e.clientY - off - h;
