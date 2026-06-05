@@ -142,6 +142,9 @@
     .g00-caret { display: inline-block; width: 14px; color: var(--text-light); font-size: 10px; }
     table.disp-table .pos { color: var(--success); }
     table.disp-table .neg { color: var(--danger); }
+    /* Tabla de Negocio: scroll interno (~30 filas visibles) con cabecera fija */
+    .g00-scroll-neg { max-height: 720px; overflow-y: auto; }
+    .g00-scroll-neg table.disp-table thead th { position: sticky; top: 0; background: #fff; z-index: 1; box-shadow: inset 0 -1px 0 var(--border); }
 
     /* Compactación + fuente reducida del informe G00 (acotado a #page-informes-g00, no afecta O14) */
     #page-informes-g00 { font-size: 13px; }
@@ -310,27 +313,21 @@
     <!-- ============ TAB VENTAS POR PRODUCTOS ============ -->
     <div class="g00-tab-panel" id="g00-panel-productos">
         <div class="card">
-            <div class="card-title">Jerarquía Marca &rarr; Línea <span style="color:var(--text-light);font-weight:500;">&mdash; click para profundizar</span></div>
-            <div id="g00-chart-treemap-productos" style="width:100%;height:420px;"></div>
-        </div>
-        <div class="grid-2" style="grid-template-columns: 1.3fr 1fr;">
-            <div class="card">
-                <div class="card-title">Pareto 80/20 de Referencias <span style="color:var(--text-light);font-weight:500;">&mdash; top 30</span></div>
-                <div id="g00-chart-pareto" style="width:100%;height:340px;"></div>
+            <div class="card-title">Resumen Ventas Por Negocio <span style="color:var(--text-light);font-weight:500;">&mdash; clic en el negocio (Ref-Color) para ver tallas</span></div>
+            <div class="g00-scroll-neg">
+                <table id="g00-tabla-negocio" class="disp-table"></table>
             </div>
-            <div class="card">
-                <div class="card-title">Top 20 Productos</div>
-                <div style="max-height:340px;overflow-y:auto;">
-                    <table id="g00-tabla-productos" class="disp-table">
-                        <thead><tr>
-                            <th>Referencia</th><th>Marca</th>
-                            <th style="text-align:right;">UPS</th>
-                            <th style="text-align:right;">Ventas</th>
-                            <th style="text-align:right;">Margen</th>
-                        </tr></thead>
-                        <tbody><tr><td colspan="5" style="text-align:center;color:var(--text-light);padding:20px;">Cargando…</td></tr></tbody>
-                    </table>
-                </div>
+        </div>
+        <div class="card">
+            <div class="card-title">Resumen Ventas Por Categoría <span style="color:var(--text-light);font-weight:500;">&mdash; clic para ver subcategoría</span></div>
+            <div style="overflow-x:auto;">
+                <table id="g00-tabla-categoria" class="disp-table"></table>
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-title">Resumen Ventas Por Género <span style="color:var(--text-light);font-weight:500;">&mdash; clic para ver público objetivo</span></div>
+            <div style="overflow-x:auto;">
+                <table id="g00-tabla-genero" class="disp-table"></table>
             </div>
         </div>
     </div>
@@ -486,7 +483,6 @@
     const charts = {
         treemapTiendas: null,
         calendar: null, dow: null, tendencia: null,
-        treemapProd: null, pareto: null,
     };
 
     const DIAS_SEM = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
@@ -790,94 +786,13 @@
             .then(r => r.json())
             .then(data => {
                 if (!data.ok) { hideLoading(); showError(data.error || 'Error cargando productos'); return; }
-                renderTreemapProductos(data.treemap);
-                renderPareto(data.refs);
-                renderTablaProductos(data.refs);
+                renderTablaArbol('g00-tabla-negocio',   data.negocios,   data.anio, {col1:'Negocio / Talla',           prefix:'neg'});
+                renderTablaArbol('g00-tabla-categoria', data.categorias, data.anio, {col1:'Categoría / Subcategoría',  prefix:'cat'});
+                renderTablaArbol('g00-tabla-genero',    data.generos,    data.anio, {col1:'Género / Público objetivo', prefix:'gen'});
                 tabState.productos = true;
                 hideLoading();
             })
             .catch(err => { hideLoading(); showError('No se pudo cargar productos: ' + err.message); });
-    }
-
-    function renderTreemapProductos(tree) {
-        const el = document.getElementById('g00-chart-treemap-productos');
-        if (!charts.treemapProd) charts.treemapProd = echarts.init(el);
-        charts.treemapProd.setOption({
-            tooltip: {
-                backgroundColor: 'rgba(45,43,78,0.95)', borderWidth: 0,
-                textStyle: { color: '#fff', fontFamily: 'Space Grotesk' },
-                formatter: (p) => '<b>' + p.name + '</b><br/>' + fmtMoneyFull(p.value)
-            },
-            series: [{
-                type: 'treemap', data: tree || [],
-                roam: false,
-                breadcrumb: { show: true, itemStyle: { color: '#4A4782', textStyle: { color: '#fff', fontFamily: 'Space Grotesk' } } },
-                levels: [
-                    { itemStyle: { borderColor: '#fff', borderWidth: 2, gapWidth: 2 }, upperLabel: { show: false } },
-                    { itemStyle: { borderColor: '#fff', borderWidth: 1, gapWidth: 1 },
-                      colorSaturation: [0.35, 0.65],
-                      label: { show: true, fontFamily: 'Space Grotesk', fontSize: 11, color: '#fff', formatter: (p) => p.name } }
-                ],
-                animationDuration: 900
-            }]
-        }, true);
-    }
-
-    function renderPareto(refs) {
-        const el = document.getElementById('g00-chart-pareto');
-        if (!charts.pareto) charts.pareto = echarts.init(el);
-        const top = (refs || []).slice(0, 30);
-        const labels = top.map(r => r.ref);
-        const vals = top.map(r => r.valor);
-        const total = vals.reduce((a, b) => a + b, 0) || 1;
-        let acc = 0;
-        const cum = vals.map(v => { acc += v; return (acc / total) * 100; });
-        charts.pareto.setOption({
-            color: ['#4A4782', '#ff001e'],
-            tooltip: { trigger: 'axis',
-                backgroundColor: 'rgba(45,43,78,0.95)', borderWidth: 0,
-                textStyle: { color: '#fff', fontFamily: 'Space Grotesk' },
-                formatter: (ps) => {
-                    let h = '<b>' + ps[0].axisValue + '</b><br/>';
-                    h += ps[0].marker + ' Ventas: <b>' + fmtMoneyFull(ps[0].value) + '</b><br/>';
-                    if (ps[1]) h += ps[1].marker + ' Acumulado: <b>' + ps[1].value.toFixed(1) + '%</b>';
-                    return h;
-                }
-            },
-            legend: { data: ['Ventas', '% Acumulado'], top: 0, right: 10, textStyle: { fontFamily: 'Space Grotesk', fontSize: 11 } },
-            grid: { left: 60, right: 55, top: 32, bottom: 40 },
-            xAxis: { type: 'category', data: labels, axisLine: { lineStyle: { color: '#e0dfe8' } },
-                axisLabel: { color: '#7b7894', fontFamily: 'Space Grotesk', fontSize: 9, rotate: 50 } },
-            yAxis: [
-                { type: 'value', axisLine: { show: false }, splitLine: { lineStyle: { color: '#f0eff5' } },
-                  axisLabel: { color: '#7b7894', fontFamily: 'Space Grotesk', fontSize: 10, formatter: fmtMoney } },
-                { type: 'value', max: 100, axisLine: { show: false }, splitLine: { show: false },
-                  axisLabel: { color: '#7b7894', fontFamily: 'Space Grotesk', fontSize: 10, formatter: '{value}%' } }
-            ],
-            series: [
-                { name: 'Ventas', type: 'bar', data: vals, barWidth: 12, itemStyle: { borderRadius: [4,4,0,0] },
-                  animationDuration: 900, animationDelay: (i) => i * 25 },
-                { name: '% Acumulado', type: 'line', yAxisIndex: 1, data: cum, smooth: true,
-                  symbol: 'circle', symbolSize: 6, lineStyle: { width: 2 },
-                  markLine: { silent: true, symbol: 'none', data: [{ yAxis: 80, lineStyle: { color: '#ff001e', type: 'dashed' }, label: { formatter: '80%', color: '#ff001e' } }] },
-                  animationDuration: 1200 }
-            ]
-        }, true);
-    }
-
-    function renderTablaProductos(refs) {
-        const tbody = document.querySelector('#g00-tabla-productos tbody');
-        const top = (refs || []).slice(0, 20);
-        if (top.length === 0) { tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-light);padding:20px;">Sin datos</td></tr>'; return; }
-        tbody.innerHTML = top.map(r => {
-            return '<tr>'
-                + '<td><strong>' + esc(r.ref) + '</strong><br/><span style="font-size:10px;color:var(--text-light);">' + esc(r.linea) + '</span></td>'
-                + '<td>' + esc(r.marca) + '</td>'
-                + '<td style="text-align:right;">' + fmtInt(r.ups) + '</td>'
-                + '<td style="text-align:right;font-weight:600;">' + fmtMoney(r.valor) + '</td>'
-                + '<td style="text-align:right;">' + (r.margen ? r.margen.toFixed(2) + '%' : '—') + '</td>'
-                + '</tr>';
-        }).join('');
     }
 
     function esc(s) { return (s == null ? '' : String(s)).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]); }
@@ -1034,6 +949,74 @@
             + '<td class="num '+(difT>=0?'pos':'neg')+'">'+(difT>=0?'+':'')+fmtInt(difT)+'</td>'
             + '</tr>';
     }
+    // ===== Tablas árbol de la pestaña Productos (Negocio/Categoría/Género) =====
+    // data = {rows:[{label,...,children:[]}], total:{...}}; opts={col1, prefix}. 16 cols (= Por Grupo).
+    function renderTablaArbol(tbodyId, data, anio, opts) {
+        const a = anio, b = anio - 1;
+        const rows = (data && data.rows) || [];
+        const total = (data && data.total) || null;
+        let h = '<thead><tr>'
+            + '<th>'+esc(opts.col1)+'</th>'
+            + '<th class="num">'+b+'</th><th class="num">'+a+'</th><th class="num">Dif Q</th><th class="num">%Q</th>'
+            + '<th class="num">$'+b+'</th><th class="num">$'+a+'</th><th class="num">Dif $</th><th class="num">%$</th>'
+            + '<th class="num">MB</th>'
+            + '<th class="num">$Prom '+b+'</th><th class="num">$Prom '+a+'</th><th class="num">%Prom</th>'
+            + '<th class="num">Tdas '+b+'</th><th class="num">Tdas '+a+'</th><th class="num">≠Tdas</th>'
+            + '</tr></thead><tbody>';
+        if (!rows.length) {
+            h += '<tr><td colspan="16" style="text-align:center;color:var(--text-light);padding:20px;">Sin datos</td></tr></tbody>';
+            document.getElementById(tbodyId).innerHTML = h; return;
+        }
+        const tot = {ua:0,ub:0,va:0,vb:0};
+        rows.forEach((p, i) => {
+            tot.ua+=p.ups_act; tot.ub+=p.ups_ant; tot.va+=p.val_act; tot.vb+=p.val_ant;
+            const kids = p.children || [];
+            h += rowArbol(p, opts, kids.length ? 'parent' : 'leaf', {idx:i});
+            kids.forEach(c => { h += rowArbol(c, opts, 'child', {parent:i}); });
+        });
+        const totRow = total
+            ? {label:'Total', ups_act:total.ups_act, ups_ant:total.ups_ant, val_act:total.val_act, val_ant:total.val_ant, margen:total.margen, tiendas_act:total.tiendas_act, tiendas_ant:total.tiendas_ant}
+            : {label:'Total', ups_act:tot.ua, ups_ant:tot.ub, val_act:tot.va, val_ant:tot.vb, margen:0, tiendas_act:0, tiendas_ant:0};
+        h += rowArbol(totRow, opts, 'total', {});
+        h += '</tbody>';
+        document.getElementById(tbodyId).innerHTML = h;
+    }
+    function rowArbol(r, opts, kind, meta) {
+        meta = meta || {};
+        const pa = prom(r.val_act, r.ups_act), pb = prom(r.val_ant, r.ups_ant);
+        const difT = (r.tiendas_act||0) - (r.tiendas_ant||0);
+        const cls = kind === 'total' ? 'g00-total' : (kind === 'child' ? 'g00-tipo' : '');
+        let trOpen, labelCell;
+        if (kind === 'child') {
+            trOpen = '<tr class="'+cls+'" data-'+opts.prefix+'parent="'+meta.parent+'" style="display:none">';
+            labelCell = '<td>'+esc(r.label)+'</td>';
+        } else if (kind === 'parent') {
+            trOpen = '<tr class="'+cls+' g00-marca-row g00-collapsed" onclick="g00ToggleArbol(\''+opts.prefix+'\','+meta.idx+',this)">';
+            labelCell = '<td><span class="g00-caret">▸</span>'+esc(r.label)+'</td>';
+        } else {   // leaf (padre sin hijos) o total
+            trOpen = '<tr class="'+cls+'">';
+            labelCell = '<td>'+esc(r.label)+'</td>';
+        }
+        return trOpen
+            + labelCell
+            + '<td class="num">'+fmtInt(r.ups_ant)+'</td><td class="num">'+fmtInt(r.ups_act)+'</td>'
+            + difCell(r.ups_act, r.ups_ant, fmtInt) + pctCell(r.ups_act, r.ups_ant)
+            + '<td class="num">'+fmtMoneyFull(r.val_ant)+'</td><td class="num">'+fmtMoneyFull(r.val_act)+'</td>'
+            + difCell(r.val_act, r.val_ant, fmtMoneyFull) + pctCell(r.val_act, r.val_ant)
+            + '<td class="num">'+(r.margen?r.margen.toFixed(2)+'%':'—')+'</td>'
+            + '<td class="num">'+fmtMoneyFull(pb)+'</td><td class="num">'+fmtMoneyFull(pa)+'</td>'
+            + pctCell(pa, pb)
+            + '<td class="num">'+fmtInt(r.tiendas_ant)+'</td><td class="num">'+fmtInt(r.tiendas_act)+'</td>'
+            + '<td class="num '+(difT>=0?'pos':'neg')+'">'+(difT>=0?'+':'')+fmtInt(difT)+'</td>'
+            + '</tr>';
+    }
+    window.g00ToggleArbol = function (prefix, idx, el) {
+        const collapsed = el.classList.toggle('g00-collapsed');
+        document.querySelectorAll('tr[data-'+prefix+'parent="'+idx+'"]')
+            .forEach(r => { r.style.display = collapsed ? 'none' : ''; });
+        const caret = el.querySelector('.g00-caret');
+        if (caret) caret.textContent = collapsed ? '▸' : '▾';
+    };
     // ============ DISPATCHER ============
     function loadCurrentTab() {
         if (currentTab === 'tiendas')        loadTiendas();
