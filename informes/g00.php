@@ -145,6 +145,11 @@
     /* Tabla de Negocio: scroll interno (~30 filas visibles) con cabecera fija */
     .g00-scroll-neg { max-height: 720px; overflow-y: auto; }
     .g00-scroll-neg table.disp-table thead th { position: sticky; top: 0; background: #fff; z-index: 1; box-shadow: inset 0 -1px 0 var(--border); }
+    /* Preview flotante de foto del zapato (hover en filas de Negocio) */
+    #g00-img-pop { position: fixed; display: none; z-index: 9999; pointer-events: none;
+        background: #fff; border: 1px solid var(--border); border-radius: 8px;
+        box-shadow: 0 6px 20px rgba(45,43,78,0.25); padding: 4px; }
+    #g00-img-pop img { width: 160px; height: auto; max-height: 200px; display: block; border-radius: 4px; }
 
     /* Compactación + fuente reducida del informe G00 (acotado a #page-informes-g00, no afecta O14) */
     #page-informes-g00 { font-size: 13px; }
@@ -786,7 +791,7 @@
             .then(r => r.json())
             .then(data => {
                 if (!data.ok) { hideLoading(); showError(data.error || 'Error cargando productos'); return; }
-                renderTablaArbol('g00-tabla-negocio',   data.negocios,   data.anio, {col1:'Negocio / Talla',           prefix:'neg'});
+                renderTablaArbol('g00-tabla-negocio',   data.negocios,   data.anio, {col1:'Negocio / Talla',           prefix:'neg', imgHover:true});
                 renderTablaArbol('g00-tabla-categoria', data.categorias, data.anio, {col1:'Categoría / Subcategoría',  prefix:'cat'});
                 renderTablaArbol('g00-tabla-genero',    data.generos,    data.anio, {col1:'Género / Público objetivo', prefix:'gen'});
                 tabState.productos = true;
@@ -985,16 +990,18 @@
         meta = meta || {};
         const pa = prom(r.val_act, r.ups_act), pb = prom(r.val_ant, r.ups_ant);
         const difT = (r.tiendas_act||0) - (r.tiendas_ant||0);
+        const imgAttr = (opts.imgHover && (kind === 'parent' || kind === 'leaf') && r.label !== '(Sin dato)')
+            ? ' data-negimg="'+esc(r.label)+'"' : '';
         const cls = kind === 'total' ? 'g00-total' : (kind === 'child' ? 'g00-tipo' : '');
         let trOpen, labelCell;
         if (kind === 'child') {
             trOpen = '<tr class="'+cls+'" data-'+opts.prefix+'parent="'+meta.parent+'" style="display:none">';
             labelCell = '<td>'+esc(r.label)+'</td>';
         } else if (kind === 'parent') {
-            trOpen = '<tr class="'+cls+' g00-marca-row g00-collapsed" onclick="g00ToggleArbol(\''+opts.prefix+'\','+meta.idx+',this)">';
+            trOpen = '<tr class="'+cls+' g00-marca-row g00-collapsed"'+imgAttr+' onclick="g00ToggleArbol(\''+opts.prefix+'\','+meta.idx+',this)">';
             labelCell = '<td><span class="g00-caret">▸</span>'+esc(r.label)+'</td>';
         } else {   // leaf (padre sin hijos) o total
-            trOpen = '<tr class="'+cls+'">';
+            trOpen = '<tr class="'+cls+'"'+imgAttr+'>';
             labelCell = '<td>'+esc(r.label)+'</td>';
         }
         return trOpen
@@ -1017,6 +1024,53 @@
         const caret = el.querySelector('.g00-caret');
         if (caret) caret.textContent = collapsed ? '▸' : '▾';
     };
+    // ===== Preview de imagen del zapato al hover en la tabla "Resumen Ventas Por Negocio" =====
+    (function initNegocioImgHover() {
+        const FOTO_BASE = 'http://bi.stanton.com.co:81/fotosPBI/';
+        const tabla = document.getElementById('g00-tabla-negocio');
+        if (!tabla) return;
+        let pop = null, img = null, triedPng = false, curLabel = '';
+        function ensurePop() {
+            if (pop) return;
+            pop = document.createElement('div');
+            pop.id = 'g00-img-pop';
+            img = document.createElement('img');
+            img.alt = '';
+            img.onerror = function () {
+                if (!triedPng) { triedPng = true; img.src = FOTO_BASE + encodeURIComponent(curLabel) + '.png'; }
+                else { hide(); }
+            };
+            pop.appendChild(img);
+            document.body.appendChild(pop);
+        }
+        function hide() { if (pop) pop.style.display = 'none'; }
+        function position(e) {
+            if (!pop) return;
+            const off = 16, w = 176, h = 216;
+            let x = e.clientX + off, y = e.clientY + off;
+            if (x + w > window.innerWidth)  x = e.clientX - off - w;
+            if (y + h > window.innerHeight) y = e.clientY - off - h;
+            pop.style.left = Math.max(4, x) + 'px';
+            pop.style.top  = Math.max(4, y) + 'px';
+        }
+        tabla.addEventListener('mouseover', function (e) {
+            const tr = e.target.closest('tr[data-negimg]');
+            if (!tr) return;
+            curLabel = tr.getAttribute('data-negimg');
+            triedPng = false;
+            ensurePop();
+            img.src = FOTO_BASE + encodeURIComponent(curLabel) + '.jpg';
+            pop.style.display = 'block';
+            position(e);
+        });
+        tabla.addEventListener('mousemove', function (e) {
+            if (pop && pop.style.display === 'block') position(e);
+        });
+        tabla.addEventListener('mouseout', function (e) {
+            const tr = e.target.closest('tr[data-negimg]');
+            if (tr && (!e.relatedTarget || !tr.contains(e.relatedTarget))) hide();
+        });
+    })();
     // ============ DISPATCHER ============
     function loadCurrentTab() {
         if (currentTab === 'tiendas')        loadTiendas();
