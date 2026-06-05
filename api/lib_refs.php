@@ -11,7 +11,7 @@ if (!function_exists('getRefsCached')) {
             if (is_array($data) && (!count($data) || array_key_exists('PUBLICO_OBJETIVO', $data[0]))) return $data;
         }
         $sql = "SELECT REFERENCIA,
-                    ISNULL(MARCA,'SIN MARCA') AS MARCA, ISNULL(TIPO,'') AS TIPO,
+                    ISNULL(MARCA,'SIN MARCA') AS MARCA, ISNULL(TIPO,'SIN TIPO') AS TIPO,
                     ISNULL(LINEA,'SIN LINEA') AS LINEA, ISNULL(SUBLINEA,'') AS SUBLINEA,
                     ISNULL(CATEGORIA,'') AS CATEGORIA, ISNULL(SUBCATEGORIA,'') AS SUBCATEGORIA,
                     ISNULL(GENERO,'') AS GENERO, ISNULL(PUBLICO_OBJETIVO,'') AS PUBLICO_OBJETIVO

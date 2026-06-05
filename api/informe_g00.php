@@ -206,7 +206,8 @@ function getRefsCached($conn, $proveedor) {
     $cacheFile = $cacheDir . '/g00_refs_' . md5($proveedor) . '.json';
     if (file_exists($cacheFile) && date('Y-m-d', filemtime($cacheFile)) === date('Y-m-d')) {
         $data = json_decode(file_get_contents($cacheFile), true);
-        if (is_array($data)) return $data;
+        // Validar esquema: caché vieja (sin las dims nuevas) se ignora y se reconstruye. (Caché compartida con O14/lib_refs.)
+        if (is_array($data) && (!count($data) || array_key_exists('PUBLICO_OBJETIVO', $data[0]))) return $data;
     }
     $sql = "SELECT REFERENCIA,
                 ISNULL(MARCA,    'SIN MARCA')         AS MARCA,
