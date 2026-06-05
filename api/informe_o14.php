@@ -27,6 +27,15 @@ $colF  = trim($_GET['color'] ?? '');
 $desde = $_GET['desde'] ?? date('Y-01-01');
 $hasta = $_GET['hasta'] ?? date('Y-m-d');
 
+// Filtros multi-valor (como G00). REF→poda #refs; color/talla→#base; bodega→Bodegas.
+$FILTROS_REF = ['marca'=>'MARCA','tipo'=>'TIPO','categoria'=>'CATEGORIA','subcategoria'=>'SUBCATEGORIA','genero'=>'GENERO','publico'=>'PUBLICO_OBJETIVO','referencia'=>'REFERENCIA'];
+$FILTROS_SKU = ['color'=>'color','talla'=>'talla'];
+$FILTROS_BOD = ['grupo'=>'GRUPO','tienda'=>'NOMBRE','centro_comercial'=>'CENTRO_COMERCIAL','depto'=>'DEPTO','ciudad'=>'CIUDAD'];
+function getMulti($key) { $v = $_GET[$key] ?? []; if (!is_array($v)) $v = ($v === '' ? [] : [$v]);
+    return array_values(array_filter(array_map('trim', $v), fn($x) => $x !== '')); }
+// El catálogo necesita el universo completo del proveedor: ignora cia y no aplica filtros.
+if ($tab === 'filtros') $cia = '';
+
 require __DIR__ . '/../conexion/conexion_integracion.php';
 require __DIR__ . '/lib_refs.php';
 if ($dbConnect === false) { http_response_code(500); echo json_encode(['ok'=>false,'error'=>'Conexión DB fallida']); exit; }
@@ -96,6 +105,16 @@ function kpiCounts($c) {
 
 // --- #refs del proveedor ---
 if (!buildRefsTemp($dbConnect, getRefsCached($dbConnect, $proveedor))) jsonFail(['error'=>sqlsrv_errors()], $dbConnect);
+
+// Filtros de dimensión de referencia: podar #refs → cae en las 4 fuentes (todas la inner-joinan).
+if ($tab !== 'filtros') {
+    foreach ($FILTROS_REF as $key => $col) {
+        $vals = getMulti($key); if (!$vals) continue;
+        $ph = implode(',', array_fill(0, count($vals), '?'));
+        $d = sqlsrv_query($dbConnect, "DELETE FROM #refs WHERE $col NOT IN ($ph)", $vals);
+        if ($d === false) jsonFail(['error'=>sqlsrv_errors()], $dbConnect); else sqlsrv_free_stmt($d);
+    }
+}
 
 // --- #base unificada (CREATE separado + WITH...INSERT; cia normalizada a 3 díg) ---
 // Ventas se incluye en el UNIVERSO de filas (no solo siembra/disp/hold) para no perder tiendas/negocios
@@ -183,6 +202,26 @@ $delAdmin = sqlsrv_query($dbConnect, "
     ON rtrim(bo.COD)=b.bodega AND RIGHT('000'+rtrim(bo.CIA),3)=b.cia
   WHERE rtrim(bo.GRUPO)='ADMINISTRATIVAS' AND b.bodega<>'CEDI'");
 if ($delAdmin===false) jsonFail(['error'=>sqlsrv_errors()], $dbConnect); else sqlsrv_free_stmt($delAdmin);
+
+// Filtros color/talla (columnas de #base) y bodega (vía Bodegas, conservando CEDI). No en catálogo.
+if ($tab !== 'filtros') {
+    foreach ($FILTROS_SKU as $key => $col) {
+        $vals = getMulti($key); if (!$vals) continue;
+        $ph = implode(',', array_fill(0, count($vals), '?'));
+        $d = sqlsrv_query($dbConnect, "DELETE FROM #base WHERE $col NOT IN ($ph)", $vals);
+        if ($d === false) jsonFail(['error'=>sqlsrv_errors()], $dbConnect); else sqlsrv_free_stmt($d);
+    }
+    foreach ($FILTROS_BOD as $key => $col) {
+        $vals = getMulti($key); if (!$vals) continue;
+        $ph = implode(',', array_fill(0, count($vals), '?'));
+        $d = sqlsrv_query($dbConnect, "
+            DELETE b FROM #base b
+            LEFT JOIN INTEGRACION.dbo.Bodegas bo WITH (NOLOCK)
+              ON bo.COD = b.bodega AND RIGHT('000'+rtrim(bo.CIA),3) = b.cia
+            WHERE b.bodega <> 'CEDI' AND ISNULL(bo.$col,'') NOT IN ($ph)", $vals);
+        if ($d === false) jsonFail(['error'=>sqlsrv_errors()], $dbConnect); else sqlsrv_free_stmt($d);
+    }
+}
 
 // ====================================================================
 // TAB B — por negocio (cia, ref-color); excluye CEDI
