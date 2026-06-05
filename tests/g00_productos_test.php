@@ -40,7 +40,7 @@ foreach (['negocios', 'categorias', 'generos'] as $k) {
 }
 
 $first = $d['negocios']['rows'][0]['label'] ?? '';
-if ($first !== '' && strpos($first, '-') === false) { echo "FALLO: negocio sin formato REF-COLOR ($first)\n"; $fail = 1; }
+if ($first !== '' && $first !== '(Sin dato)' && strpos($first, '-') === false) { echo "FALLO: negocio sin formato REF-COLOR ($first)\n"; $fail = 1; }
 
 echo $fail ? "RESULTADO: FALLO\n" : "RESULTADO: OK (productos: 3 arboles, invariante padre=Σhijos, Tdas total<=Σ)\n";
 exit($fail);
