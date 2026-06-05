@@ -1196,7 +1196,6 @@
         const header = ['Periodo', 'Cant ' + b, '%' + b, 'Cant ' + a, '%' + a, 'Var% Q', '$ ' + b, '%' + b, '$ ' + a, '%' + a, 'Var% $'];
         const arbol = buildArbolPeriodos(dias);   // {sems, tot}
         const T = arbol.tot;
-        const meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
         const row = (label, m, ind) => ['   '.repeat(ind) + label,
             m.ub, ePart(m.ub, T.ub), m.ua, ePart(m.ua, T.ua), ePct(m.ua, m.ub),
             m.vb, ePart(m.vb, T.vb), m.va, ePart(m.va, T.va), ePct(m.va, m.vb)];
@@ -1209,9 +1208,9 @@
                 body.push(row('Trimestre ' + t, Tr.m, 1));
                 Object.keys(Tr.meses).map(Number).sort((x, y) => x - y).forEach(mn => {
                     const M = Tr.meses[mn];
-                    body.push(row(meses[mn - 1], M.m, 2));
+                    body.push(row(MESES_ES[mn - 1], M.m, 2));
                     Object.keys(M.dias).map(Number).sort((x, y) => x - y).forEach(d => {
-                        body.push(row(meses[mn - 1] + '-' + String(d).padStart(2, '0'), M.dias[d].m, 3));
+                        body.push(row(MESES_ES[mn - 1] + '-' + String(d).padStart(2, '0'), M.dias[d].m, 3));
                     });
                 });
             });
