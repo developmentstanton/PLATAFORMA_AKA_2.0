@@ -182,6 +182,10 @@
         /* Modo G00: 3 secciones (tabla fechas | titulo centrado | botones) */
         .topbar.topbar--g00 { display: grid; grid-template-columns: auto 1fr auto; gap: 16px; }
         .topbar.topbar--g00 .topbar-titles { align-items: center; text-align: center; }
+        /* O14: sin tablita de fechas → spacer izquierdo 1fr para centrar el título y empujar acciones a la derecha */
+        .topbar.topbar--o14 { display: grid; grid-template-columns: 1fr auto 1fr; gap: 16px; align-items: center; }
+        .topbar.topbar--o14 .topbar-titles { align-items: center; text-align: center; }
+        .topbar.topbar--o14 .topbar-actions { justify-self: end; }
         .topbar-dates table { border-collapse: collapse; }
         .topbar-dates th {
             font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px;
@@ -1225,6 +1229,7 @@
         document.getElementById('topbarG00Refresh').style.display = 'none';
         document.getElementById('topbarO14Refresh').style.display = 'none';
         document.getElementById('topbar').classList.remove('topbar--g00');
+        document.getElementById('topbar').classList.remove('topbar--o14');
         document.getElementById('topbarDates').style.display = 'none';
         if (pageId === 'informes-g00' && typeof g00OnEnter === 'function') g00OnEnter();
         if (pageId === 'informes-o14' && typeof o14OnEnter === 'function') o14OnEnter();

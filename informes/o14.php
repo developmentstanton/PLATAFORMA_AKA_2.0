@@ -304,9 +304,10 @@
   window.o14OnEnter = function(){
     // Topbar estilo G00: título centrado "SIEMBRA / STOCK", sin tablita de fechas, botón Actualizar.
     document.getElementById('pageTitle').textContent = 'SIEMBRA / STOCK';
-    document.getElementById('topbar').classList.add('topbar--g00');
+    document.getElementById('topbar').classList.add('topbar--o14');
     document.getElementById('pageSubtitle').style.display = 'none';
-    document.getElementById('topbarDates').style.display = 'none';
+    // Spacer izquierdo (col 1fr) vacío: ocupa la celda para centrar el título; sin tablita de fechas.
+    const td = document.getElementById('topbarDates'); td.innerHTML = ''; td.style.display = '';
     const rb = document.getElementById('topbarO14Refresh'); if(rb) rb.style.display = '';
     if(!tabState.b) loadB();
   };
