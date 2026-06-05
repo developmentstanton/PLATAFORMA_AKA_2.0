@@ -593,7 +593,7 @@
                 document.getElementById('topbarDates').innerHTML = renderTopbarDates(data.rango || {});
                 renderKpis(data.kpis, data.anio);
                 renderTablaGrupo(data.por_grupo, data.anio);
-                renderTablaMarcaTipo(data.por_marca, data.anio);
+                renderTablaMarcaTipo(data.por_marca, data.anio, data.kpis);
                 renderTablaMensual(data.mensual, data.anio);
                 tabState.detal = true;
                 hideLoading();
@@ -938,13 +938,15 @@
             + '</tr>';
     }
 
-    function renderTablaMarcaTipo(rows, anio) {
+    function renderTablaMarcaTipo(rows, anio, kpis) {
         const a = anio, b = anio - 1;
         let h = '<thead><tr>'
             + '<th>Marca / Tipo</th>'
             + '<th class="num">'+b+'</th><th class="num">'+a+'</th><th class="num">Dif Q</th><th class="num">%Q</th>'
             + '<th class="num">$'+b+'</th><th class="num">$'+a+'</th><th class="num">Dif $</th><th class="num">%$</th>'
-            + '<th class="num">MB</th><th class="num">$Prom '+b+'</th><th class="num">$Prom '+a+'</th>'
+            + '<th class="num">MB</th>'
+            + '<th class="num">$Prom '+b+'</th><th class="num">$Prom '+a+'</th><th class="num">%Prom</th>'
+            + '<th class="num">Tdas '+b+'</th><th class="num">Tdas '+a+'</th><th class="num">≠Tdas</th>'
             + '</tr></thead><tbody>';
         const tot = {ua:0,ub:0,va:0,vb:0};
         (rows||[]).forEach((m, i) => {
@@ -955,13 +957,15 @@
         });
         const margenes = (rows||[]).map(r=>r.margen).filter(x=>x>0);
         const mbTot = margenes.length ? margenes.reduce((x,y)=>x+y,0)/margenes.length : 0;
-        h += rowMarca({label:'Total',ups_act:tot.ua,ups_ant:tot.ub,val_act:tot.va,val_ant:tot.vb,margen:mbTot}, true, false);
+        h += rowMarca({label:'Total',ups_act:tot.ua,ups_ant:tot.ub,val_act:tot.va,val_ant:tot.vb,
+                       margen:mbTot, tiendas_act:(kpis?kpis.tiendas_actual:0), tiendas_ant:(kpis?kpis.tiendas_anterior:0)}, true, false);
         h += '</tbody>';
         document.getElementById('g00-tabla-marca').innerHTML = h;
     }
     function rowMarca(r, isTotal, isTipo, opts) {
         opts = opts || {};
         const pa = prom(r.val_act, r.ups_act), pb = prom(r.val_ant, r.ups_ant);
+        const difT = (r.tiendas_act||0) - (r.tiendas_ant||0);
         const cls = isTotal ? 'g00-total' : (isTipo ? 'g00-tipo' : '');
         let trOpen, labelCell;
         if (opts.parent != null) {                 // fila hija (tipo): oculta por defecto (colapsada)
@@ -982,6 +986,9 @@
             + difCell(r.val_act, r.val_ant, fmtMoneyFull) + pctCell(r.val_act, r.val_ant)
             + '<td class="num">'+(r.margen?r.margen.toFixed(2)+'%':'—')+'</td>'
             + '<td class="num">'+fmtMoneyFull(pb)+'</td><td class="num">'+fmtMoneyFull(pa)+'</td>'
+            + pctCell(pa, pb)
+            + '<td class="num">'+fmtInt(r.tiendas_ant)+'</td><td class="num">'+fmtInt(r.tiendas_act)+'</td>'
+            + '<td class="num '+(difT>=0?'pos':'neg')+'">'+(difT>=0?'+':'')+fmtInt(difT)+'</td>'
             + '</tr>';
     }
     window.g00ToggleMarca = function (idx, el) {
