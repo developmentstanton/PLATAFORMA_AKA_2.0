@@ -1054,7 +1054,9 @@
             pop.style.top  = Math.max(4, y) + 'px';
         }
         tabla.addEventListener('mouseover', function (e) {
-            const tr = e.target.closest('tr[data-negimg]');
+            const td = e.target.closest('td');
+            if (!td || td.cellIndex !== 0) return;   // solo la primera columna (Negocio)
+            const tr = td.closest('tr[data-negimg]');
             if (!tr) return;
             curLabel = tr.getAttribute('data-negimg');
             triedPng = false;
@@ -1067,8 +1069,9 @@
             if (pop && pop.style.display === 'block') position(e);
         });
         tabla.addEventListener('mouseout', function (e) {
-            const tr = e.target.closest('tr[data-negimg]');
-            if (tr && (!e.relatedTarget || !tr.contains(e.relatedTarget))) hide();
+            const td = e.target.closest('td');
+            // ocultar al salir de la primera columna (incluye moverse a otra columna de la fila)
+            if (td && td.cellIndex === 0 && (!e.relatedTarget || !td.contains(e.relatedTarget))) hide();
         });
     })();
     // ============ DISPATCHER ============
