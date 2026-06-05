@@ -594,7 +594,7 @@
                 renderKpis(data.kpis, data.anio);
                 renderTablaGrupo(data.por_grupo, data.anio);
                 renderTablaMarcaTipo(data.por_marca, data.anio, data.kpis);
-                renderTablaMensual(data.mensual, data.anio);
+                renderTablaMensual(data.mensual, data.anio, data.mensual_tdas);
                 tabState.detal = true;
                 hideLoading();
             })
@@ -999,12 +999,14 @@
         if (caret) caret.textContent = collapsed ? '▸' : '▾';
     };
 
-    function renderTablaMensual(rows, anio) {
+    function renderTablaMensual(rows, anio, tdas) {
         const a = anio, b = anio - 1;
         let h = '<thead><tr>'
             + '<th>Mes</th>'
             + '<th class="num">'+b+'</th><th class="num">'+a+'</th><th class="num">Dif Q</th><th class="num">%Q</th>'
             + '<th class="num">$'+b+'</th><th class="num">$'+a+'</th><th class="num">Dif $</th><th class="num">%$</th>'
+            + '<th class="num">$Prom '+b+'</th><th class="num">$Prom '+a+'</th>'
+            + '<th class="num">Tdas '+b+'</th><th class="num">Tdas '+a+'</th><th class="num">≠Tdas</th>'
             + '</tr></thead><tbody>';
         const tot = {ua:0,ub:0,va:0,vb:0};
         (rows||[]).forEach(r => {
@@ -1013,17 +1015,23 @@
             tot.ua+=r.ups_act; tot.ub+=r.ups_ant; tot.va+=r.val_act; tot.vb+=r.val_ant;
             h += rowMensual(r, false);
         });
-        h += rowMensual({mes:'Total',ups_act:tot.ua,ups_ant:tot.ub,val_act:tot.va,val_ant:tot.vb}, true);
+        h += rowMensual({mes:'Total',ups_act:tot.ua,ups_ant:tot.ub,val_act:tot.va,val_ant:tot.vb,
+                         tiendas_act:(tdas?tdas.act:0), tiendas_ant:(tdas?tdas.ant:0)}, true);
         h += '</tbody>';
         document.getElementById('g00-tabla-mensual').innerHTML = h;
     }
     function rowMensual(r, isTotal) {
+        const pa = prom(r.val_act, r.ups_act), pb = prom(r.val_ant, r.ups_ant);
+        const difT = (r.tiendas_act||0) - (r.tiendas_ant||0);
         return '<tr class="'+(isTotal?'g00-total':'')+'">'
             + '<td>'+esc(r.mes)+'</td>'
             + '<td class="num">'+fmtInt(r.ups_ant)+'</td><td class="num">'+fmtInt(r.ups_act)+'</td>'
             + difCell(r.ups_act, r.ups_ant, fmtInt) + pctCell(r.ups_act, r.ups_ant)
             + '<td class="num">'+fmtMoneyFull(r.val_ant)+'</td><td class="num">'+fmtMoneyFull(r.val_act)+'</td>'
             + difCell(r.val_act, r.val_ant, fmtMoneyFull) + pctCell(r.val_act, r.val_ant)
+            + '<td class="num">'+fmtMoneyFull(pb)+'</td><td class="num">'+fmtMoneyFull(pa)+'</td>'
+            + '<td class="num">'+fmtInt(r.tiendas_ant)+'</td><td class="num">'+fmtInt(r.tiendas_act)+'</td>'
+            + '<td class="num '+(difT>=0?'pos':'neg')+'">'+(difT>=0?'+':'')+fmtInt(difT)+'</td>'
             + '</tr>';
     }
     // ============ DISPATCHER ============
