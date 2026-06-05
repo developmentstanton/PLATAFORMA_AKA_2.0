@@ -44,6 +44,17 @@ if ($tallaTest !== '') {
     }
 }
 
+// 2b) filtro de dimensión de referencia (marca): debe aplicar (filas ⊆ base) y mantener invariante
+$marcaTest = '';
+foreach (($combos ?? []) as $c) { if (!empty($c['marca'])) { $marcaTest = $c['marca']; break; } }
+if ($marcaTest !== '') {
+    $fm = ep($php, $runner, $prov, 'tab=b&marca[]=' . rawurlencode($marcaTest), $nul);
+    $nFm = count($fm['filas'] ?? []);
+    echo "tab=b marca[]=$marcaTest: filas=$nFm ok=" . (($fm['ok']??false)?'1':'0') . "\n";
+    if (!($fm['ok'] ?? false)) { echo "FALLO: tab=b filtrado marca\n"; $fail = 1; }
+    if ($nFm > $nBase) { echo "FALLO: filtro marca no reduce ($nFm > $nBase)\n"; $fail = 1; }
+}
+
 // 3) reco ve CEDI aun con filtro de bodega
 $ref = $sku[0]['referencia'] ?? ''; $col = $sku[0]['color'] ?? '';
 if ($ref !== '') {

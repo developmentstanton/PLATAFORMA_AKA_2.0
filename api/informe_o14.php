@@ -28,7 +28,7 @@ $desde = $_GET['desde'] ?? date('Y-01-01');
 $hasta = $_GET['hasta'] ?? date('Y-m-d');
 
 // Filtros multi-valor (como G00). REF→poda #refs; color/talla→#base; bodega→Bodegas.
-$FILTROS_REF = ['marca'=>'MARCA','linea'=>'LINEA','sublinea'=>'SUBLINEA','categoria'=>'CATEGORIA','referencia'=>'REFERENCIA'];
+$FILTROS_REF = ['marca'=>'MARCA','tipo'=>'TIPO','categoria'=>'CATEGORIA','subcategoria'=>'SUBCATEGORIA','genero'=>'GENERO','publico'=>'PUBLICO_OBJETIVO','referencia'=>'REFERENCIA'];
 $FILTROS_SKU = ['color'=>'color','talla'=>'talla'];
 $FILTROS_BOD = ['grupo'=>'GRUPO','tienda'=>'NOMBRE','centro_comercial'=>'CENTRO_COMERCIAL','depto'=>'DEPTO','ciudad'=>'CIUDAD'];
 function getMulti($key) { $v = $_GET[$key] ?? []; if (!is_array($v)) $v = ($v === '' ? [] : [$v]);
@@ -237,7 +237,7 @@ if ($tab === 'filtros') {
     }
     $rowsC = run($dbConnect, "
         SELECT DISTINCT
-            r.MARCA, r.LINEA, r.SUBLINEA, r.CATEGORIA, b.referencia,
+            r.MARCA, r.TIPO, r.CATEGORIA, r.SUBCATEGORIA, r.GENERO, r.PUBLICO_OBJETIVO, b.referencia,
             ISNULL(bo.GRUPO,'')            AS GRUPO,
             ISNULL(bo.NOMBRE,'')           AS NOMBRE,
             ISNULL(bo.CENTRO_COMERCIAL,'') AS CENTRO_COMERCIAL,
@@ -249,8 +249,9 @@ if ($tab === 'filtros') {
         WHERE b.bodega <> 'CEDI'");
     if (isset($rowsC['error'])) jsonFail($rowsC, $dbConnect);
     $combos = array_map(fn($r) => [
-        'marca'=>trim((string)$r['MARCA']), 'linea'=>trim((string)$r['LINEA']), 'sublinea'=>trim((string)$r['SUBLINEA']),
-        'categoria'=>trim((string)$r['CATEGORIA']), 'referencia'=>trim((string)$r['referencia']),
+        'marca'=>trim((string)$r['MARCA']), 'tipo'=>trim((string)$r['TIPO']), 'categoria'=>trim((string)$r['CATEGORIA']),
+        'subcategoria'=>trim((string)$r['SUBCATEGORIA']), 'genero'=>trim((string)$r['GENERO']), 'publico'=>trim((string)$r['PUBLICO_OBJETIVO']),
+        'referencia'=>trim((string)$r['referencia']),
         'grupo'=>trim((string)$r['GRUPO']), 'tienda'=>trim((string)$r['NOMBRE']),
         'centro_comercial'=>trim((string)$r['CENTRO_COMERCIAL']), 'depto'=>trim((string)$r['DEPTO']), 'ciudad'=>trim((string)$r['CIUDAD']),
     ], $rowsC);
