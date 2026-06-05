@@ -28,7 +28,7 @@ $desde = $_GET['desde'] ?? date('Y-01-01');
 $hasta = $_GET['hasta'] ?? date('Y-m-d');
 
 // Filtros multi-valor (como G00). REF→poda #refs; color/talla→#base; bodega→Bodegas.
-$FILTROS_REF = ['marca'=>'MARCA','tipo'=>'TIPO','categoria'=>'CATEGORIA','subcategoria'=>'SUBCATEGORIA','genero'=>'GENERO','publico'=>'PUBLICO_OBJETIVO','referencia'=>'REFERENCIA'];
+$FILTROS_REF = ['marca'=>'MARCA','linea'=>'LINEA','sublinea'=>'SUBLINEA','categoria'=>'CATEGORIA','referencia'=>'REFERENCIA'];
 $FILTROS_SKU = ['color'=>'color','talla'=>'talla'];
 $FILTROS_BOD = ['grupo'=>'GRUPO','tienda'=>'NOMBRE','centro_comercial'=>'CENTRO_COMERCIAL','depto'=>'DEPTO','ciudad'=>'CIUDAD'];
 function getMulti($key) { $v = $_GET[$key] ?? []; if (!is_array($v)) $v = ($v === '' ? [] : [$v]);
@@ -221,6 +221,49 @@ if ($tab !== 'filtros') {
             WHERE b.bodega <> 'CEDI' AND ISNULL(bo.$col,'') NOT IN ($ph)", $vals);
         if ($d === false) jsonFail(['error'=>sqlsrv_errors()], $dbConnect); else sqlsrv_free_stmt($d);
     }
+}
+
+// ====================================================================
+// TAB FILTROS — catálogo (combos + sku) del universo del proveedor para la cascada.
+// No aplica filtros (se construyó #base sin ellos y sin cia). Cache diaria.
+// ====================================================================
+if ($tab === 'filtros') {
+    $cacheDir = __DIR__ . '/../cache';
+    if (!is_dir($cacheDir)) @mkdir($cacheDir, 0755, true);
+    $cacheFile = $cacheDir . '/o14_filtros_' . md5($proveedor) . '.json';
+    if (file_exists($cacheFile) && date('Y-m-d', filemtime($cacheFile)) === date('Y-m-d')) {
+        $cached = json_decode(file_get_contents($cacheFile), true);
+        if (is_array($cached) && isset($cached['sku'])) { sqlsrv_close($dbConnect); echo json_encode($cached, JSON_UNESCAPED_UNICODE); exit; }
+    }
+    $rowsC = run($dbConnect, "
+        SELECT DISTINCT
+            r.MARCA, r.LINEA, r.SUBLINEA, r.CATEGORIA, b.referencia,
+            ISNULL(bo.GRUPO,'')            AS GRUPO,
+            ISNULL(bo.NOMBRE,'')           AS NOMBRE,
+            ISNULL(bo.CENTRO_COMERCIAL,'') AS CENTRO_COMERCIAL,
+            ISNULL(bo.DEPTO,'')            AS DEPTO,
+            ISNULL(bo.CIUDAD,'')           AS CIUDAD
+        FROM #base b
+         INNER JOIN #refs r ON r.REFERENCIA = b.referencia
+         LEFT  JOIN INTEGRACION.dbo.Bodegas bo WITH (NOLOCK) ON bo.COD = b.bodega AND RIGHT('000'+rtrim(bo.CIA),3) = b.cia
+        WHERE b.bodega <> 'CEDI'");
+    if (isset($rowsC['error'])) jsonFail($rowsC, $dbConnect);
+    $combos = array_map(fn($r) => [
+        'marca'=>trim((string)$r['MARCA']), 'linea'=>trim((string)$r['LINEA']), 'sublinea'=>trim((string)$r['SUBLINEA']),
+        'categoria'=>trim((string)$r['CATEGORIA']), 'referencia'=>trim((string)$r['referencia']),
+        'grupo'=>trim((string)$r['GRUPO']), 'tienda'=>trim((string)$r['NOMBRE']),
+        'centro_comercial'=>trim((string)$r['CENTRO_COMERCIAL']), 'depto'=>trim((string)$r['DEPTO']), 'ciudad'=>trim((string)$r['CIUDAD']),
+    ], $rowsC);
+    $rowsS = run($dbConnect, "SELECT DISTINCT referencia, color, talla FROM #base WHERE bodega <> 'CEDI'");
+    if (isset($rowsS['error'])) jsonFail($rowsS, $dbConnect);
+    $sku = array_map(fn($r) => [
+        'referencia'=>trim((string)$r['referencia']), 'color'=>trim((string)$r['color']), 'talla'=>trim((string)$r['talla']),
+    ], $rowsS);
+    $out = ['ok'=>true, 'tab'=>'filtros', 'combos'=>$combos, 'sku'=>$sku];
+    @file_put_contents($cacheFile, json_encode($out));
+    sqlsrv_close($dbConnect);
+    echo json_encode($out, JSON_UNESCAPED_UNICODE);
+    exit;
 }
 
 // ====================================================================
