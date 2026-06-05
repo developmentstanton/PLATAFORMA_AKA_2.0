@@ -647,7 +647,7 @@ $mesAntExpr = $shiftToActualDays > 0
 // ('FECHA' inválida fuera de agregado/GROUP BY). Con el alias, el GROUP BY no lleva params.
 $sqlMensual = cteVentas() . "
     , vm AS (
-        SELECT v.FECHA, v.CANTIDAD, v.VALOR,
+        SELECT v.FECHA, v.BODEGA, v.CANTIDAD, v.VALOR,
                CASE WHEN v.FECHA BETWEEN ? AND ? THEN MONTH(v.FECHA) ELSE $mesAntExpr END AS mes
         FROM ventas v
         INNER JOIN #refs i                                 ON i.REFERENCIA = v.REFERENCIA
@@ -657,13 +657,16 @@ $sqlMensual = cteVentas() . "
           $sameStoreClause
     )
     SELECT
+        GROUPING_ID(mes) AS gid,
         mes,
         SUM(CASE WHEN FECHA BETWEEN ? AND ? THEN VALOR    ELSE 0 END) AS val_act,
         SUM(CASE WHEN FECHA BETWEEN ? AND ? THEN VALOR    ELSE 0 END) AS val_ant,
         SUM(CASE WHEN FECHA BETWEEN ? AND ? THEN CANTIDAD ELSE 0 END) AS ups_act,
-        SUM(CASE WHEN FECHA BETWEEN ? AND ? THEN CANTIDAD ELSE 0 END) AS ups_ant
+        SUM(CASE WHEN FECHA BETWEEN ? AND ? THEN CANTIDAD ELSE 0 END) AS ups_ant,
+        COUNT(DISTINCT CASE WHEN FECHA BETWEEN ? AND ? THEN BODEGA END) AS tiendas_act,
+        COUNT(DISTINCT CASE WHEN FECHA BETWEEN ? AND ? THEN BODEGA END) AS tiendas_ant
     FROM vm
-    GROUP BY mes
+    GROUP BY GROUPING SETS ((mes), ())
 ";
 $pMensual = array_merge(
     [$mensGmin, $mensGmax, $mensGmin, $mensGmax],   // cte pushdown
@@ -672,18 +675,26 @@ $pMensual = array_merge(
     $paramsExtra,
     $sameStoreParams,
     [$mensDesA, $mensHasA, $mensDesB, $mensHasB,     // val_act / val_ant
-     $mensDesA, $mensHasA, $mensDesB, $mensHasB]     // ups_act / ups_ant
+     $mensDesA, $mensHasA, $mensDesB, $mensHasB,     // ups_act / ups_ant
+     $mensDesA, $mensHasA, $mensDesB, $mensHasB]     // tiendas_act / tiendas_ant
 );
 $mensual = run($dbConnect, $sqlMensual, $pMensual);
 if (isset($mensual['error'])) jsonFail($mensual, $dbConnect);
-$mapMV = []; $mapMU = [];
+$mapMV = []; $mapMU = []; $mapMT = [];
+$tdasTotAct = 0; $tdasTotAnt = 0;
 foreach ($mensual as $r) {
+    if ((int)$r['gid'] === 1) {           // grand total (mes NULL) → distinct del rango
+        $tdasTotAct = (int)$r['tiendas_act'];
+        $tdasTotAnt = (int)$r['tiendas_ant'];
+        continue;
+    }
     $mi = (int)$r['mes'];
     if ($mi < 1 || $mi > 12) continue;
     $mapMV[$mi] = ['val_act' => (float)$r['val_act'], 'val_ant' => (float)$r['val_ant']];
     $mapMU[$mi] = ['ups_act' => (float)$r['ups_act'], 'ups_ant' => (float)$r['ups_ant']];
+    $mapMT[$mi] = ['act' => (int)$r['tiendas_act'], 'ant' => (int)$r['tiendas_ant']];
 }
-$labelsMes = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+$labelsMes = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 $mesActual = (int)date('n');
 // Año para los rótulos de las tablas (Grupo/Marca/KPI respetan el filtro de fecha).
 // En uso por defecto (filtro = año en curso) coincide con el año actual.
@@ -691,11 +702,13 @@ $yearAct = (int)date('Y', strtotime($hastaAct));
 $serieMensual = [];
 for ($m = 1; $m <= $mesActual; $m++) {   // Ene → mes actual
     $serieMensual[] = [
-        'mes'     => $labelsMes[$m-1],
-        'val_act' => $mapMV[$m]['val_act'] ?? 0,
-        'val_ant' => $mapMV[$m]['val_ant'] ?? 0,
-        'ups_act' => $mapMU[$m]['ups_act'] ?? 0,
-        'ups_ant' => $mapMU[$m]['ups_ant'] ?? 0,
+        'mes'         => $labelsMes[$m-1],
+        'val_act'     => $mapMV[$m]['val_act'] ?? 0,
+        'val_ant'     => $mapMV[$m]['val_ant'] ?? 0,
+        'ups_act'     => $mapMU[$m]['ups_act'] ?? 0,
+        'ups_ant'     => $mapMU[$m]['ups_ant'] ?? 0,
+        'tiendas_act' => $mapMT[$m]['act'] ?? 0,
+        'tiendas_ant' => $mapMT[$m]['ant'] ?? 0,
     ];
 }
 
@@ -762,7 +775,8 @@ $out = [
         'ticket_prom'      => $ticketProm,
         'margen_prom'      => $margenPr,
     ],
-    'mensual'   => $serieMensual,
+    'mensual'      => $serieMensual,
+    'mensual_tdas' => ['act' => $tdasTotAct, 'ant' => $tdasTotAnt],
     'por_grupo' => $grupoArr,
     'por_marca' => $marcaArr,
     'catalogos' => $catalogos,
