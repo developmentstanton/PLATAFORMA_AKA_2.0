@@ -1,18 +1,5 @@
 <?php /* Informe O14 — Siembra & Stock x Tienda x Talla (incluido desde dashboard.php) */ ?>
 <div class="page" id="page-informes-o14">
-  <div class="informe-header">
-    <div class="informe-meta">
-      <div class="informe-code" id="o14-code">O14</div>
-      <div>
-        <h3>Siembra &amp; Stock x Tienda x Talla</h3>
-        <p>Proveedor: <strong id="o14-prov">—</strong> · <span id="o14-fecha"></span></p>
-      </div>
-    </div>
-    <div class="informe-actions">
-      <button class="g00-btn-refresh" onclick="o14Export()"><i class="fa-solid fa-file-csv"></i> Exportar</button>
-    </div>
-  </div>
-
   <!-- KPIs -->
   <div class="o14-kpis">
     <div class="o14-kpi"><span class="o14-kpi-lbl">Negocios</span><span class="o14-kpi-val" id="o14-kpi-negocios">0</span></div>
@@ -29,9 +16,6 @@
 
   <!-- Filtros -->
   <div class="g00-filters o14-filters">
-    <div class="filter-group"><label>Desde</label><input type="date" id="o14-desde"></div>
-    <div class="filter-group"><label>Hasta</label><input type="date" id="o14-hasta"></div>
-    <div class="divider"></div>
     <div class="filter-group"><label>Compañía</label>
       <select id="o14-cia"><option value="">Todas</option><option value="002">002 · Brahma</option><option value="007">007 · Cauchosol</option></select>
     </div>
@@ -44,9 +28,9 @@
   </div>
 
   <!-- Tabs -->
-  <div class="tabs o14-tabs">
-    <div class="tab active" onclick="o14ShowTab('b', this)">O14B · Por negocio</div>
-    <div class="tab" onclick="o14ShowTab('c', this)">O14C · Por tienda</div>
+  <div class="tab-bar o14-tabs">
+    <div class="tab active" onclick="o14ShowTab('b', this)">Por negocio</div>
+    <div class="tab" onclick="o14ShowTab('c', this)">Por tienda</div>
     <div class="tab" onclick="o14ShowTab('reco', this)">Recomendaciones</div>
   </div>
 
@@ -63,9 +47,6 @@
   .o14-kpi-sob .o14-kpi-val { color:#9a6b00; }
   .o14-kpi-fal .o14-kpi-val { color:#c0001a; }
   .o14-filters .o14-hint { font-size:11px; color:var(--text-light); }
-  .o14-tabs { display:flex; gap:4px; margin-bottom:14px; }
-  .o14-tabs .tab { padding:8px 16px; border:1px solid var(--border); border-bottom:none; border-radius:8px 8px 0 0; cursor:pointer; font-size:13px; font-weight:600; color:var(--text-light); background:#f8f7fc; }
-  .o14-tabs .tab.active { color:var(--primary); background:#fff; border-color:var(--primary); }
   .o14-tab-panel { display:none; }
   .o14-tab-panel.active { display:block; animation:o14fade .3s ease-out; }
   @keyframes o14fade { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
@@ -116,15 +97,11 @@
   function esc(s){ return (s==null?'':String(s)).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]); }
   const val = (id)=>{ const e=document.getElementById(id); return e? e.value.trim():''; };
 
-  function setDefaults(){
-    if(!val('o14-desde')) document.getElementById('o14-desde').value = new Date().getFullYear()+'-01-01';
-    if(!val('o14-hasta')) document.getElementById('o14-hasta').value = new Date().toISOString().slice(0,10);
-    document.getElementById('o14-prov').textContent = proveedorActual || '—';
-    document.getElementById('o14-fecha').textContent = 'Actualizado al ' + new Date().toLocaleDateString('es-CO');
-  }
-
   function buildParams(tab){
-    const p = new URLSearchParams({ tab:tab, desde:val('o14-desde'), hasta:val('o14-hasta') });
+    // Sin filtro de fechas en O14: rango fijo YTD (1-ene → hoy) para que Ventas/Reco calculen.
+    const hoy = new Date();
+    const desde = hoy.getFullYear()+'-01-01', hasta = hoy.toISOString().slice(0,10);
+    const p = new URLSearchParams({ tab:tab, desde:desde, hasta:hasta });
     const cia = val('o14-cia'); if(cia) p.set('cia', cia);
     if(tab==='reco'){ p.set('ref', negocioSel.ref); p.set('color', negocioSel.color); }
     return p.toString();
@@ -247,7 +224,6 @@
   function loadB(){ showLoading('Cargando O14B');
     fetch('api/informe_o14.php?'+buildParams('b'),{credentials:'same-origin'})
       .then(r=>r.json()).then(d=>{ if(!d.ok) throw 0; proveedorActual=d.proveedor||proveedorActual;
-        document.getElementById('o14-prov').textContent=proveedorActual||'—';
         renderKpis(d.kpis); renderMatriz('o14-matriz-b', d, 'Negocio', true); populateNegocios(d); lastData.b=d; tabState.b=true; })
       .catch(()=>Swal.fire('Error','No se pudo cargar O14B','error')).finally(hideLoading); }
 
@@ -319,14 +295,21 @@
     document.querySelectorAll('#page-informes-o14 .o14-tab-panel').forEach(p=>p.classList.remove('active'));
     if(el) el.classList.add('active');
     document.getElementById('o14-panel-'+name).classList.add('active');
-    document.getElementById('o14-code').textContent = name==='c'?'O14C':(name==='reco'?'O14':'O14B');
     currentTab = name;
     if(!tabState[name]) loadCurrentTab();
   };
 
   window.o14Load = function(){ tabState.b=tabState.c=tabState.reco=false; loadCurrentTab(); };
 
-  window.o14OnEnter = function(){ setDefaults(); if(!tabState.b) loadB(); };
+  window.o14OnEnter = function(){
+    // Topbar estilo G00: título centrado "SIEMBRA / STOCK", sin tablita de fechas, botón Actualizar.
+    document.getElementById('pageTitle').textContent = 'SIEMBRA / STOCK';
+    document.getElementById('topbar').classList.add('topbar--g00');
+    document.getElementById('pageSubtitle').style.display = 'none';
+    document.getElementById('topbarDates').style.display = 'none';
+    const rb = document.getElementById('topbarO14Refresh'); if(rb) rb.style.display = '';
+    if(!tabState.b) loadB();
+  };
 
   window.o14Export = function(){
     const tbl = document.querySelector('#o14-panel-'+currentTab+' table');

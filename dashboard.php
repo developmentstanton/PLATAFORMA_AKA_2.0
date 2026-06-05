@@ -512,7 +512,7 @@
             <div class="nav-section">
                 <div class="nav-section-title">AN&Aacute;LISIS</div>
                 <div class="nav-item" onclick="showPage('informes-o14', this)">
-                    <span class="icon"><i class="fa-solid fa-shoe-prints"></i></span> O14 &mdash; Siembra/Stock
+                    <span class="icon"><i class="fa-solid fa-shoe-prints"></i></span> Siembra/Stock
                 </div>
                 <div class="nav-item" onclick="showPage('informes-g00', this)">
                     <span class="icon"><i class="fa-solid fa-chart-column"></i></span> Ventas
@@ -555,6 +555,9 @@
             </div>
             <div class="topbar-actions">
                 <button id="topbarG00Refresh" class="topbar-action" style="display:none;" onclick="g00Load()">
+                    <i class="fa-solid fa-arrows-rotate"></i> Actualizar
+                </button>
+                <button id="topbarO14Refresh" class="topbar-action" style="display:none;" onclick="o14Load()">
                     <i class="fa-solid fa-arrows-rotate"></i> Actualizar
                 </button>
                 <button class="notification-btn" onclick="showPage('alertas', document.querySelector('[onclick*=alertas]'))">
@@ -1214,12 +1217,13 @@
             pagos:'PAGOS Y FACTURAS', codificacion:'CODIFICACI\u00d3N',
             documentos:'DOCUMENTACI\u00d3N', alertas:'ALERTAS',
             'informes-g00':'DASHBOARD DE VENTAS',
-            'informes-o14':'INFORME O14 \u2014 SIEMBRA & STOCK x TIENDA x TALLA'
+            'informes-o14':'SIEMBRA / STOCK'
         };
         document.getElementById('pageTitle').textContent = titles[pageId] || pageId;
         // Extras del topbar exclusivos de G00: se ocultan al cambiar de página (g00OnEnter los reactiva).
         document.getElementById('pageSubtitle').style.display = 'none';
         document.getElementById('topbarG00Refresh').style.display = 'none';
+        document.getElementById('topbarO14Refresh').style.display = 'none';
         document.getElementById('topbar').classList.remove('topbar--g00');
         document.getElementById('topbarDates').style.display = 'none';
         if (pageId === 'informes-g00' && typeof g00OnEnter === 'function') g00OnEnter();
