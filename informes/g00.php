@@ -263,7 +263,7 @@
 
         <!-- Tabla 1: Por Grupo Tiendas -->
         <div class="card">
-            <div class="card-title">Resumen Ventas Por Grupo Tiendas</div>
+            <div class="card-title">Resumen Ventas Por Grupo Tiendas<button class="g00-btn-export" onclick="g00ExpGrupo()">⤓ Excel</button></div>
             <div style="overflow-x:auto;">
                 <table id="g00-tabla-grupo" class="disp-table"></table>
             </div>
@@ -271,7 +271,7 @@
 
         <!-- Tabla 2: Por Marca / Tipo -->
         <div class="card">
-            <div class="card-title">Resumen Ventas Por Marca / Tipo</div>
+            <div class="card-title">Resumen Ventas Por Marca / Tipo<button class="g00-btn-export" onclick="g00ExpMarca()">⤓ Excel</button></div>
             <div style="overflow-x:auto;">
                 <table id="g00-tabla-marca" class="disp-table"></table>
             </div>
@@ -304,7 +304,7 @@
             </div>
         </div>
         <div class="card">
-            <div class="card-title">Resumen Ventas Por Tienda <span style="color:var(--text-light);font-weight:500;">&mdash; clic en la tienda para ver Referencia-Color</span></div>
+            <div class="card-title">Resumen Ventas Por Tienda <span style="color:var(--text-light);font-weight:500;">&mdash; clic en la tienda para ver Referencia-Color</span><button class="g00-btn-export" onclick="g00ExpTienda()">⤓ Excel</button></div>
             <div style="overflow-x:auto;">
                 <table id="g00-tabla-tienda" class="disp-table"></table>
             </div>
@@ -324,19 +324,19 @@
     <!-- ============ TAB VENTAS POR PRODUCTOS ============ -->
     <div class="g00-tab-panel" id="g00-panel-productos">
         <div class="card">
-            <div class="card-title">Resumen Ventas Por Negocio <span style="color:var(--text-light);font-weight:500;">&mdash; clic en el negocio (Ref-Color) para ver tallas</span></div>
+            <div class="card-title">Resumen Ventas Por Negocio <span style="color:var(--text-light);font-weight:500;">&mdash; clic en el negocio (Ref-Color) para ver tallas</span><button class="g00-btn-export" onclick="g00ExpNegocio()">⤓ Excel</button></div>
             <div class="g00-scroll-neg">
                 <table id="g00-tabla-negocio" class="disp-table"></table>
             </div>
         </div>
         <div class="card">
-            <div class="card-title">Resumen Ventas Por Categoría <span style="color:var(--text-light);font-weight:500;">&mdash; clic para ver subcategoría</span></div>
+            <div class="card-title">Resumen Ventas Por Categoría <span style="color:var(--text-light);font-weight:500;">&mdash; clic para ver subcategoría</span><button class="g00-btn-export" onclick="g00ExpCategoria()">⤓ Excel</button></div>
             <div style="overflow-x:auto;">
                 <table id="g00-tabla-categoria" class="disp-table"></table>
             </div>
         </div>
         <div class="card">
-            <div class="card-title">Resumen Ventas Por Género <span style="color:var(--text-light);font-weight:500;">&mdash; clic para ver público objetivo</span></div>
+            <div class="card-title">Resumen Ventas Por Género <span style="color:var(--text-light);font-weight:500;">&mdash; clic para ver público objetivo</span><button class="g00-btn-export" onclick="g00ExpGenero()">⤓ Excel</button></div>
             <div style="overflow-x:auto;">
                 <table id="g00-tabla-genero" class="disp-table"></table>
             </div>
@@ -1102,6 +1102,78 @@
     const ePct  = (a, b) => b ? ((a - b) / b) * 100 : '';
     const eProm = (v, u) => (u > 0 ? v / u : 0);
     const ePart = (x, d) => (d > 0 ? (x / d) * 100 : '');
+    // Builder de las 6 tablas comparativas. rows: [{label,val_act,val_ant,ups_act,ups_ant,margen,tiendas_act,tiendas_ant,children?}].
+    // opts: {anio, full (default true → 16 cols con %Prom+Tdas; false → 12 cols estilo Tienda), totalTdas:{act,ant}}.
+    function comparativaAOA(dim, rows, opts) {
+        const a = opts.anio, b = a - 1, full = opts.full !== false;
+        const header = full
+            ? [dim, b, a, 'Dif Q', '%Q', '$ ' + b, '$ ' + a, 'Dif $', '%$', 'MB', '$Prom ' + b, '$Prom ' + a, '%Prom', 'Tdas ' + b, 'Tdas ' + a, '≠Tdas']
+            : [dim, b, a, 'Dif Q', '%Q', '$ ' + b, '$ ' + a, 'Dif $', '%$', 'MB', '$Prom ' + b, '$Prom ' + a];
+        const line = (r, indent) => {
+            const pa = eProm(r.val_act, r.ups_act), pb = eProm(r.val_ant, r.ups_ant);
+            const base = [(indent ? '   ' : '') + (r.label || ''),
+                r.ups_ant || 0, r.ups_act || 0, eDif(r.ups_act, r.ups_ant), ePct(r.ups_act, r.ups_ant),
+                r.val_ant || 0, r.val_act || 0, eDif(r.val_act, r.val_ant), ePct(r.val_act, r.val_ant),
+                r.margen || 0, pb, pa];
+            if (full) base.push(ePct(pa, pb), r.tiendas_ant || 0, r.tiendas_act || 0, eDif(r.tiendas_act, r.tiendas_ant));
+            return base;
+        };
+        const body = [];
+        let sv = 0, sb = 0, su = 0, sub = 0; const margenes = [];
+        (rows || []).forEach(r => {
+            sv += r.val_act || 0; sb += r.val_ant || 0; su += r.ups_act || 0; sub += r.ups_ant || 0;
+            if (r.margen > 0) margenes.push(r.margen);
+            body.push(line(r, false));
+            (r.children || []).forEach(c => body.push(line(c, true)));
+        });
+        const mbTot = margenes.length ? margenes.reduce((x, y) => x + y, 0) / margenes.length : 0;
+        const tdas = opts.totalTdas || { act: 0, ant: 0 };
+        body.push(line({ label: 'Total', val_act: sv, val_ant: sb, ups_act: su, ups_ant: sub,
+            margen: mbTot, tiendas_act: tdas.act, tiendas_ant: tdas.ant }, false));
+        return { header, body };
+    }
+    window.g00ExpGrupo = function () {
+        if (!lastDetal) { Swal.fire('Exportar', 'Carga el dashboard primero.', 'info'); return; }
+        const r = comparativaAOA('Grupo', lastDetal.por_grupo, { anio: lastDetal.anio, full: true,
+            totalTdas: { act: lastDetal.kpis.tiendas_actual, ant: lastDetal.kpis.tiendas_anterior } });
+        exportAOA(expFilename('PorGrupo'), 'Por Grupo', r.header, r.body);
+    };
+    window.g00ExpMarca = function () {
+        if (!lastDetal) { Swal.fire('Exportar', 'Carga el dashboard primero.', 'info'); return; }
+        const r = comparativaAOA('Marca / Tipo', lastDetal.por_marca, { anio: lastDetal.anio, full: true,
+            totalTdas: { act: lastDetal.kpis.tiendas_actual, ant: lastDetal.kpis.tiendas_anterior } });
+        exportAOA(expFilename('PorMarcaTipo'), 'Por Marca-Tipo', r.header, r.body);
+    };
+    window.g00ExpTienda = function () {
+        if (!lastTiendas) { Swal.fire('Exportar', 'Carga la pestaña Tiendas primero.', 'info'); return; }
+        const rows = (lastTiendas.tiendas || []).map(t => ({
+            label: t.nombre || t.cod || '', val_act: t.val_act, val_ant: t.val_ant, ups_act: t.ups_act, ups_ant: t.ups_ant, margen: t.margen,
+            children: (t.children || []).map(c => ({ label: c.negocio || '', val_act: c.val_act, val_ant: c.val_ant, ups_act: c.ups_act, ups_ant: c.ups_ant, margen: c.margen }))
+        }));
+        const r = comparativaAOA('Tienda / Negocio', rows, { anio: lastTiendas.anio, full: false });
+        exportAOA(expFilename('PorTienda'), 'Por Tienda', r.header, r.body);
+    };
+    window.g00ExpNegocio = function () {
+        if (!lastProductos) { Swal.fire('Exportar', 'Carga la pestaña Productos primero.', 'info'); return; }
+        const n = lastProductos.negocios || { rows: [], total: {} };
+        const r = comparativaAOA('Negocio / Talla', n.rows, { anio: lastProductos.anio, full: true,
+            totalTdas: { act: n.total.tiendas_act, ant: n.total.tiendas_ant } });
+        exportAOA(expFilename('PorNegocio'), 'Por Negocio', r.header, r.body);
+    };
+    window.g00ExpCategoria = function () {
+        if (!lastProductos) { Swal.fire('Exportar', 'Carga la pestaña Productos primero.', 'info'); return; }
+        const c = lastProductos.categorias || { rows: [], total: {} };
+        const r = comparativaAOA('Categoría / Subcategoría', c.rows, { anio: lastProductos.anio, full: true,
+            totalTdas: { act: c.total.tiendas_act, ant: c.total.tiendas_ant } });
+        exportAOA(expFilename('PorCategoria'), 'Por Categoria', r.header, r.body);
+    };
+    window.g00ExpGenero = function () {
+        if (!lastProductos) { Swal.fire('Exportar', 'Carga la pestaña Productos primero.', 'info'); return; }
+        const g = lastProductos.generos || { rows: [], total: {} };
+        const r = comparativaAOA('Género / Público', g.rows, { anio: lastProductos.anio, full: true,
+            totalTdas: { act: g.total.tiendas_act, ant: g.total.tiendas_ant } });
+        exportAOA(expFilename('PorGenero'), 'Por Genero', r.header, r.body);
+    };
     // ============ DISPATCHER ============
     function loadCurrentTab() {
         if (currentTab === 'tiendas')        loadTiendas();
