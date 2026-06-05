@@ -114,6 +114,23 @@ foreach ($FILTROS_MULTI as $key => $col) {
     foreach ($vals as $v) $paramsExtra[] = $v;
 }
 
+// S.S.S (same-store): SOLO se aplica cuando ?sss=same. Compartido por todos los tabs que
+// comparan año actual vs anterior (Detal consolidado, Mensual, Productos). Por defecto
+// (No Same) NO filtra → todas las tiendas activas en el periodo. El EXISTS lee `v.BODEGA`,
+// así que vive dentro de cualquier CTE que seleccione de `ventas v`.
+$sameStoreClause = '';
+$sameStoreParams = [];
+if ($sss === 'same') {
+    $sameStoreClause = "
+          AND EXISTS (
+                SELECT 1 FROM INTEGRACION.dbo.Bodegas sb WITH (NOLOCK)
+                WHERE sb.COD = v.BODEGA AND sb.CIA = 7
+                  AND (sb.FECHA_APERTURA IS NULL OR sb.FECHA_APERTURA <= ?)
+                  AND (sb.FECHA_CIERRE   IS NULL OR sb.FECHA_CIERRE   >= ?)
+          )";
+    $sameStoreParams = [$desdeAnt, $hastaAct];
+}
+
 function run($conn, $sql, $params = []) {
     $stmt = sqlsrv_query($conn, $sql, $params);
     if ($stmt === false) return ['error' => sqlsrv_errors()];
@@ -526,20 +543,7 @@ if ($tab === 'productos') {
 // GROUPING_ID(YEAR, MONTH, GRUPO, MARCA, TIPO) por bit (1 = NULL en ese nivel):
 //   gid 31 → KPIs totales | 7 → mensual | 27 → grupo | 29 → marca | 28 → marca+tipo
 //
-// S.S.S (same-store): SOLO se aplica cuando ?sss=same. Por defecto (No Same) NO se
-// filtra → se muestran todas las tiendas activas en el periodo.
-$sameStoreClause = '';
-$sameStoreParams = [];
-if ($sss === 'same') {
-    $sameStoreClause = "
-          AND EXISTS (
-                SELECT 1 FROM INTEGRACION.dbo.Bodegas sb WITH (NOLOCK)
-                WHERE sb.COD = v.BODEGA AND sb.CIA = 7
-                  AND (sb.FECHA_APERTURA IS NULL OR sb.FECHA_APERTURA <= ?)
-                  AND (sb.FECHA_CIERRE   IS NULL OR sb.FECHA_CIERRE   >= ?)
-          )";
-    $sameStoreParams = [$desdeAnt, $hastaAct];
-}
+// S.S.S (same-store): $sameStoreClause / $sameStoreParams se construyen arriba (scope compartido).
 $sqlConsolidado = cteVentas() . "
     , ventas_enriq AS (
         SELECT v.FECHA, v.BODEGA, v.CANTIDAD, v.VALOR, v.MARGEN,
