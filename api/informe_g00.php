@@ -148,6 +148,54 @@ function jsonFail($rows, $conn) {
 }
 
 /**
+ * Ensambla filas de un GROUPING SETS de 2 niveles en {rows:[{label,...,children:[]}], total}.
+ * $gidTotal = gid de la fila grand-total (); $gidPadre = gid de la fila padre (hijo NULL).
+ * $padreKey($r)→etiqueta del padre; $hijoLabel($r)→etiqueta del hijo.
+ * $childSort: 'talla' (ascendente natural) | 'val' (val_act desc).
+ */
+function ensamblarArbolProd($rows, $gidTotal, $gidPadre, $padreKey, $hijoLabel, $childSort) {
+    $met = function ($r) {
+        return [
+            'val_act' => (float)$r['val_act'], 'val_ant' => (float)$r['val_ant'],
+            'ups_act' => (float)$r['ups_act'], 'ups_ant' => (float)$r['ups_ant'],
+            'margen'  => (float)($r['margen_prom'] ?? 0),
+            'tiendas_act' => (int)$r['tiendas_act'], 'tiendas_ant' => (int)$r['tiendas_ant'],
+        ];
+    };
+    $total = ['val_act'=>0,'val_ant'=>0,'ups_act'=>0,'ups_ant'=>0,'margen'=>0,'tiendas_act'=>0,'tiendas_ant'=>0];
+    $map  = [];   // key → fila padre
+    $kids = [];   // key → [hijos]
+    foreach ($rows as $r) {
+        $gid = (int)$r['gid'];
+        if ($gid === $gidTotal) { $total = $met($r); continue; }
+        $key = $padreKey($r);
+        if ($gid === $gidPadre) {
+            $map[$key] = array_merge(['label' => $key], $met($r));
+        } else {
+            $kids[$key][] = array_merge(['label' => $hijoLabel($r)], $met($r));
+        }
+    }
+    $out = [];
+    foreach ($map as $key => $fila) {
+        $ch = $kids[$key] ?? [];
+        if ($childSort === 'talla') {
+            usort($ch, function ($x, $y) {
+                $nx = is_numeric($x['label']) ? (float)$x['label'] : null;
+                $ny = is_numeric($y['label']) ? (float)$y['label'] : null;
+                if ($nx !== null && $ny !== null) return $nx <=> $ny;
+                return strcmp((string)$x['label'], (string)$y['label']);
+            });
+        } else {
+            usort($ch, fn($x, $y) => $y['val_act'] <=> $x['val_act']);
+        }
+        $fila['children'] = $ch;
+        $out[] = $fila;
+    }
+    usort($out, fn($x, $y) => $y['val_act'] <=> $x['val_act']);
+    return ['rows' => $out, 'total' => $total];
+}
+
+/**
  * Refs del proveedor (REFERENCIA + atributos), cacheadas en archivo con frescura
  * diaria (válido mientras el archivo se generó hoy → expira de hecho a medianoche,
  * alineado con la actualización del ERP). Evita evaluar la vista ITEMS por request.
@@ -468,70 +516,94 @@ if ($tab === 'periodos') {
 // TAB: PRODUCTOS
 // ====================================================================
 if ($tab === 'productos') {
-    $sqlRef = cteVentas() . "
-        SELECT TOP 50
-            v.REFERENCIA                       AS ref,
-            i.MARCA                            AS marca,
-            i.LINEA                            AS linea,
-            i.SUBLINEA                         AS sublinea,
-            i.CATEGORIA                        AS categoria,
-            SUM(v.VALOR)     AS valor,
-            SUM(v.CANTIDAD)  AS ups,
-            AVG(CAST(v.MARGEN AS float)) AS margen
-        FROM ventas v
-        INNER JOIN #refs i                                 ON i.REFERENCIA = v.REFERENCIA
-        LEFT  JOIN INTEGRACION.dbo.Bodegas b WITH (NOLOCK) ON b.COD        = v.BODEGA AND b.CIA = 7
-        WHERE v.FECHA BETWEEN ? AND ?
-          $filtroExtra
-        GROUP BY v.REFERENCIA, i.MARCA, i.LINEA, i.SUBLINEA, i.CATEGORIA
-        ORDER BY valor DESC
+    // 3 tablas árbol: Negocio(REF-COLOR)→Talla, Categoría→Subcategoría, Género→Público.
+    // Cada una: GROUPING SETS ((),(padre),(padre,hijo)) con comparación YoY (act vs ant).
+    $prodMetrics = "
+        SUM(CASE WHEN FECHA BETWEEN ? AND ? THEN VALOR    ELSE 0 END) AS val_act,
+        SUM(CASE WHEN FECHA BETWEEN ? AND ? THEN VALOR    ELSE 0 END) AS val_ant,
+        SUM(CASE WHEN FECHA BETWEEN ? AND ? THEN CANTIDAD ELSE 0 END) AS ups_act,
+        SUM(CASE WHEN FECHA BETWEEN ? AND ? THEN CANTIDAD ELSE 0 END) AS ups_ant,
+        AVG(CASE WHEN FECHA BETWEEN ? AND ? AND CANTIDAD > 0 THEN CAST(MARGEN AS float) END) AS margen_prom,
+        COUNT(DISTINCT CASE WHEN FECHA BETWEEN ? AND ? THEN BODEGA END) AS tiendas_act,
+        COUNT(DISTINCT CASE WHEN FECHA BETWEEN ? AND ? THEN BODEGA END) AS tiendas_ant";
+
+    $prodCte = cteVentas() . "
+        , ventas_enriq AS (
+            SELECT v.FECHA, v.BODEGA, v.CANTIDAD, v.VALOR, v.MARGEN,
+                   v.REFERENCIA, ISNULL(v.COLOR,'') AS COLOR, ISNULL(v.TALLA,'') AS TALLA,
+                   ISNULL(i.CATEGORIA,'')        AS CATEGORIA,
+                   ISNULL(i.SUBCATEGORIA,'')     AS SUBCATEGORIA,
+                   ISNULL(i.GENERO,'')           AS GENERO,
+                   ISNULL(i.PUBLICO_OBJETIVO,'') AS PUBLICO
+            FROM ventas v
+            INNER JOIN #refs i                                 ON i.REFERENCIA = v.REFERENCIA
+            LEFT  JOIN INTEGRACION.dbo.Bodegas b WITH (NOLOCK) ON b.COD = v.BODEGA AND b.CIA = 7
+            WHERE (v.FECHA BETWEEN ? AND ? OR v.FECHA BETWEEN ? AND ?)
+              $filtroExtra
+              $sameStoreClause
+        )
     ";
-    $paramsRef = array_merge([$desdeAct, $hastaAct, $desdeAct, $hastaAct, $desdeAct, $hastaAct], $paramsExtra);
 
-    $sqlTreemap = cteVentas() . "
-        SELECT
-            i.MARCA      AS marca,
-            i.LINEA      AS linea,
-            SUM(v.VALOR) AS valor
-        FROM ventas v
-        INNER JOIN #refs i                                 ON i.REFERENCIA = v.REFERENCIA
-        LEFT  JOIN INTEGRACION.dbo.Bodegas b WITH (NOLOCK) ON b.COD        = v.BODEGA AND b.CIA = 7
-        WHERE v.FECHA BETWEEN ? AND ?
-          $filtroExtra
-        GROUP BY i.MARCA, i.LINEA
-        HAVING SUM(v.VALOR) > 0
-        ORDER BY valor DESC
+    // Params idénticos para las 3 queries (solo cambian nombres de columna, no marcadores).
+    $pProd = array_merge(
+        [$gmin, $gmax, $gmin, $gmax],                       // cteVentas pushdown (PBI + Acum)
+        [$desdeAct, $hastaAct, $desdeAnt, $hastaAnt],       // ventas_enriq WHERE OR-filter
+        $paramsExtra,
+        $sameStoreParams,
+        [$desdeAct,$hastaAct, $desdeAnt,$hastaAnt,          // val_act / val_ant
+         $desdeAct,$hastaAct, $desdeAnt,$hastaAnt,          // ups_act / ups_ant
+         $desdeAct,$hastaAct,                                // margen_prom
+         $desdeAct,$hastaAct, $desdeAnt,$hastaAnt]          // tiendas_act / tiendas_ant
+    );
+
+    $sqlNeg = $prodCte . "
+        SELECT GROUPING_ID(REFERENCIA, COLOR, TALLA) AS gid,
+               REFERENCIA AS ref, COLOR AS color, TALLA AS talla,
+               $prodMetrics
+        FROM ventas_enriq
+        GROUP BY GROUPING SETS ( (), (REFERENCIA, COLOR), (REFERENCIA, COLOR, TALLA) )
     ";
-    $paramsTree = array_merge([$desdeAct, $hastaAct, $desdeAct, $hastaAct, $desdeAct, $hastaAct], $paramsExtra);
+    $sqlCat = $prodCte . "
+        SELECT GROUPING_ID(CATEGORIA, SUBCATEGORIA) AS gid,
+               CATEGORIA AS cat, SUBCATEGORIA AS sub,
+               $prodMetrics
+        FROM ventas_enriq
+        GROUP BY GROUPING SETS ( (), (CATEGORIA), (CATEGORIA, SUBCATEGORIA) )
+    ";
+    $sqlGen = $prodCte . "
+        SELECT GROUPING_ID(GENERO, PUBLICO) AS gid,
+               GENERO AS gen, PUBLICO AS pub,
+               $prodMetrics
+        FROM ventas_enriq
+        GROUP BY GROUPING SETS ( (), (GENERO), (GENERO, PUBLICO) )
+    ";
 
-    $refs = run($dbConnect, $sqlRef,     $paramsRef);
-    $tree = run($dbConnect, $sqlTreemap, $paramsTree);
-    if (isset($refs['error'])) jsonFail($refs, $dbConnect);
-    if (isset($tree['error'])) jsonFail($tree, $dbConnect);
+    $rNeg = run($dbConnect, $sqlNeg, $pProd);
+    $rCat = run($dbConnect, $sqlCat, $pProd);
+    $rGen = run($dbConnect, $sqlGen, $pProd);
+    foreach ([$rNeg, $rCat, $rGen] as $rr) if (isset($rr['error'])) jsonFail($rr, $dbConnect);
 
-    $refsArr = array_map(fn($r) => [
-        'ref'       => trim($r['ref']),
-        'marca'     => trim($r['marca']),
-        'linea'     => trim($r['linea']),
-        'sublinea'  => trim($r['sublinea']),
-        'categoria' => trim($r['categoria']),
-        'valor'     => (float)$r['valor'],
-        'ups'       => (float)$r['ups'],
-        'margen'    => (float)$r['margen'],
-    ], $refs);
-    $jerarquia = [];
-    foreach ($tree as $r) {
-        $m = trim($r['marca']); $l = trim($r['linea']);
-        if (!isset($jerarquia[$m])) $jerarquia[$m] = ['name' => $m, 'value' => 0, 'children' => []];
-        $jerarquia[$m]['value']      += (float)$r['valor'];
-        $jerarquia[$m]['children'][] = ['name' => $l, 'value' => (float)$r['valor']];
-    }
+    $nz = fn($s) => ($s === '') ? '(Sin dato)' : $s;
+    $negKey   = fn($r) => $nz(trim(trim((string)$r['ref']) . '-' . trim((string)$r['color']), '-'));
+    $negChild = fn($r) => $nz(trim((string)$r['talla']));
+    $catKey   = fn($r) => $nz(trim((string)$r['cat']));
+    $catChild = fn($r) => $nz(trim((string)$r['sub']));
+    $genKey   = fn($r) => $nz(trim((string)$r['gen']));
+    $genChild = fn($r) => $nz(trim((string)$r['pub']));
+
+    // GROUPING_ID: negocio sobre 3 cols (REF,COLOR,TALLA) → ()=7, (REF,COLOR)=1, full=0.
+    //              cat/gen sobre 2 cols → ()=3, (padre)=1, full=0.
+    $negocios   = ensamblarArbolProd($rNeg, 7, 1, $negKey, $negChild, 'talla');
+    $categorias = ensamblarArbolProd($rCat, 3, 1, $catKey, $catChild, 'val');
+    $generos    = ensamblarArbolProd($rGen, 3, 1, $genKey, $genChild, 'val');
+
     sqlsrv_close($dbConnect);
     echo json_encode([
-        'ok' => true,
-        'rango' => ['desde' => $desdeAct, 'hasta' => $hastaAct],
-        'refs' => $refsArr,
-        'treemap' => array_values($jerarquia),
+        'ok'   => true,
+        'anio' => (int)date('Y', strtotime($hastaAct)),
+        'negocios'   => $negocios,
+        'categorias' => $categorias,
+        'generos'    => $generos,
     ], JSON_UNESCAPED_UNICODE);
     exit;
 }
