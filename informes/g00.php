@@ -279,7 +279,7 @@
 
         <!-- Tabla 3: Mensual -->
         <div class="card">
-            <div class="card-title">Resumen Ventas Mensual</div>
+            <div class="card-title">Resumen Ventas Mensual<button class="g00-btn-export" onclick="g00ExpMensual()">⤓ Excel</button></div>
             <div style="overflow-x:auto;">
                 <table id="g00-tabla-mensual" class="disp-table"></table>
             </div>
@@ -314,7 +314,7 @@
     <!-- ============ TAB VENTAS POR PERIODOS ============ -->
     <div class="g00-tab-panel" id="g00-panel-periodos">
         <div class="card">
-            <div class="card-title">Ventas Por Periodos <span style="color:var(--text-light);font-weight:500;">&mdash; clic para desglosar Semestre → Trimestre → Mes → Día</span></div>
+            <div class="card-title">Ventas Por Periodos <span style="color:var(--text-light);font-weight:500;">&mdash; clic para desglosar Semestre → Trimestre → Mes → Día</span><button class="g00-btn-export" onclick="g00ExpPeriodos()">⤓ Excel</button></div>
             <div style="overflow-x:auto;">
                 <table id="g00-tabla-periodos" class="disp-table"></table>
             </div>
@@ -1173,6 +1173,61 @@
         const r = comparativaAOA('Género / Público', g.rows, { anio: lastProductos.anio, full: true,
             totalTdas: { act: g.total.tiendas_act, ant: g.total.tiendas_ant } });
         exportAOA(expFilename('PorGenero'), 'Por Genero', r.header, r.body);
+    };
+    function mensualAOA(rows, tdas, anio) {
+        const a = anio, b = a - 1;
+        const header = ['Mes', b, a, 'Dif Q', '%Q', '$ ' + b, '$ ' + a, 'Dif $', '%$', '$Prom ' + b, '$Prom ' + a, 'Tdas ' + b, 'Tdas ' + a, '≠Tdas'];
+        const body = []; let sv = 0, sb = 0, su = 0, sub = 0;
+        (rows || []).forEach(r => {
+            if (!r.val_act && !r.val_ant && !r.ups_act && !r.ups_ant) return;
+            sv += r.val_act || 0; sb += r.val_ant || 0; su += r.ups_act || 0; sub += r.ups_ant || 0;
+            const pa = eProm(r.val_act, r.ups_act), pb = eProm(r.val_ant, r.ups_ant);
+            body.push([r.mes, r.ups_ant || 0, r.ups_act || 0, eDif(r.ups_act, r.ups_ant), ePct(r.ups_act, r.ups_ant),
+                r.val_ant || 0, r.val_act || 0, eDif(r.val_act, r.val_ant), ePct(r.val_act, r.val_ant),
+                pb, pa, r.tiendas_ant || 0, r.tiendas_act || 0, eDif(r.tiendas_act, r.tiendas_ant)]);
+        });
+        const pa = eProm(sv, su), pb = eProm(sb, sub);
+        const tA = (tdas && tdas.act) || 0, tB = (tdas && tdas.ant) || 0;
+        body.push(['Total', sub, su, eDif(su, sub), ePct(su, sub), sb, sv, eDif(sv, sb), ePct(sv, sb), pb, pa, tB, tA, eDif(tA, tB)]);
+        return { header, body };
+    }
+    function periodosAOA(dias, anio) {
+        const a = anio, b = a - 1;
+        const header = ['Periodo', 'Cant ' + b, '%' + b, 'Cant ' + a, '%' + a, 'Var% Q', '$ ' + b, '%' + b, '$ ' + a, '%' + a, 'Var% $'];
+        const arbol = buildArbolPeriodos(dias);   // {sems, tot}
+        const T = arbol.tot;
+        const meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+        const row = (label, m, ind) => ['   '.repeat(ind) + label,
+            m.ub, ePart(m.ub, T.ub), m.ua, ePart(m.ua, T.ua), ePct(m.ua, m.ub),
+            m.vb, ePart(m.vb, T.vb), m.va, ePart(m.va, T.va), ePct(m.va, m.vb)];
+        const body = [];
+        Object.keys(arbol.sems).map(Number).sort((x, y) => x - y).forEach(s => {
+            const S = arbol.sems[s];
+            body.push(row('Semestre ' + s, S.m, 0));
+            Object.keys(S.tris).map(Number).sort((x, y) => x - y).forEach(t => {
+                const Tr = S.tris[t];
+                body.push(row('Trimestre ' + t, Tr.m, 1));
+                Object.keys(Tr.meses).map(Number).sort((x, y) => x - y).forEach(mn => {
+                    const M = Tr.meses[mn];
+                    body.push(row(meses[mn - 1], M.m, 2));
+                    Object.keys(M.dias).map(Number).sort((x, y) => x - y).forEach(d => {
+                        body.push(row(meses[mn - 1] + '-' + String(d).padStart(2, '0'), M.dias[d].m, 3));
+                    });
+                });
+            });
+        });
+        body.push(row('Total', T, 0));
+        return { header, body };
+    }
+    window.g00ExpMensual = function () {
+        if (!lastDetal) { Swal.fire('Exportar', 'Carga el dashboard primero.', 'info'); return; }
+        const r = mensualAOA(lastDetal.mensual, lastDetal.mensual_tdas, lastDetal.anio);
+        exportAOA(expFilename('Mensual'), 'Mensual', r.header, r.body);
+    };
+    window.g00ExpPeriodos = function () {
+        if (!lastPeriodos) { Swal.fire('Exportar', 'Carga la pestaña Periodos primero.', 'info'); return; }
+        const r = periodosAOA(lastPeriodos.dias, lastPeriodos.anio);
+        exportAOA(expFilename('Periodos'), 'Periodos', r.header, r.body);
     };
     // ============ DISPATCHER ============
     function loadCurrentTab() {
