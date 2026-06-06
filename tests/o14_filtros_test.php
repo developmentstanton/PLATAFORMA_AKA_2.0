@@ -55,12 +55,13 @@ if ($marcaTest !== '') {
     if ($nFm > $nBase) { echo "FALLO: filtro marca no reduce ($nFm > $nBase)\n"; $fail = 1; }
 }
 
-// 3) reco ve CEDI aun con filtro de bodega
+// 3) reco IGNORA los filtros de dimensión (CEDI/tiendas siempre completos para el negocio):
+//    aun pasando grupo[]/talla[] el endpoint responde ok (los filtros solo aplican a B/C).
 $ref = $sku[0]['referencia'] ?? ''; $col = $sku[0]['color'] ?? '';
 if ($ref !== '') {
-    $r = ep($php, $runner, $prov, 'tab=reco&ref=' . rawurlencode($ref) . '&color=' . rawurlencode($col) . '&grupo[]=NOEXISTE', $nul);
-    echo "tab=reco con grupo[]=NOEXISTE: ok=" . (($r['ok']??false)?'1':'0') . " planes=" . count($r['planes'] ?? []) . "\n";
-    if (!($r['ok'] ?? false)) { echo "FALLO: reco rompe con filtro de bodega\n"; $fail = 1; }
+    $r = ep($php, $runner, $prov, 'tab=reco&ref=' . rawurlencode($ref) . '&color=' . rawurlencode($col) . '&grupo[]=NOEXISTE&talla[]=99', $nul);
+    echo "tab=reco con grupo[]/talla[] inexistentes: ok=" . (($r['ok']??false)?'1':'0') . " planes=" . count($r['planes'] ?? []) . "\n";
+    if (!($r['ok'] ?? false)) { echo "FALLO: reco rompe / aplica filtros de dimension\n"; $fail = 1; }
 }
 
 echo $fail ? "RESULTADO: FALLO\n" : "RESULTADO: OK (catálogo + filtros sobre #base + invariante + reco/CEDI)\n";

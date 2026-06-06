@@ -107,7 +107,7 @@ function kpiCounts($c) {
 if (!buildRefsTemp($dbConnect, getRefsCached($dbConnect, $proveedor))) jsonFail(['error'=>sqlsrv_errors()], $dbConnect);
 
 // Filtros de dimensión de referencia: podar #refs → cae en las 4 fuentes (todas la inner-joinan).
-if ($tab !== 'filtros') {
+if ($tab === 'b' || $tab === 'c') {   // filtros de dimensión solo en vistas B/C/KPIs; reco usa universo completo (CEDI siempre); filtros = catálogo
     foreach ($FILTROS_REF as $key => $col) {
         $vals = getMulti($key); if (!$vals) continue;
         $ph = implode(',', array_fill(0, count($vals), '?'));
@@ -204,7 +204,7 @@ $delAdmin = sqlsrv_query($dbConnect, "
 if ($delAdmin===false) jsonFail(['error'=>sqlsrv_errors()], $dbConnect); else sqlsrv_free_stmt($delAdmin);
 
 // Filtros color/talla (columnas de #base) y bodega (vía Bodegas, conservando CEDI). No en catálogo.
-if ($tab !== 'filtros') {
+if ($tab === 'b' || $tab === 'c') {   // filtros de dimensión solo en vistas B/C/KPIs; reco usa universo completo (CEDI siempre); filtros = catálogo
     foreach ($FILTROS_SKU as $key => $col) {
         $vals = getMulti($key); if (!$vals) continue;
         $ph = implode(',', array_fill(0, count($vals), '?'));
