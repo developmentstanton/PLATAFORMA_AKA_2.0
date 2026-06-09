@@ -90,6 +90,8 @@
   .o14-arbol .o14-tw { display:inline-block; width:12px; color:var(--primary); font-size:9px; }
   .o14-matriz tr.o14-row-grupo td { background:#e3def3; font-weight:800; color:var(--primary); }
   .o14-matriz tr.o14-row-grupo td.dim { cursor:pointer; }
+  .o14-matriz tr.o14-grupo-total td { border-top:1px solid var(--primary); }
+  .o14-matriz tr.o14-grupo-total td.dim { cursor:default; }
   .o14-matriz tr.o14-row-alm td { background:#f1eefb; font-weight:600; }
   .o14-matriz tr.o14-row-alm td.dim { cursor:pointer; }
   .o14-matriz tr.o14-row-neg td.dim { color:var(--text); font-weight:400; }
@@ -254,13 +256,17 @@
     let h='<table class="o14-matriz o14-arbol"><thead><tr><th class="dim" rowspan="2">Grupo / Almacén / Negocio</th>';
     medidas.forEach(m=> h+='<th colspan="'+(tallas.length+1)+'">'+esc(MED_LABEL[m]||m)+'</th>');
     h+='</tr><tr>'; medidas.forEach(()=>{ tallas.forEach(t=> h+='<th>'+esc(t)+'</th>'); h+='<th class="blocktot">Tot</th>'; }); h+='</tr></thead><tbody>';
-    const gtot={}; medidas.forEach(m=>gtot[m]={});
+    const gtot={}; medidas.forEach(m=>gtot[m]={});       // total sin CEDI
+    const gtotC={}; medidas.forEach(m=>gtotC[m]={});     // total con CEDI
+    const nCols = medidas.length*(tallas.length+1);
     grupos.forEach((gr,gi)=>{
       const allNeg=[]; gr.almacenes.forEach(a=>a.negocios.forEach(n=>allNeg.push(n)));
       const gv=sumValores(allNeg, medidas);
       const gexp=arbolState.g[gi].exp;
-      if(gr.grupo!=='CEDI') medidas.forEach(m=>{ for(const t in gv[m]) gtot[m][t]=(gtot[m][t]||0)+gv[m][t]; });
-      h+='<tr class="o14-row-grupo" data-g="'+gi+'"><td class="dim" onclick="o14ToggleGrupo('+gi+')"><span class="o14-tw">'+(gexp?'▼':'▶')+'</span> '+esc(gr.grupo)+'</td>'+rowCells(gv,tallas,medidas,false)+'</tr>';
+      medidas.forEach(m=>{ for(const t in gv[m]) gtotC[m][t]=(gtotC[m][t]||0)+gv[m][t]; });        // con CEDI: todos
+      if(gr.grupo!=='CEDI') medidas.forEach(m=>{ for(const t in gv[m]) gtot[m][t]=(gtot[m][t]||0)+gv[m][t]; }); // sin CEDI
+      // Header de grupo: toggle + nombre, SIN números (solo para colapsar).
+      h+='<tr class="o14-row-grupo" data-g="'+gi+'"><td class="dim" onclick="o14ToggleGrupo('+gi+')"><span class="o14-tw">'+(gexp?'▼':'▶')+'</span> '+esc(gr.grupo)+'</td><td colspan="'+nCols+'"></td></tr>';
       gr.almacenes.forEach((a,ai)=>{
         const av=sumValores(a.negocios, medidas);
         const aexp=arbolState.g[gi].a[ai];
@@ -271,8 +277,12 @@
           h+='<tr class="o14-row-neg" data-g="'+gi+'" data-a="'+ai+'"'+nHide+'><td class="dim" style="padding-left:42px">'+esc(n.negocio)+'</td>'+rowCells(n.valores,tallas,medidas,true)+'</tr>';
         });
       });
+      // Total del grupo al final (oculto si el grupo está colapsado).
+      const gHide=gexp?'':' style="display:none"';
+      h+='<tr class="o14-row-grupo o14-grupo-total" data-g="'+gi+'"'+gHide+'><td class="dim" style="padding-left:22px">Total '+esc(gr.grupo)+'</td>'+rowCells(gv,tallas,medidas,false)+'</tr>';
     });
     h+='<tr class="o14-total"><td class="dim">TOTAL (sin CEDI)</td>'+rowCells(gtot,tallas,medidas,false)+'</tr>';
+    h+='<tr class="o14-total"><td class="dim">TOTAL (con CEDI)</td>'+rowCells(gtotC,tallas,medidas,false)+'</tr>';
     h+='</tbody></table>'; cont.innerHTML=h;
   }
 
