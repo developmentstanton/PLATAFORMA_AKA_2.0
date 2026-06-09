@@ -17,14 +17,15 @@
   <!-- Filtros -->
   <div class="g00-filters o14-filters">
     <div class="g00-filter-row">
-      <div class="filter-group"><label>Compañía</label>
-        <select id="o14-cia"><option value="">Todas</option><option value="002">002 · Brahma</option><option value="007">007 · Cauchosol</option></select>
+      <div class="filter-group"><label>Grupo</label><select id="o14-f-grupo" multiple></select></div>
+      <div class="filter-group"><label>Tienda</label><select id="o14-f-tienda" multiple></select></div>
+      <div class="filter-group"><label>Centro comercial</label><select id="o14-f-centro_comercial" multiple></select></div>
+      <div class="filter-group"><label>Departamento</label><select id="o14-f-depto" multiple></select></div>
+      <div class="filter-group"><label>Ciudad</label><select id="o14-f-ciudad" multiple></select></div>
+      <div class="o14-apply">
+        <span class="o14-hint" id="o14-c-sel"></span>
+        <button class="g00-btn-refresh" onclick="o14Load()"><i class="fa-solid fa-rotate"></i> Aplicar</button>
       </div>
-      <div class="filter-group"><label>Negocio</label>
-        <select id="o14-negocio" onchange="o14PickNegocio(this.value)"><option value="">— Todos —</option></select>
-      </div>
-      <button class="g00-btn-refresh" onclick="o14Load()"><i class="fa-solid fa-rotate"></i> Aplicar</button>
-      <span class="o14-hint" id="o14-c-sel"></span>
     </div>
     <div class="g00-filter-row">
       <div class="filter-group"><label>Marca</label><select id="o14-f-marca" multiple></select></div>
@@ -33,18 +34,14 @@
       <div class="filter-group"><label>Subcategoría</label><select id="o14-f-subcategoria" multiple></select></div>
       <div class="filter-group"><label>Género</label><select id="o14-f-genero" multiple></select></div>
       <div class="filter-group"><label>Público</label><select id="o14-f-publico" multiple></select></div>
+      <div class="filter-group"><label>Negocio</label>
+        <select id="o14-negocio" onchange="o14PickNegocio(this.value)"><option value="">— Todos —</option></select>
+      </div>
       <div class="filter-group"><label>Referencia</label><select id="o14-f-referencia" multiple></select></div>
     </div>
     <div class="g00-filter-row">
       <div class="filter-group"><label>Color</label><select id="o14-f-color" multiple></select></div>
       <div class="filter-group"><label>Talla</label><select id="o14-f-talla" multiple></select></div>
-    </div>
-    <div class="g00-filter-row">
-      <div class="filter-group"><label>Grupo</label><select id="o14-f-grupo" multiple></select></div>
-      <div class="filter-group"><label>Tienda</label><select id="o14-f-tienda" multiple></select></div>
-      <div class="filter-group"><label>Centro comercial</label><select id="o14-f-centro_comercial" multiple></select></div>
-      <div class="filter-group"><label>Departamento</label><select id="o14-f-depto" multiple></select></div>
-      <div class="filter-group"><label>Ciudad</label><select id="o14-f-ciudad" multiple></select></div>
     </div>
   </div>
 
@@ -72,6 +69,7 @@
   #page-informes-o14 .o14-matriz-wrap { max-width:100%; }
   .o14-filters .o14-hint { font-size:11px; color:var(--text-light); }
   .o14-tabs .o14-export-btn { margin-left:auto; float:none; align-self:center; }
+  .o14-filters .o14-apply { margin-left:auto; display:flex; align-items:center; gap:10px; }
   .o14-tab-panel { display:none; }
   .o14-tab-panel.active { display:block; animation:o14fade .3s ease-out; }
   @keyframes o14fade { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
@@ -181,7 +179,6 @@
     const desde = val('o14-vdesde') || '2025-01-01';   // rango SOLO de ventas
     const hasta = val('o14-vhasta') || hoy;
     const p = new URLSearchParams({ tab:tab, desde:desde, hasta:hasta });
-    const cia = val('o14-cia'); if(cia) p.set('cia', cia);
     FILTER_FIELDS.forEach(f => { (selectedOf(f)||[]).forEach(v => p.append(f+'[]', v)); });
     if(tab==='reco'){ p.set('ref', negocioSel.ref); p.set('color', negocioSel.color); }
     return p.toString();
