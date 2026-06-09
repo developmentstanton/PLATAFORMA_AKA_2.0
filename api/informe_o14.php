@@ -24,7 +24,9 @@ $tab   = $_GET['tab']   ?? 'b';
 $cia   = trim($_GET['cia']   ?? '');
 $refF  = trim($_GET['ref']   ?? '');
 $colF  = trim($_GET['color'] ?? '');
-$desde = $_GET['desde'] ?? date('Y-01-01');
+// desde/hasta delimitan SOLO la ventana de Ventas (siembra/disp/hold son foto actual, sin fecha).
+// Default: histórico desde 2025-01-01 → cruza Ventas_Detal_Acum_PBI + Ventas_Detal_PBI (ver $inclAcum).
+$desde = $_GET['desde'] ?? '2025-01-01';
 $hasta = $_GET['hasta'] ?? date('Y-m-d');
 
 // Filtros multi-valor (como G00). REF→poda #refs; color/talla→#base; bodega→Bodegas.
