@@ -110,6 +110,9 @@
   .o14-reco-card .card-title { font-weight:700; color:var(--primary); margin-bottom:8px; font-size:13px; }
   .o14-matriz tr.o14-reco-toggle td.dim { cursor:pointer; }
   .o14-reco-tw { display:inline-block; width:12px; color:var(--primary); font-size:9px; }
+  .o14-reco-note { font-size:11px; font-weight:500; color:var(--text-light); margin-left:6px; }
+  #o14-img-pop { position:fixed; display:none; z-index:9999; pointer-events:none; background:#fff; border:1px solid var(--border); border-radius:8px; box-shadow:0 6px 20px rgba(45,43,78,0.25); padding:4px; }
+  #o14-img-pop img { max-width:260px; max-height:320px; width:auto; height:auto; display:block; border-radius:4px; }
   .o14-reco-dot { display:none; width:8px; height:8px; border-radius:50%; background:var(--accent); margin-left:6px; vertical-align:middle; animation:o14pulse 1.2s ease-in-out infinite; }
   .o14-reco-dot.on { display:inline-block; }
   @keyframes o14pulse { 0%,100%{ opacity:1; transform:scale(1); } 50%{ opacity:.35; transform:scale(1.5); } }
@@ -339,19 +342,27 @@
   const RECO_MED=['sobrante','faltante','proveedor'];
   const RECO_LABEL={sobrante:'Reubicación — Sobrante disponible',faltante:'Faltante',proveedor:'Solicitud a proveedor'};
   // Pinta una matriz negocio×talla para una medida, con fila TOTAL arriba y botón Excel.
+  // Nota por matriz (al lado del título) con el total general de esa medida.
+  const RECO_NOTE={
+    sobrante:(n)=>'Usted tiene para reubicar la cantidad de '+nf(n),
+    faltante:(n)=>'A usted le falta la cantidad de '+nf(n),
+    proveedor:(n)=>'Usted debe pedir al proveedor la cantidad de '+nf(n)
+  };
   function renderRecoMatriz(containerId, data, medida, expIdx){
     const cont=document.getElementById(containerId); if(!cont) return;
     const tallas=data.tallas||[];
     const filas=(data.filas||[]).filter(f=>{ const o=(f.valores||{})[medida]||{}; for(const t in o) if(o[t]) return true; return false; });
-    let h='<div class="card-title">'+esc(RECO_LABEL[medida])+'<button class="g00-btn-export" onclick="o14RecoExp('+expIdx+')">⤓ Excel</button></div>';
-    if(!filas.length){ cont.innerHTML=h+'<p style="padding:12px;color:var(--text-light)">Sin datos.</p>'; return; }
+    const titleBtn='<button class="g00-btn-export" onclick="o14RecoExp('+expIdx+')">⤓ Excel</button>';
+    if(!filas.length){ cont.innerHTML='<div class="card-title">'+esc(RECO_LABEL[medida])+titleBtn+'</div><p style="padding:12px;color:var(--text-light)">Sin datos.</p>'; return; }
+    const tot={};
+    filas.forEach(f=>{ const o=f.valores[medida]||{}; tallas.forEach(t=>{ tot[t]=(tot[t]||0)+(o[t]||0); }); });
+    let gtot=0; tallas.forEach(t=> gtot+=(tot[t]||0));
+    let h='<div class="card-title">'+esc(RECO_LABEL[medida])+' <span class="o14-reco-note">'+esc(RECO_NOTE[medida](gtot))+'</span>'+titleBtn+'</div>';
     h+='<div class="o14-matriz-wrap"><table class="o14-matriz" id="o14-reco-tbl-'+medida+'"><thead><tr><th class="dim">Negocio</th>';
     tallas.forEach(t=> h+='<th>'+esc(t)+'</th>'); h+='<th class="blocktot">Tot</th></tr></thead><tbody>';
-    const tot={}; let gtot=0;
-    filas.forEach(f=>{ const o=f.valores[medida]||{}; tallas.forEach(t=>{ tot[t]=(tot[t]||0)+(o[t]||0); }); });
     h+='<tr class="o14-total o14-reco-toggle" onclick="o14RecoToggle(\''+medida+'\')"><td class="dim"><span class="o14-reco-tw" id="o14-reco-caret-'+medida+'">▶</span> TOTAL</td>';
-    tallas.forEach(t=>{ const v=tot[t]||0; gtot+=v; h+='<td>'+(v?nf(v):'')+'</td>'; }); h+='<td class="blocktot">'+nf(gtot)+'</td></tr>';
-    filas.forEach(f=>{ const o=f.valores[medida]||{}; let rt=0; h+='<tr class="o14-reco-neg" style="display:none"><td class="dim">'+esc(f.negocio)+'</td>';
+    tallas.forEach(t=>{ const v=tot[t]||0; h+='<td>'+(v?nf(v):'')+'</td>'; }); h+='<td class="blocktot">'+nf(gtot)+'</td></tr>';
+    filas.forEach(f=>{ const o=f.valores[medida]||{}; let rt=0; h+='<tr class="o14-reco-neg" data-negimg="'+esc(f.negocio)+'" style="display:none"><td class="dim">'+esc(f.negocio)+'</td>';
       tallas.forEach(t=>{ const v=o[t]||0; rt+=v; h+='<td>'+(v?nf(v):'')+'</td>'; }); h+='<td class="blocktot">'+nf(rt)+'</td></tr>'; });
     h+='</tbody></table></div>'; cont.innerHTML=h;
   }
@@ -376,6 +387,26 @@
     rows.forEach(r=>{ r.style.display = show?'':'none'; });
     const caret=document.getElementById('o14-reco-caret-'+med); if(caret) caret.textContent = show?'▼':'▶';
   };
+
+  // Hover de foto del zapato sobre la columna Negocio en las matrices de reco (igual que G00).
+  (function initRecoImgHover(){
+    const FOTO_BASE='http://bi.stanton.com.co:81/fotosPBI/';
+    const panel=document.getElementById('o14-panel-reco'); if(!panel) return;
+    let pop=null,img=null,triedPng=false,curLabel='';
+    function ensurePop(){ if(pop)return; pop=document.createElement('div'); pop.id='o14-img-pop'; img=document.createElement('img'); img.alt='';
+      img.onerror=function(){ if(!triedPng){ triedPng=true; img.src=FOTO_BASE+encodeURIComponent(curLabel)+'.png'; } else hide(); };
+      pop.appendChild(img); document.body.appendChild(pop); }
+    function hide(){ if(pop) pop.style.display='none'; }
+    function position(e){ if(!pop)return; const off=16,w=276,h=336; let x=e.clientX+off,y=e.clientY+off;
+      if(x+w>window.innerWidth)x=e.clientX-off-w; if(y+h>window.innerHeight)y=e.clientY-off-h;
+      pop.style.left=Math.max(4,x)+'px'; pop.style.top=Math.max(4,y)+'px'; }
+    panel.addEventListener('mouseover',function(e){ const td=e.target.closest('td'); if(!td||td.cellIndex!==0)return;
+      const tr=td.closest('tr[data-negimg]'); if(!tr)return; curLabel=tr.getAttribute('data-negimg'); triedPng=false; ensurePop();
+      img.src=FOTO_BASE+encodeURIComponent(curLabel)+'.jpg'; pop.style.display='block'; position(e); });
+    panel.addEventListener('mousemove',function(e){ if(pop&&pop.style.display==='block')position(e); });
+    panel.addEventListener('mouseout',function(e){ const td=e.target.closest('td');
+      if(td&&td.cellIndex===0&&(!e.relatedTarget||!td.contains(e.relatedTarget)))hide(); });
+  })();
 
   function loadB(){ showLoading('Cargando O14B');
     fetch('api/informe_o14.php?'+buildParams('b'),{credentials:'same-origin'})
