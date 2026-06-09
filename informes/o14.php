@@ -53,6 +53,7 @@
     <div class="tab active" onclick="o14ShowTab('b', this)">Por negocio</div>
     <div class="tab" onclick="o14ShowTab('c', this)">Por tienda</div>
     <div class="tab" onclick="o14ShowTab('reco', this)">Recomendaciones</div>
+    <button class="g00-btn-export o14-export-btn" onclick="o14Export()">⤓ Excel</button>
   </div>
 
   <div class="o14-tab-panel active" id="o14-panel-b"><div id="o14-matriz-b" class="o14-matriz-wrap"></div></div>
@@ -70,12 +71,13 @@
   #page-informes-o14 .o14-kpis, #page-informes-o14 .g00-filters { width:100%; box-sizing:border-box; }
   #page-informes-o14 .o14-matriz-wrap { max-width:100%; }
   .o14-filters .o14-hint { font-size:11px; color:var(--text-light); }
+  .o14-tabs .o14-export-btn { margin-left:auto; float:none; align-self:center; }
   .o14-tab-panel { display:none; }
   .o14-tab-panel.active { display:block; animation:o14fade .3s ease-out; }
   @keyframes o14fade { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
   .o14-matriz-wrap { overflow-x:auto; border:1px solid var(--border); border-radius:10px; background:#fff; }
-  .o14-matriz { border-collapse:collapse; font-size:11px; white-space:nowrap; min-width:100%; }
-  .o14-matriz th, .o14-matriz td { border:1px solid var(--border); padding:3px 7px; text-align:center; }
+  .o14-matriz { border-collapse:collapse; font-size:10px; white-space:nowrap; min-width:100%; }
+  .o14-matriz th, .o14-matriz td { border:1px solid var(--border); padding:2px 6px; text-align:center; }
   .o14-matriz thead th { background:#f3f2fa; color:var(--primary); position:sticky; top:0; }
   .o14-matriz th.dim, .o14-matriz td.dim { text-align:center; position:sticky; left:0; background:#fff; z-index:1; }
   .o14-matriz thead th.dim { background:#f3f2fa; z-index:2; }
@@ -175,8 +177,9 @@
   const val = (id)=>{ const e=document.getElementById(id); return e? e.value.trim():''; };
 
   function buildParams(tab){
-    const hoy = new Date();
-    const desde = hoy.getFullYear()+'-01-01', hasta = hoy.toISOString().slice(0,10);
+    const hoy = new Date().toISOString().slice(0,10);
+    const desde = val('o14-vdesde') || '2025-01-01';   // rango SOLO de ventas
+    const hasta = val('o14-vhasta') || hoy;
     const p = new URLSearchParams({ tab:tab, desde:desde, hasta:hasta });
     const cia = val('o14-cia'); if(cia) p.set('cia', cia);
     FILTER_FIELDS.forEach(f => { (selectedOf(f)||[]).forEach(v => p.append(f+'[]', v)); });
@@ -379,23 +382,49 @@
   window.o14Load = function(){ tabState.b=tabState.c=tabState.reco=false; loadCurrentTab(); };
 
   window.o14OnEnter = function(){
-    // Topbar estilo G00: título centrado "SIEMBRA / STOCK", sin tablita de fechas, botón Actualizar.
+    // Topbar estilo G00: título centrado "SIEMBRA / STOCK", botón Actualizar.
     document.getElementById('pageTitle').textContent = 'SIEMBRA / STOCK';
     document.getElementById('topbar').classList.add('topbar--o14');
     document.getElementById('pageSubtitle').style.display = 'none';
-    // Spacer izquierdo (col 1fr) vacío: ocupa la celda para centrar el título; sin tablita de fechas.
-    const td = document.getElementById('topbarDates'); td.innerHTML = ''; td.style.display = '';
+    // Columna izquierda del topbar: control de fecha que afecta SOLO a ventas (default histórico desde 2025-01-01).
+    const td = document.getElementById('topbarDates'); td.style.display = '';
+    if (!document.getElementById('o14-vdesde')) {
+      const hoy = new Date().toISOString().slice(0,10);
+      td.innerHTML =
+        '<div class="o14-vfilter"><span class="o14-vfilter-lbl">Ventas</span>'
+        + '<label>Desde<input type="date" id="o14-vdesde" value="2025-01-01"></label>'
+        + '<label>Hasta<input type="date" id="o14-vhasta" value="'+hoy+'"></label></div>';
+    }
     const rb = document.getElementById('topbarO14Refresh'); if(rb) rb.style.display = '';
     if (!filtrosInit) { initFiltros(); filtrosInit = true; }
     if(!tabState.b) loadB();
   };
 
+  // DOM→AOA expandiendo colspan/rowspan; convierte enteros es-CO ("1.234"→1234) a números reales.
+  function tableToAOA(tbl){
+    const aoa = [], carry = {}; // carry[col] = {text, rem} para rowspans pendientes
+    [...tbl.rows].forEach(tr => {
+      const row = []; let c = 0;
+      const placeCarry = () => { while(carry[c] && carry[c].rem > 0){ row[c] = carry[c].text; carry[c].rem--; c++; } };
+      [...tr.cells].forEach(cell => {
+        placeCarry();
+        const cs = cell.colSpan||1, rs = cell.rowSpan||1, txt = cell.innerText.trim();
+        const v = /^-?\d{1,3}(\.\d{3})*$/.test(txt) ? parseInt(txt.replace(/\./g,''),10) : txt;
+        for(let k=0;k<cs;k++){ const cv = k===0 ? v : ''; row[c] = cv; if(rs>1) carry[c] = {text:cv, rem:rs-1}; c++; }
+      });
+      placeCarry();
+      aoa.push(row);
+    });
+    return aoa;
+  }
+  // Exporta a .xlsx real la tabla de la pestaña actual (incluye todas las filas, incluso grupos colapsados).
   window.o14Export = function(){
     const tbl = document.querySelector('#o14-panel-'+currentTab+' table');
     if(!tbl){ Swal.fire('Exportar','Nada que exportar en esta pestaña.','info'); return; }
-    const csv = [...tbl.querySelectorAll('tr')].map(tr=>[...tr.children].map(td=>'"'+td.innerText.replace(/"/g,'""')+'"').join(',')).join('\n');
-    const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob(["﻿"+csv],{type:'text/csv;charset=utf-8'}));
-    a.download='O14_'+currentTab+'_'+new Date().toISOString().slice(0,10)+'.csv'; a.click();
+    if(typeof XLSX === 'undefined'){ Swal.fire('Exportar','No se cargó el componente de Excel.','error'); return; }
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(tableToAOA(tbl)), 'O14');
+    XLSX.writeFile(wb, 'O14_'+currentTab+'_'+new Date().toISOString().slice(0,10)+'.xlsx');
   };
 })();
 </script>

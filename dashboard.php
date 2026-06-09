@@ -162,7 +162,7 @@
         .user-role { font-size: 10px; color: rgba(255,255,255,0.45); }
 
         /* MAIN */
-        .main { flex: 1; margin-left: 256px; }
+        .main { flex: 1; margin-left: 256px; min-width: 0; } /* min-width:0 evita que tablas anchas (O14) desborden el flex item y empujen topbar/KPIs fuera del viewport */
         .topbar {
             background: white; padding: 14px 28px; border-bottom: 1px solid var(--border);
             display: flex; align-items: center; justify-content: space-between;
@@ -186,6 +186,10 @@
         .topbar.topbar--o14 { display: grid; grid-template-columns: 1fr auto 1fr; gap: 16px; align-items: center; }
         .topbar.topbar--o14 .topbar-titles { align-items: center; text-align: center; }
         .topbar.topbar--o14 .topbar-actions { justify-self: end; }
+        .topbar.topbar--o14 .o14-vfilter { display: flex; align-items: center; gap: 10px; }
+        .o14-vfilter-lbl { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-light); font-weight: 700; }
+        .o14-vfilter label { display: flex; flex-direction: column; gap: 2px; font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-light); font-weight: 600; }
+        .o14-vfilter input[type="date"] { font-family: 'Space Grotesk', sans-serif; font-size: 11px; padding: 3px 6px; border: 1px solid var(--border); border-radius: 6px; background: white; color: var(--text); }
         .topbar-dates table { border-collapse: collapse; }
         .topbar-dates th {
             font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px;
