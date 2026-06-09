@@ -109,7 +109,7 @@ function kpiCounts($c) {
 if (!buildRefsTemp($dbConnect, getRefsCached($dbConnect, $proveedor))) jsonFail(['error'=>sqlsrv_errors()], $dbConnect);
 
 // Filtros de dimensión de referencia: podar #refs → cae en las 4 fuentes (todas la inner-joinan).
-if ($tab === 'b' || $tab === 'c') {   // filtros de dimensión solo en vistas B/C/KPIs; reco usa universo completo (CEDI siempre); filtros = catálogo
+if ($tab === 'b' || $tab === 'c' || $tab === 'reco') {   // producto/SKU acotan B/C/KPIs y reco; bodega solo B/C
     foreach ($FILTROS_REF as $key => $col) {
         $vals = getMulti($key); if (!$vals) continue;
         $ph = implode(',', array_fill(0, count($vals), '?'));
@@ -205,14 +205,17 @@ $delAdmin = sqlsrv_query($dbConnect, "
   WHERE rtrim(bo.GRUPO)='ADMINISTRATIVAS' AND b.bodega<>'CEDI'");
 if ($delAdmin===false) jsonFail(['error'=>sqlsrv_errors()], $dbConnect); else sqlsrv_free_stmt($delAdmin);
 
-// Filtros color/talla (columnas de #base) y bodega (vía Bodegas, conservando CEDI). No en catálogo.
-if ($tab === 'b' || $tab === 'c') {   // filtros de dimensión solo en vistas B/C/KPIs; reco usa universo completo (CEDI siempre); filtros = catálogo
+// Filtros color/talla (columnas de #base): aplican a B/C/KPIs y reco (acotan tallas/colores).
+if ($tab === 'b' || $tab === 'c' || $tab === 'reco') {
     foreach ($FILTROS_SKU as $key => $col) {
         $vals = getMulti($key); if (!$vals) continue;
         $ph = implode(',', array_fill(0, count($vals), '?'));
         $d = sqlsrv_query($dbConnect, "DELETE FROM #base WHERE $col NOT IN ($ph)", $vals);
         if ($d === false) jsonFail(['error'=>sqlsrv_errors()], $dbConnect); else sqlsrv_free_stmt($d);
     }
+}
+// Filtros de bodega (vía Bodegas, conservando CEDI): SOLO B/C — reco usa la red completa para la cascada.
+if ($tab === 'b' || $tab === 'c') {
     foreach ($FILTROS_BOD as $key => $col) {
         $vals = getMulti($key); if (!$vals) continue;
         $ph = implode(',', array_fill(0, count($vals), '?'));
@@ -337,32 +340,62 @@ if ($tab === 'c') {
 // ====================================================================
 if ($tab === 'reco') {
     require __DIR__ . '/o14_recomendador.php';
-    if ($refF==='' || $colF==='') { sqlsrv_close($dbConnect); echo json_encode(['ok'=>true,'tab'=>'reco','planes'=>[]]); exit; }
+    // Reco GENERAL: corre el motor por (cia, negocio) sobre #base filtrado (producto/SKU; bodega NO).
     $rows = run($dbConnect, "
-        SELECT cia, bodega, talla, SUM(siembra) siembra, SUM(disponible) disponible, SUM(hold) hold
-        FROM #base WHERE referencia=? AND color=?
-        GROUP BY cia, bodega, talla", [$refF,$colF]);
+        SELECT cia, bodega, negocio, referencia, color, talla,
+               SUM(siembra) siembra, SUM(disponible) disponible, SUM(hold) hold
+        FROM #base
+        GROUP BY cia, bodega, negocio, referencia, color, talla");
     if (isset($rows['error'])) jsonFail($rows, $dbConnect);
 
-    $porCia = [];
+    // Agrupar por (cia, negocio): tiendas (no-CEDI) + cedi (disponible).
+    $porCiaNeg = [];
     foreach ($rows as $r) {
-        $c=$r['cia']; $t=(string)$r['talla'];
-        if (rtrim($r['bodega'])==='CEDI') {
-            $porCia[$c]['cedi'][$t] = ($porCia[$c]['cedi'][$t] ?? 0) + (int)$r['disponible'];
+        $c=$r['cia']; $neg=$r['negocio']; $t=(string)$r['talla']; $bod=rtrim($r['bodega']);
+        if (!isset($porCiaNeg[$c][$neg])) $porCiaNeg[$c][$neg]=['ref'=>$r['referencia'],'color'=>$r['color'],'tiendas'=>[],'cedi'=>[]];
+        if ($bod==='CEDI') {
+            $porCiaNeg[$c][$neg]['cedi'][$t] = ($porCiaNeg[$c][$neg]['cedi'][$t] ?? 0) + (int)$r['disponible'];
         } else {
-            $porCia[$c]['tiendas'][$r['bodega']]['cod'] = $c.'-'.$r['bodega'];
-            $porCia[$c]['tiendas'][$r['bodega']]['tallas'][$t] =
+            $porCiaNeg[$c][$neg]['tiendas'][$bod]['cod'] = $c.'-'.$bod;
+            $porCiaNeg[$c][$neg]['tiendas'][$bod]['tallas'][$t] =
                 ['siembra'=>(int)$r['siembra'],'disponible'=>(int)$r['disponible'],'hold'=>(int)$r['hold']];
         }
     }
-    $planes = [];
-    foreach ($porCia as $c => $g) {
-        $plan = recomendar(array_values($g['tiendas'] ?? []), $g['cedi'] ?? []);
-        $plan['cia'] = $c; $plan['negocio'] = ['ref'=>$refF,'color'=>$colF];
-        $planes[] = $plan;
+
+    // Por negocio (agregando cías): sobrante/faltante raw sobre tiendas + proveedor (residual del motor).
+    $negs = [];
+    foreach ($porCiaNeg as $c => $porNeg) {
+        foreach ($porNeg as $neg => $g) {
+            if (!isset($negs[$neg])) $negs[$neg]=['referencia'=>$g['ref'],'color'=>$g['color'],'sobrante'=>[],'faltante'=>[],'proveedor'=>[]];
+            foreach ($g['tiendas'] as $bod=>$tn) {
+                foreach ($tn['tallas'] as $t=>$v) {
+                    $bal = $v['siembra'] - ($v['disponible'] + $v['hold']);
+                    if ($bal > 0)      $negs[$neg]['faltante'][$t] = ($negs[$neg]['faltante'][$t] ?? 0) + $bal;
+                    elseif ($bal < 0)  $negs[$neg]['sobrante'][$t] = ($negs[$neg]['sobrante'][$t] ?? 0) + (-$bal);
+                }
+            }
+            $plan = recomendar(array_values($g['tiendas']), $g['cedi']);
+            foreach (($plan['solicitudes_proveedor'] ?? []) as $sp) {
+                $t=(string)$sp['talla']; $negs[$neg]['proveedor'][$t] = ($negs[$neg]['proveedor'][$t] ?? 0) + (int)$sp['uds'];
+            }
+        }
     }
     sqlsrv_close($dbConnect);
-    echo json_encode(['ok'=>true,'tab'=>'reco','negocio'=>['ref'=>$refF,'color'=>$colF],'planes'=>$planes], JSON_UNESCAPED_UNICODE);
+
+    // Tidy: una fila por negocio con algún valor>0; tallas unión ordenada.
+    $tallasSet=[]; $filas=[];
+    foreach ($negs as $neg=>$v) {
+        if ((array_sum($v['sobrante']) + array_sum($v['faltante']) + array_sum($v['proveedor'])) <= 0) continue;
+        foreach (['sobrante','faltante','proveedor'] as $m) foreach ($v[$m] as $t=>$q) $tallasSet[(string)$t]=true;
+        $filas[] = ['negocio'=>$neg,'referencia'=>$v['referencia'],'color'=>$v['color'],
+                    'valores'=>['sobrante'=>$v['sobrante'],'faltante'=>$v['faltante'],'proveedor'=>$v['proveedor']]];
+    }
+    usort($filas, fn($a,$b)=>strcmp($a['negocio'],$b['negocio']));
+    $tallas=array_keys($tallasSet);
+    usort($tallas, fn($a,$b)=>(is_numeric($a)&&is_numeric($b))?($a<=>$b):strcmp($a,$b));
+
+    echo json_encode(['ok'=>true,'tab'=>'reco','tallas'=>$tallas,
+        'medidas'=>['sobrante','faltante','proveedor'],'filas'=>$filas], JSON_UNESCAPED_UNICODE);
     exit;
 }
 
