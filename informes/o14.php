@@ -108,6 +108,8 @@
   .o14-reco-resumen { margin:12px 0 8px; font-size:12px; color:var(--text); }
   .o14-reco-card { margin-bottom:18px; }
   .o14-reco-card .card-title { font-weight:700; color:var(--primary); margin-bottom:8px; font-size:13px; }
+  .o14-matriz tr.o14-reco-toggle td.dim { cursor:pointer; }
+  .o14-reco-tw { display:inline-block; width:12px; color:var(--primary); font-size:9px; }
   .o14-reco-dot { display:none; width:8px; height:8px; border-radius:50%; background:var(--accent); margin-left:6px; vertical-align:middle; animation:o14pulse 1.2s ease-in-out infinite; }
   .o14-reco-dot.on { display:inline-block; }
   @keyframes o14pulse { 0%,100%{ opacity:1; transform:scale(1); } 50%{ opacity:.35; transform:scale(1.5); } }
@@ -347,9 +349,9 @@
     tallas.forEach(t=> h+='<th>'+esc(t)+'</th>'); h+='<th class="blocktot">Tot</th></tr></thead><tbody>';
     const tot={}; let gtot=0;
     filas.forEach(f=>{ const o=f.valores[medida]||{}; tallas.forEach(t=>{ tot[t]=(tot[t]||0)+(o[t]||0); }); });
-    h+='<tr class="o14-total"><td class="dim">TOTAL</td>';
+    h+='<tr class="o14-total o14-reco-toggle" onclick="o14RecoToggle(\''+medida+'\')"><td class="dim"><span class="o14-reco-tw" id="o14-reco-caret-'+medida+'">▶</span> TOTAL</td>';
     tallas.forEach(t=>{ const v=tot[t]||0; gtot+=v; h+='<td>'+(v?nf(v):'')+'</td>'; }); h+='<td class="blocktot">'+nf(gtot)+'</td></tr>';
-    filas.forEach(f=>{ const o=f.valores[medida]||{}; let rt=0; h+='<tr><td class="dim">'+esc(f.negocio)+'</td>';
+    filas.forEach(f=>{ const o=f.valores[medida]||{}; let rt=0; h+='<tr class="o14-reco-neg" style="display:none"><td class="dim">'+esc(f.negocio)+'</td>';
       tallas.forEach(t=>{ const v=o[t]||0; rt+=v; h+='<td>'+(v?nf(v):'')+'</td>'; }); h+='<td class="blocktot">'+nf(rt)+'</td></tr>'; });
     h+='</tbody></table></div>'; cont.innerHTML=h;
   }
@@ -365,6 +367,14 @@
     const wb=XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(tableToAOA(tbl)), 'Reco');
     XLSX.writeFile(wb,'O14_reco_'+med+'_'+new Date().toISOString().slice(0,10)+'.xlsx');
+  };
+  // Despliega/colapsa las filas de negocio de una matriz de reco (inician colapsadas: solo el TOTAL).
+  window.o14RecoToggle=function(med){
+    const tbl=document.getElementById('o14-reco-tbl-'+med); if(!tbl) return;
+    const rows=tbl.querySelectorAll('tr.o14-reco-neg'); if(!rows.length) return;
+    const show = rows[0].style.display==='none';
+    rows.forEach(r=>{ r.style.display = show?'':'none'; });
+    const caret=document.getElementById('o14-reco-caret-'+med); if(caret) caret.textContent = show?'▼':'▶';
   };
 
   function loadB(){ showLoading('Cargando O14B');
