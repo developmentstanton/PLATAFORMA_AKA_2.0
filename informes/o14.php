@@ -47,14 +47,14 @@
 
   <!-- Tabs -->
   <div class="tab-bar o14-tabs">
-    <div class="tab active" onclick="o14ShowTab('b', this)">Por negocio</div>
-    <div class="tab" onclick="o14ShowTab('c', this)">Por tienda</div>
+    <div class="tab active" onclick="o14ShowTab('c', this)">Por tienda</div>
+    <div class="tab" onclick="o14ShowTab('b', this)">Por negocio</div>
     <div class="tab" onclick="o14ShowTab('reco', this)">Recomendaciones</div>
     <button class="g00-btn-export o14-export-btn" onclick="o14Export()">⤓ Excel</button>
   </div>
 
-  <div class="o14-tab-panel active" id="o14-panel-b"><div id="o14-matriz-b" class="o14-matriz-wrap"></div></div>
-  <div class="o14-tab-panel" id="o14-panel-c"><div id="o14-matriz-c" class="o14-matriz-wrap"></div></div>
+  <div class="o14-tab-panel" id="o14-panel-b"><div id="o14-matriz-b" class="o14-matriz-wrap"></div></div>
+  <div class="o14-tab-panel active" id="o14-panel-c"><div id="o14-matriz-c" class="o14-matriz-wrap"></div></div>
   <div class="o14-tab-panel" id="o14-panel-reco"><div id="o14-reco"></div></div>
 </div>
 
@@ -105,7 +105,7 @@
 <script>
 (function () {
   'use strict';
-  let currentTab = 'b';
+  let currentTab = 'c';
   let proveedorActual = (window.PROVEEDOR_ACTUAL || '');
   let negocioSel = { ref:'', color:'' };
   const tabState = { b:false, c:false, reco:false };
@@ -352,14 +352,14 @@
     document.getElementById('o14-c-sel').textContent = 'Negocio: '+ref+'-'+color;
     const selN = document.getElementById('o14-negocio'); if(selN) selN.value = ref+'|'+color;
     tabState.reco=false; // reco depende del negocio elegido
-    const cTab = document.querySelector('#page-informes-o14 .o14-tabs .tab:nth-child(2)');
+    const cTab = document.querySelector('#page-informes-o14 .o14-tabs .tab:nth-child(1)');
     o14ShowTab('c', cTab);
     if(tabState.c && lastData.c){ shownC=filterArbol(lastData.c, ref, color); renderArbol('o14-matriz-c', shownC, true); }
   };
 
   // Selector de la barra: elegir un negocio filtra el árbol de O14C; "— Todos —" muestra todo.
   window.o14PickNegocio = function(value){
-    const cTab = document.querySelector('#page-informes-o14 .o14-tabs .tab:nth-child(2)');
+    const cTab = document.querySelector('#page-informes-o14 .o14-tabs .tab:nth-child(1)');
     if(!value){ negocioSel = { ref:'', color:'' }; document.getElementById('o14-c-sel').textContent='';
       o14ShowTab('c', cTab);
       if(tabState.c && lastData.c){ shownC=lastData.c; arbolState=null; renderArbol('o14-matriz-c', lastData.c, false); }
@@ -394,7 +394,7 @@
     }
     const rb = document.getElementById('topbarO14Refresh'); if(rb) rb.style.display = '';
     if (!filtrosInit) { initFiltros(); filtrosInit = true; }
-    if(!tabState.b) loadB();
+    if(!tabState[currentTab]) loadCurrentTab();
   };
 
   // DOM→AOA expandiendo colspan/rowspan; convierte enteros es-CO ("1.234"→1234) a números reales.
