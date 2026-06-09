@@ -55,5 +55,5 @@ const exp={siembra:14,disponible:11,hold:1,total_stock:12,ventas:4,faltante:2,so
 let fail=0;
 for(const key in exp){ if(k[key]!==exp[key]){ console.error(`FALLO: ${key}=${k[key]} esperado ${exp[key]}`); fail=1; } }
 console.log('kpis:',JSON.stringify(k));
-console.log(fail?'RESULTADO: FALLO':'RESULTADO: OK (CEDI excluido, balance y conteos)');
+console.log(fail?'RESULTADO: FALLO':'RESULTADO: OK (CEDI incluido, balance y conteos)');
 process.exit(fail);
