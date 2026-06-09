@@ -55,7 +55,11 @@
 
   <div class="o14-tab-panel" id="o14-panel-b"><div id="o14-matriz-b" class="o14-matriz-wrap"></div></div>
   <div class="o14-tab-panel active" id="o14-panel-c"><div id="o14-matriz-c" class="o14-matriz-wrap"></div></div>
-  <div class="o14-tab-panel" id="o14-panel-reco"><div id="o14-reco"></div></div>
+  <div class="o14-tab-panel" id="o14-panel-reco">
+    <div id="o14-reco-sobrante" class="o14-reco-card"></div>
+    <div id="o14-reco-faltante" class="o14-reco-card"></div>
+    <div id="o14-reco-proveedor" class="o14-reco-card"></div>
+  </div>
 </div>
 
 <style>
@@ -102,6 +106,8 @@
   .o14-reco-grid table { width:100%; border-collapse:collapse; font-size:11px; }
   .o14-reco-grid th, .o14-reco-grid td { border:1px solid var(--border); padding:3px 8px; text-align:center; }
   .o14-reco-resumen { margin:12px 0 8px; font-size:12px; color:var(--text); }
+  .o14-reco-card { margin-bottom:18px; }
+  .o14-reco-card .card-title { font-weight:700; color:var(--primary); margin-bottom:8px; font-size:13px; }
 </style>
 
 <script>
@@ -182,7 +188,6 @@
     const hasta = val('o14-vhasta') || hoy;
     const p = new URLSearchParams({ tab:tab, desde:desde, hasta:hasta });
     FILTER_FIELDS.forEach(f => { (selectedOf(f)||[]).forEach(v => p.append(f+'[]', v)); });
-    if(tab==='reco'){ p.set('ref', negocioSel.ref); p.set('color', negocioSel.color); }
     return p.toString();
   }
 
@@ -321,24 +326,39 @@
   window.o14ToggleGrupo=function(gi){ if(!arbolState)return; arbolState.g[gi].exp=!arbolState.g[gi].exp; renderArbol('o14-matriz-c', shownC, false); };
   window.o14ToggleAlm=function(gi,ai){ if(!arbolState)return; arbolState.g[gi].a[ai]=!arbolState.g[gi].a[ai]; renderArbol('o14-matriz-c', shownC, false); };
 
-  function renderReco(data){
-    const c=document.getElementById('o14-reco');
-    if(!negocioSel.ref){ c.innerHTML='<p style="padding:16px;color:var(--text-light)">Elige un negocio en O14B (clic en una fila) para ver sus recomendaciones.</p>'; return; }
-    if(!data.planes || !data.planes.length){ c.innerHTML='<p style="padding:16px;color:var(--text-light)">Sin faltantes para este negocio.</p>'; return; }
-    c.innerHTML = '<p style="margin:0 0 12px;color:var(--text-light)">Negocio <strong>'+esc(negocioSel.ref)+'-'+esc(negocioSel.color)+'</strong></p>' +
-      data.planes.map(p=>{
-        const reub=(p.reubicaciones||[]).map(x=>'<tr><td>'+esc(x.origen)+'</td><td>'+esc(x.destino)+'</td><td>'+esc(x.talla)+'</td><td>'+nf(x.uds)+'</td></tr>').join('')||'<tr><td colspan="4" style="color:var(--text-light)">—</td></tr>';
-        const cedi=(p.solicitudes_cedi||[]).map(x=>'<tr><td>'+esc(x.destino)+'</td><td>'+esc(x.talla)+'</td><td>'+nf(x.uds)+'</td></tr>').join('')||'<tr><td colspan="3" style="color:var(--text-light)">—</td></tr>';
-        const prov=(p.solicitudes_proveedor||[]).map(x=>'<tr><td>'+esc(x.talla)+'</td><td>'+nf(x.uds)+'</td></tr>').join('')||'<tr><td colspan="2" style="color:var(--text-light)">—</td></tr>';
-        const r=p.resumen||{};
-        return '<div class="o14-reco-cia"><h4>Compañía '+esc(p.cia)+'</h4><div class="o14-reco-grid">'
-          +'<div><h5>Reubicación entre tiendas</h5><table><tr><th>Origen</th><th>Destino</th><th>Talla</th><th>Uds</th></tr>'+reub+'</table></div>'
-          +'<div><h5>Solicitar a CEDI</h5><table><tr><th>Destino</th><th>Talla</th><th>Uds</th></tr>'+cedi+'</table></div>'
-          +'<div><h5>Solicitar a Proveedor</h5><table><tr><th>Talla</th><th>Uds</th></tr>'+prov+'</table></div></div>'
-          +'<p class="o14-reco-resumen">Faltante <strong>'+nf(r.faltante_total)+'</strong> = reubicación '+nf(r.por_reubicacion)+' + CEDI '+nf(r.por_cedi)+' + proveedor '+nf(r.a_proveedor)+'</p>'
-          +'<button class="g00-btn-refresh" disabled title="Próximamente">Generar solicitud</button></div>';
-      }).join('');
+  let lastReco=null;
+  const RECO_MED=['sobrante','faltante','proveedor'];
+  const RECO_LABEL={sobrante:'Reubicación — Sobrante disponible',faltante:'Faltante',proveedor:'Solicitud a proveedor'};
+  // Pinta una matriz negocio×talla para una medida, con fila TOTAL arriba y botón Excel.
+  function renderRecoMatriz(containerId, data, medida, expIdx){
+    const cont=document.getElementById(containerId); if(!cont) return;
+    const tallas=data.tallas||[];
+    const filas=(data.filas||[]).filter(f=>{ const o=(f.valores||{})[medida]||{}; for(const t in o) if(o[t]) return true; return false; });
+    let h='<div class="card-title">'+esc(RECO_LABEL[medida])+'<button class="g00-btn-export" onclick="o14RecoExp('+expIdx+')">⤓ Excel</button></div>';
+    if(!filas.length){ cont.innerHTML=h+'<p style="padding:12px;color:var(--text-light)">Sin datos.</p>'; return; }
+    h+='<div class="o14-matriz-wrap"><table class="o14-matriz" id="o14-reco-tbl-'+medida+'"><thead><tr><th class="dim">Negocio</th>';
+    tallas.forEach(t=> h+='<th>'+esc(t)+'</th>'); h+='<th class="blocktot">Tot</th></tr></thead><tbody>';
+    const tot={}; let gtot=0;
+    filas.forEach(f=>{ const o=f.valores[medida]||{}; tallas.forEach(t=>{ tot[t]=(tot[t]||0)+(o[t]||0); }); });
+    h+='<tr class="o14-total"><td class="dim">TOTAL</td>';
+    tallas.forEach(t=>{ const v=tot[t]||0; gtot+=v; h+='<td>'+(v?nf(v):'')+'</td>'; }); h+='<td class="blocktot">'+nf(gtot)+'</td></tr>';
+    filas.forEach(f=>{ const o=f.valores[medida]||{}; let rt=0; h+='<tr><td class="dim">'+esc(f.negocio)+'</td>';
+      tallas.forEach(t=>{ const v=o[t]||0; rt+=v; h+='<td>'+(v?nf(v):'')+'</td>'; }); h+='<td class="blocktot">'+nf(rt)+'</td></tr>'; });
+    h+='</tbody></table></div>'; cont.innerHTML=h;
   }
+  function renderRecoMatrices(data){
+    lastReco=data;
+    renderRecoMatriz('o14-reco-sobrante', data, 'sobrante', 0);
+    renderRecoMatriz('o14-reco-faltante', data, 'faltante', 1);
+    renderRecoMatriz('o14-reco-proveedor', data, 'proveedor', 2);
+  }
+  window.o14RecoExp=function(i){
+    const med=RECO_MED[i]; const tbl=document.getElementById('o14-reco-tbl-'+med);
+    if(!tbl || typeof XLSX==='undefined'){ Swal.fire('Exportar','Nada que exportar.','info'); return; }
+    const wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(tableToAOA(tbl)), 'Reco');
+    XLSX.writeFile(wb,'O14_reco_'+med+'_'+new Date().toISOString().slice(0,10)+'.xlsx');
+  };
 
   function loadB(){ showLoading('Cargando O14B');
     fetch('api/informe_o14.php?'+buildParams('b'),{credentials:'same-origin'})
@@ -357,10 +377,9 @@
       .catch(()=>Swal.fire('Error','No se pudo cargar O14C','error')).finally(hideLoading); }
 
   function loadReco(){
-    if(!negocioSel.ref){ renderReco({planes:[]}); return; }
     showLoading('Calculando recomendaciones');
     fetch('api/informe_o14.php?'+buildParams('reco'),{credentials:'same-origin'})
-      .then(r=>r.json()).then(d=>{ if(!d.ok) throw 0; renderReco(d); tabState.reco=true; })
+      .then(r=>r.json()).then(d=>{ if(!d.ok) throw 0; renderRecoMatrices(d); tabState.reco=true; })
       .catch(()=>Swal.fire('Error','No se pudo calcular','error')).finally(hideLoading); }
 
   function loadCurrentTab(){ if(currentTab==='c') loadC(); else if(currentTab==='reco') loadReco(); else loadB(); }
