@@ -283,7 +283,7 @@ if ($tab === 'b') {
 
     [$filas, $tallas, $kpi] = ensamblarTidy($agg, 'kb');
     $kpi['negocios']    = count($filas);
-    $kpi['total_stock'] = $kpi['disponible'];
+    $kpi['total_stock'] = $kpi['disponible'] + $kpi['hold'];
 
     $cnt = run($dbConnect, "
         SELECT
@@ -325,7 +325,7 @@ if ($tab === 'c') {
     if (isset($rows['error'])) jsonFail($rows, $dbConnect);
 
     [$grupos, $tallas, $kpi] = ensamblarArbol($rows);
-    $kpi['total_stock'] = $kpi['disponible'];
+    $kpi['total_stock'] = $kpi['disponible'] + $kpi['hold'];
     $kpi = array_merge($kpi, kpiCounts($dbConnect));
     sqlsrv_close($dbConnect);
     echo json_encode(['ok'=>true,'tab'=>'c','rango'=>['desde'=>$desde,'hasta'=>$hasta],
