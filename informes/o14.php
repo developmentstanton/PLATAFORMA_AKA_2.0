@@ -49,7 +49,7 @@
   <div class="tab-bar o14-tabs">
     <div class="tab active" onclick="o14ShowTab('c', this)">Por tienda</div>
     <div class="tab" onclick="o14ShowTab('b', this)">Por negocio</div>
-    <div class="tab" onclick="o14ShowTab('reco', this)">Recomendaciones</div>
+    <div class="tab" onclick="o14ShowTab('reco', this)">Recomendaciones <span id="o14-reco-dot" class="o14-reco-dot"></span></div>
     <button class="g00-btn-export o14-export-btn" onclick="o14Export()">⤓ Excel</button>
   </div>
 
@@ -108,6 +108,9 @@
   .o14-reco-resumen { margin:12px 0 8px; font-size:12px; color:var(--text); }
   .o14-reco-card { margin-bottom:18px; }
   .o14-reco-card .card-title { font-weight:700; color:var(--primary); margin-bottom:8px; font-size:13px; }
+  .o14-reco-dot { display:none; width:8px; height:8px; border-radius:50%; background:var(--accent); margin-left:6px; vertical-align:middle; animation:o14pulse 1.2s ease-in-out infinite; }
+  .o14-reco-dot.on { display:inline-block; }
+  @keyframes o14pulse { 0%,100%{ opacity:1; transform:scale(1); } 50%{ opacity:.35; transform:scale(1.5); } }
 </style>
 
 <script>
@@ -199,7 +202,11 @@
     set('o14-kpi-stock',k.total_stock); set('o14-kpi-tiendas-inv',k.tiendas_con_inv);
     set('o14-kpi-ventas',k.ventas); set('o14-kpi-tiendas-venta',k.tiendas_con_venta);
     set('o14-kpi-sobrantes',k.sobrantes); set('o14-kpi-faltante',k.faltante);
+    setRecoIndicator((k.sobrantes||0) > 0 || (k.faltante||0) > 0);
   }
+
+  // Punto pulsante en la pestaña Recomendaciones cuando hay actividad pendiente en la vista.
+  function setRecoIndicator(on){ const d=document.getElementById('o14-reco-dot'); if(d) d.classList.toggle('on', !!on); }
 
   // Computa los 10 KPIs desde un árbol grupos[] (incluye todos los grupos), con las mismas reglas que el backend.
   // total_stock = disponible+hold; sobrante/faltante por (almacén,negocio,talla); conteos sobre llave (cia-bodega) y (cia|negocio).
