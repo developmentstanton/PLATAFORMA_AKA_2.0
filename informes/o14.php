@@ -196,6 +196,42 @@
     set('o14-kpi-sobrantes',k.sobrantes); set('o14-kpi-faltante',k.faltante);
   }
 
+  // Computa los 10 KPIs desde un árbol grupos[] (excluye CEDI), con las mismas reglas que el backend.
+  // total_stock = disponible+hold; sobrante/faltante por (almacén,negocio,talla); conteos sobre llave (cia-bodega) y (cia|negocio).
+  function kpisFromArbol(data){
+    const k={siembra:0,disponible:0,hold:0,ventas:0,sobrantes:0,faltante:0};
+    const negSet={}, negSiem={}, tdaSiem=new Set(), tdaInv=new Set(), tdaVta=new Set();
+    (data.grupos||[]).forEach(g=>{
+      if(g.grupo==='CEDI') return;
+      (g.almacenes||[]).forEach(a=>{
+        const cia=String(a.llave).slice(0, String(a.llave).length - String(a.bodega).length - 1);
+        let aSi=0, aDi=0, aVeAny=false;
+        (a.negocios||[]).forEach(n=>{
+          const negKey=cia+'|'+n.negocio, v=n.valores||{};
+          const sumM=(m)=>{ let s=0; const o=v[m]||{}; for(const t in o) s+=o[t]; return s; };
+          const si=sumM('siembra'), di=sumM('disponible'), ho=sumM('hold'), ve=sumM('ventas');
+          k.siembra+=si; k.disponible+=di; k.hold+=ho; k.ventas+=ve;
+          const tallas=new Set([...Object.keys(v.siembra||{}),...Object.keys(v.disponible||{}),...Object.keys(v.hold||{})]);
+          tallas.forEach(t=>{ const bal=((v.siembra||{})[t]||0)-(((v.disponible||{})[t]||0)+((v.hold||{})[t]||0));
+            if(bal>0) k.faltante+=bal; else if(bal<0) k.sobrantes+=-bal; });
+          negSet[negKey]=1; if(si>0) negSiem[negKey]=1;
+          aSi+=si; aDi+=di;
+          const vo=v.ventas||{}; for(const t in vo) if(vo[t]!==0) aVeAny=true;
+        });
+        if(aSi>0) tdaSiem.add(a.llave);
+        if(aDi>0) tdaInv.add(a.llave);
+        if(aVeAny) tdaVta.add(a.llave);
+      });
+    });
+    k.total_stock=k.disponible+k.hold;
+    k.negocios=Object.keys(negSet).length;
+    k.negocios_con_siembra=Object.keys(negSiem).length;
+    k.tiendas_con_siembra=tdaSiem.size;
+    k.tiendas_con_inv=tdaInv.size;
+    k.tiendas_con_venta=tdaVta.size;
+    return k;
+  }
+
   // Suma valores[medida][talla] sobre una lista de negocios (para subtotales de grupo/almacén).
   function sumValores(negocios, medidas){
     const out={}; medidas.forEach(m=>out[m]={});
@@ -317,10 +353,10 @@
   function loadC(){
     showLoading('Cargando O14C');
     fetch('api/informe_o14.php?'+buildParams('c'),{credentials:'same-origin'})
-      .then(r=>r.json()).then(d=>{ if(!d.ok) throw 0; renderKpis(d.kpis||{});
+      .then(r=>r.json()).then(d=>{ if(!d.ok) throw 0;
         lastData.c=d; arbolState=null;
-        if(negocioSel.ref){ shownC=filterArbol(d, negocioSel.ref, negocioSel.color); renderArbol('o14-matriz-c', shownC, true); }
-        else { shownC=d; renderArbol('o14-matriz-c', d, false); }
+        if(negocioSel.ref){ shownC=filterArbol(d, negocioSel.ref, negocioSel.color); renderArbol('o14-matriz-c', shownC, true); renderKpis(kpisFromArbol(shownC)); }
+        else { shownC=d; renderArbol('o14-matriz-c', d, false); renderKpis(d.kpis||{}); }
         tabState.c=true; })
       .catch(()=>Swal.fire('Error','No se pudo cargar O14C','error')).finally(hideLoading); }
 
@@ -364,7 +400,7 @@
     tabState.reco=false; // reco depende del negocio elegido
     const cTab = document.querySelector('#page-informes-o14 .o14-tabs .tab:nth-child(1)');
     o14ShowTab('c', cTab);
-    if(tabState.c && lastData.c){ shownC=filterArbol(lastData.c, ref, color); renderArbol('o14-matriz-c', shownC, true); }
+    if(tabState.c && lastData.c){ shownC=filterArbol(lastData.c, ref, color); renderArbol('o14-matriz-c', shownC, true); renderKpis(kpisFromArbol(shownC)); }
   };
 
   // Selector de la barra: elegir un negocio filtra el árbol de O14C; "— Todos —" muestra todo.
@@ -372,7 +408,7 @@
     const cTab = document.querySelector('#page-informes-o14 .o14-tabs .tab:nth-child(1)');
     if(!value){ negocioSel = { ref:'', color:'' }; document.getElementById('o14-c-sel').textContent='';
       o14ShowTab('c', cTab);
-      if(tabState.c && lastData.c){ shownC=lastData.c; arbolState=null; renderArbol('o14-matriz-c', lastData.c, false); }
+      if(tabState.c && lastData.c){ shownC=lastData.c; arbolState=null; renderArbol('o14-matriz-c', lastData.c, false); renderKpis(lastData.c.kpis||{}); }
       return; }
     const i = value.indexOf('|'); o14SelectNegocio(value.slice(0,i), value.slice(i+1));
   };
