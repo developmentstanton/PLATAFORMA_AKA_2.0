@@ -65,7 +65,7 @@ function ensamblarTidy($agg, $keyField) {
 }
 
 /** Arma la jerarquía grupos→almacenes→negocios desde filas planas de #base+Bodegas.
- *  KPIs de cantidad se acumulan EXCLUYENDO el grupo CEDI. */
+ *  KPIs de cantidad se acumulan sobre TODOS los grupos (incluido CEDI). */
 function ensamblarArbol($rows) {
     $tallasSet=[]; $arbol=[];
     $kpi=['siembra'=>0,'disponible'=>0,'hold'=>0,'ventas'=>0,'sobrantes'=>0,'faltante'=>0];
@@ -80,7 +80,7 @@ function ensamblarArbol($rows) {
         foreach(['siembra'=>$si,'disponible'=>$di,'hold'=>$ho,'disphold'=>$di+$ho,'sobrante'=>$sob,'faltante'=>$fal,'ventas'=>$ve] as $m=>$v)
             $vals[$m][$talla]=($vals[$m][$talla]??0)+$v;
         unset($vals);
-        if($g!=='CEDI'){ $kpi['siembra']+=$si; $kpi['disponible']+=$di; $kpi['hold']+=$ho; $kpi['ventas']+=$ve; $kpi['sobrantes']+=$sob; $kpi['faltante']+=$fal; }
+        $kpi['siembra']+=$si; $kpi['disponible']+=$di; $kpi['hold']+=$ho; $kpi['ventas']+=$ve; $kpi['sobrantes']+=$sob; $kpi['faltante']+=$fal;
     }
     $grupos=[];
     foreach($arbol as $g){
@@ -92,15 +92,15 @@ function ensamblarArbol($rows) {
     return [$grupos, $tallas, $kpi];
 }
 
-/** KPIs de conteo (red, EXCLUYENDO CEDI) desde #base. */
+/** KPIs de conteo (red, incluido CEDI) desde #base. */
 function kpiCounts($c) {
     $r = run($c, "
         SELECT
-          (SELECT COUNT(DISTINCT cia+'|'+negocio) FROM #base WHERE bodega<>'CEDI')              negocios,
-          (SELECT COUNT(DISTINCT cia+'|'+negocio) FROM #base WHERE bodega<>'CEDI' AND siembra>0) negocios_con_siembra,
-          (SELECT COUNT(DISTINCT cia+'-'+bodega)   FROM #base WHERE bodega<>'CEDI' AND siembra>0) tiendas_con_siembra,
-          (SELECT COUNT(DISTINCT cia+'-'+bodega)   FROM #base WHERE bodega<>'CEDI' AND disponible>0) tiendas_con_inv,
-          (SELECT COUNT(DISTINCT cia+'-'+bodega)   FROM #base WHERE bodega<>'CEDI' AND ventas<>0) tiendas_con_venta");
+          (SELECT COUNT(DISTINCT cia+'|'+negocio) FROM #base)              negocios,
+          (SELECT COUNT(DISTINCT cia+'|'+negocio) FROM #base WHERE siembra>0) negocios_con_siembra,
+          (SELECT COUNT(DISTINCT cia+'-'+bodega)   FROM #base WHERE siembra>0) tiendas_con_siembra,
+          (SELECT COUNT(DISTINCT cia+'-'+bodega)   FROM #base WHERE disponible>0) tiendas_con_inv,
+          (SELECT COUNT(DISTINCT cia+'-'+bodega)   FROM #base WHERE ventas<>0) tiendas_con_venta");
     if (isset($r['error']) || !$r) return [];
     return array_map('intval', $r[0]);
 }
@@ -276,7 +276,7 @@ if ($tab === 'b') {
     $agg = run($dbConnect, "
         SELECT cia + '|' + negocio kb, cia, negocio, referencia, color, talla,
                SUM(siembra) siembra, SUM(disponible) disponible, SUM(hold) hold, SUM(ventas) ventas
-        FROM #base WHERE bodega <> 'CEDI'
+        FROM #base
         GROUP BY cia, negocio, referencia, color, talla
         ORDER BY negocio");
     if (isset($agg['error'])) jsonFail($agg, $dbConnect);
@@ -287,10 +287,10 @@ if ($tab === 'b') {
 
     $cnt = run($dbConnect, "
         SELECT
-          (SELECT COUNT(DISTINCT cia+'|'+negocio) FROM #base WHERE bodega<>'CEDI' AND siembra>0)    negocios_con_siembra,
-          (SELECT COUNT(DISTINCT cia+'-'+bodega)   FROM #base WHERE bodega<>'CEDI' AND siembra>0)    tiendas_con_siembra,
-          (SELECT COUNT(DISTINCT cia+'-'+bodega)   FROM #base WHERE bodega<>'CEDI' AND disponible>0) tiendas_con_inv,
-          (SELECT COUNT(DISTINCT cia+'-'+bodega)   FROM #base WHERE bodega<>'CEDI' AND ventas<>0)    tiendas_con_venta");
+          (SELECT COUNT(DISTINCT cia+'|'+negocio) FROM #base WHERE siembra>0)    negocios_con_siembra,
+          (SELECT COUNT(DISTINCT cia+'-'+bodega)   FROM #base WHERE siembra>0)    tiendas_con_siembra,
+          (SELECT COUNT(DISTINCT cia+'-'+bodega)   FROM #base WHERE disponible>0) tiendas_con_inv,
+          (SELECT COUNT(DISTINCT cia+'-'+bodega)   FROM #base WHERE ventas<>0)    tiendas_con_venta");
     if (!isset($cnt['error']) && $cnt) {
         $kpi['negocios_con_siembra']=(int)$cnt[0]['negocios_con_siembra'];
         $kpi['tiendas_con_siembra']=(int)$cnt[0]['tiendas_con_siembra'];
@@ -306,22 +306,20 @@ if ($tab === 'b') {
 }
 
 // ====================================================================
-// TAB C — árbol Grupo → Almacén → Negocio (todos los negocios); CEDI como grupo aparte
+// TAB C — árbol Grupo → Almacén → Negocio (todos los negocios); CEDI dentro de su grupo real (BODEGA)
 // ====================================================================
 if ($tab === 'c') {
     $rows = run($dbConnect, "
         SELECT
-          CASE WHEN b.bodega='CEDI' THEN 'CEDI' ELSE ISNULL(bo.GRUPO,'SIN GRUPO') END grupo,
+          ISNULL(bo.GRUPO,'SIN GRUPO') grupo,
           (b.cia + '-' + b.bodega) llave, b.cia, b.bodega,
           ISNULL(bo.NOMBRE, b.bodega) nombre, b.negocio, b.referencia, b.color, b.talla,
           SUM(b.siembra) siembra, SUM(b.disponible) disponible, SUM(b.hold) hold, SUM(b.ventas) ventas
         FROM #base b
          LEFT JOIN INTEGRACION.dbo.Bodegas bo WITH (NOLOCK) ON bo.COD=b.bodega AND RIGHT('000'+rtrim(bo.CIA),3)=b.cia
-        GROUP BY (CASE WHEN b.bodega='CEDI' THEN 'CEDI' ELSE ISNULL(bo.GRUPO,'SIN GRUPO') END),
+        GROUP BY ISNULL(bo.GRUPO,'SIN GRUPO'),
                  b.cia, b.bodega, bo.NOMBRE, b.negocio, b.referencia, b.color, b.talla
-        ORDER BY CASE WHEN b.bodega='CEDI' THEN 1 ELSE 0 END,
-                 (CASE WHEN b.bodega='CEDI' THEN 'CEDI' ELSE ISNULL(bo.GRUPO,'SIN GRUPO') END),
-                 llave, b.negocio");
+        ORDER BY ISNULL(bo.GRUPO,'SIN GRUPO'), llave, b.negocio");
     if (isset($rows['error'])) jsonFail($rows, $dbConnect);
 
     [$grupos, $tallas, $kpi] = ensamblarArbol($rows);
