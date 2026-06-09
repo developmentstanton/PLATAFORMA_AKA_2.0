@@ -196,13 +196,12 @@
     set('o14-kpi-sobrantes',k.sobrantes); set('o14-kpi-faltante',k.faltante);
   }
 
-  // Computa los 10 KPIs desde un árbol grupos[] (excluye CEDI), con las mismas reglas que el backend.
+  // Computa los 10 KPIs desde un árbol grupos[] (incluye todos los grupos), con las mismas reglas que el backend.
   // total_stock = disponible+hold; sobrante/faltante por (almacén,negocio,talla); conteos sobre llave (cia-bodega) y (cia|negocio).
   function kpisFromArbol(data){
     const k={siembra:0,disponible:0,hold:0,ventas:0,sobrantes:0,faltante:0};
     const negSet={}, negSiem={}, tdaSiem=new Set(), tdaInv=new Set(), tdaVta=new Set();
     (data.grupos||[]).forEach(g=>{
-      if(g.grupo==='CEDI') return;
       (g.almacenes||[]).forEach(a=>{
         const cia=String(a.llave).slice(0, String(a.llave).length - String(a.bodega).length - 1);
         let aSi=0, aDi=0, aVeAny=false;
@@ -292,15 +291,13 @@
     let h='<table class="o14-matriz o14-arbol"><thead><tr><th class="dim" rowspan="2">Grupo / Almacén / Negocio</th>';
     medidas.forEach(m=> h+='<th colspan="'+(tallas.length+1)+'">'+esc(MED_LABEL[m]||m)+'</th>');
     h+='</tr><tr>'; medidas.forEach(()=>{ tallas.forEach(t=> h+='<th>'+esc(t)+'</th>'); h+='<th class="blocktot">Tot</th>'; }); h+='</tr></thead><tbody>';
-    const gtot={}; medidas.forEach(m=>gtot[m]={});       // total sin CEDI
-    const gtotC={}; medidas.forEach(m=>gtotC[m]={});     // total con CEDI
+    const gtot={}; medidas.forEach(m=>gtot[m]={});       // total general (incluye todos los grupos)
     const nCols = medidas.length*(tallas.length+1);
     grupos.forEach((gr,gi)=>{
       const allNeg=[]; gr.almacenes.forEach(a=>a.negocios.forEach(n=>allNeg.push(n)));
       const gv=sumValores(allNeg, medidas);
       const gexp=arbolState.g[gi].exp;
-      medidas.forEach(m=>{ for(const t in gv[m]) gtotC[m][t]=(gtotC[m][t]||0)+gv[m][t]; });        // con CEDI: todos
-      if(gr.grupo!=='CEDI') medidas.forEach(m=>{ for(const t in gv[m]) gtot[m][t]=(gtot[m][t]||0)+gv[m][t]; }); // sin CEDI
+      medidas.forEach(m=>{ for(const t in gv[m]) gtot[m][t]=(gtot[m][t]||0)+gv[m][t]; });
       // Header de grupo: toggle + nombre, SIN números (solo para colapsar).
       h+='<tr class="o14-row-grupo" data-g="'+gi+'"><td class="dim" onclick="o14ToggleGrupo('+gi+')"><span class="o14-tw">'+(gexp?'▼':'▶')+'</span> '+esc(gr.grupo)+'</td><td colspan="'+nCols+'"></td></tr>';
       gr.almacenes.forEach((a,ai)=>{
@@ -317,8 +314,7 @@
       const gHide=gexp?'':' style="display:none"';
       h+='<tr class="o14-row-grupo o14-grupo-total" data-g="'+gi+'"'+gHide+'><td class="dim" style="padding-left:22px">Total '+esc(gr.grupo)+'</td>'+rowCells(gv,tallas,medidas,false)+'</tr>';
     });
-    h+='<tr class="o14-total"><td class="dim">TOTAL (sin CEDI)</td>'+rowCells(gtot,tallas,medidas,false)+'</tr>';
-    h+='<tr class="o14-total"><td class="dim">TOTAL (con CEDI)</td>'+rowCells(gtotC,tallas,medidas,false)+'</tr>';
+    h+='<tr class="o14-total"><td class="dim">TOTAL</td>'+rowCells(gtot,tallas,medidas,false)+'</tr>';
     h+='</tbody></table>'; cont.innerHTML=h;
   }
 

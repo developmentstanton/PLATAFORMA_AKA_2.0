@@ -4,7 +4,6 @@ function kpisFromArbol(data){
   const k={siembra:0,disponible:0,hold:0,ventas:0,sobrantes:0,faltante:0};
   const negSet={}, negSiem={}, tdaSiem=new Set(), tdaInv=new Set(), tdaVta=new Set();
   (data.grupos||[]).forEach(g=>{
-    if(g.grupo==='CEDI') return;
     (g.almacenes||[]).forEach(a=>{
       const cia=String(a.llave).slice(0, String(a.llave).length - String(a.bodega).length - 1);
       let aSi=0, aDi=0, aVeAny=false;
@@ -43,7 +42,7 @@ const data={grupos:[
       {negocio:'A-NEG',referencia:'A',color:'NEG',valores:{siembra:{'10':0},disponible:{'10':0},hold:{'10':0},ventas:{'10':1}}},
     ]},
   ]},
-  {grupo:'CEDI',almacenes:[
+  {grupo:'BODEGA',almacenes:[
     {llave:'007-CEDI',bodega:'CEDI',nombre:'CEDI',negocios:[
       {negocio:'A-NEG',referencia:'A',color:'NEG',valores:{siembra:{'10':9},disponible:{'10':9},hold:{'10':0},ventas:{'10':0}}},
     ]},
@@ -51,8 +50,8 @@ const data={grupos:[
 ]};
 
 const k=kpisFromArbol(data);
-const exp={siembra:5,disponible:2,hold:1,total_stock:3,ventas:4,faltante:2,sobrantes:0,
-  negocios:1,negocios_con_siembra:1,tiendas_con_siembra:1,tiendas_con_inv:1,tiendas_con_venta:2};
+const exp={siembra:14,disponible:11,hold:1,total_stock:12,ventas:4,faltante:2,sobrantes:0,
+  negocios:1,negocios_con_siembra:1,tiendas_con_siembra:2,tiendas_con_inv:2,tiendas_con_venta:2};
 let fail=0;
 for(const key in exp){ if(k[key]!==exp[key]){ console.error(`FALLO: ${key}=${k[key]} esperado ${exp[key]}`); fail=1; } }
 console.log('kpis:',JSON.stringify(k));
