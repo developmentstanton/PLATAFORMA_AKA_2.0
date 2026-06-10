@@ -136,6 +136,40 @@ if ($tab === 'data') {
     }
 }
 
+// ===== tab=filtros: catálogo del universo del proveedor (sin filtros aplicados) =====
+if ($tab === 'filtros') {
+    $cacheDir = __DIR__ . '/../cache';
+    if (!is_dir($cacheDir)) @mkdir($cacheDir, 0755, true);
+    $cacheFile = $cacheDir . '/o45_filtros_' . md5($proveedor) . '.json';
+    if (file_exists($cacheFile) && date('Y-m-d', filemtime($cacheFile)) === date('Y-m-d')) {
+        $cached = json_decode(file_get_contents($cacheFile), true);
+        if (is_array($cached) && isset($cached['combos'])) { sqlsrv_close($dbConnect); echo json_encode($cached, JSON_UNESCAPED_UNICODE); exit; }
+    }
+    $rowsC = run($dbConnect, "
+        SELECT DISTINCT
+            r.MARCA, r.TIPO, r.CATEGORIA, r.SUBCATEGORIA, r.GENERO, r.PUBLICO_OBJETIVO, b.referencia,
+            b.referencia+'-'+b.color AS negocio,
+            ISNULL(bo.GRUPO,'')  AS GRUPO,
+            rtrim(b.bodega)      AS COD,
+            ISNULL(bo.NOMBRE,'') AS NOMBRE
+        FROM #base b
+         INNER JOIN #refs r ON r.REFERENCIA = b.referencia
+         LEFT  JOIN INTEGRACION.dbo.Bodegas bo WITH (NOLOCK) ON bo.COD = b.bodega AND RIGHT('000'+rtrim(bo.CIA),3) = b.cia
+        WHERE b.bodega <> 'CEDI'");
+    if (isset($rowsC['error'])) jsonFail($rowsC, $dbConnect);
+    $combos = array_map(fn($r) => [
+        'marca'=>trim((string)$r['MARCA']), 'tipo'=>trim((string)$r['TIPO']), 'categoria'=>trim((string)$r['CATEGORIA']),
+        'subcategoria'=>trim((string)$r['SUBCATEGORIA']), 'genero'=>trim((string)$r['GENERO']), 'publico'=>trim((string)$r['PUBLICO_OBJETIVO']),
+        'referencia'=>trim((string)$r['referencia']), 'negocio'=>trim((string)$r['negocio']),
+        'grupo'=>trim((string)$r['GRUPO']), 'tienda'=>trim((string)$r['NOMBRE']), 'tienda_cod'=>trim((string)$r['COD']),
+    ], $rowsC);
+    $out = ['ok'=>true, 'tab'=>'filtros', 'combos'=>$combos];
+    @file_put_contents($cacheFile, json_encode($out));
+    sqlsrv_close($dbConnect);
+    echo json_encode($out, JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
 // ===== tab=data: agregación por negocio =====
 if ($tab === 'data') {
     $agg = run($dbConnect, "
