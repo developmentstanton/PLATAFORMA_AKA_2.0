@@ -59,7 +59,7 @@
     function poblarSelect(id, valores, labelFn){
       const el=document.getElementById(id); if(!el) return;
       const uniq=[...new Set(valores.filter(v=>v!==''&&v!=null))].sort((a,b)=>String(a).localeCompare(String(b)));
-      el.innerHTML = uniq.map(v=>'<option value="'+String(v).replace(/"/g,'&quot;')+'">'+(labelFn?labelFn(v):v)+'</option>').join('');
+      el.innerHTML = uniq.map(v=>'<option value="'+String(v).replace(/"/g,'&quot;')+'">'+esc(labelFn?labelFn(v):v)+'</option>').join('');
       if (window.TomSelect){ if(tsRef[id]) tsRef[id].destroy(); tsRef[id]=new TomSelect(el,{plugins:['remove_button'],maxOptions:null}); }
     }
 
@@ -73,7 +73,7 @@
         const seen={}; const opts=[];
         comboCatalogo.forEach(c=>{ const nom=c.tienda||''; if(!nom||seen[nom])return; seen[nom]=1; opts.push({nom, cod:c.tienda_cod||''}); });
         opts.sort((a,b)=>a.cod.localeCompare(b.cod));
-        tEl.innerHTML = opts.map(o=>'<option value="'+o.nom.replace(/"/g,'&quot;')+'">'+o.cod+' - '+o.nom+'</option>').join('');
+        tEl.innerHTML = opts.map(o=>'<option value="'+esc(o.nom)+'">'+esc(o.cod)+' - '+esc(o.nom)+'</option>').join('');
         if (window.TomSelect){ if(tsRef['o45-f-tienda']) tsRef['o45-f-tienda'].destroy(); tsRef['o45-f-tienda']=new TomSelect(tEl,{plugins:['remove_button'],maxOptions:null}); }
       });
     }

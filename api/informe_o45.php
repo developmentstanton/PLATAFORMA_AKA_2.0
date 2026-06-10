@@ -124,6 +124,16 @@ $delAdmin = sqlsrv_query($dbConnect, "
   WHERE rtrim(bo.GRUPO)='ADMINISTRATIVAS' AND b.bodega<>'CEDI'");
 if ($delAdmin===false) jsonFail(['error'=>sqlsrv_errors()], $dbConnect); else sqlsrv_free_stmt($delAdmin);
 
+// Filtro Negocio (ref-color) sobre #base. Solo tab=data.
+if ($tab === 'data') {
+    $negVals = getMulti('negocio');
+    if ($negVals) {
+        $ph = implode(',', array_fill(0, count($negVals), '?'));
+        $x = sqlsrv_query($dbConnect, "DELETE FROM #base WHERE negocio NOT IN ($ph)", $negVals);
+        if ($x === false) jsonFail(['error'=>sqlsrv_errors()], $dbConnect); else sqlsrv_free_stmt($x);
+    }
+}
+
 // Filtro Grupo/Tienda (vía Bodegas), conservando CEDI. Solo tab=data.
 if ($tab === 'data') {
     foreach ($FILTROS_BOD as $key => $col) {
@@ -182,7 +192,7 @@ if ($tab === 'data') {
                SUM(CASE WHEN b.bodega='CEDI'  THEN b.disponible+b.hold ELSE 0 END) stock_cedi,
                SUM(CASE WHEN b.bodega<>'CEDI' THEN b.disponible+b.hold ELSE 0 END) stock_tiendas,
                COUNT(DISTINCT b.talla) tallas,
-               COUNT(DISTINCT CASE WHEN b.bodega<>'CEDI' AND b.ventas<>0 THEN b.bodega END) tiendas
+               COUNT(DISTINCT CASE WHEN b.bodega<>'CEDI' AND b.ventas<>0 THEN b.cia+'-'+b.bodega END) tiendas
         FROM #base b INNER JOIN #refs r ON r.REFERENCIA = b.referencia
         GROUP BY b.cia, b.negocio, b.referencia, b.color
         ORDER BY ventas DESC");
