@@ -28,6 +28,7 @@
 </div>
 
 <style>
+  #page-informes-o45 .tab-bar { display: flex; justify-content: flex-end; }   /* botón Excel siempre a la derecha */
   #page-informes-o45 .o45-tienda-group { min-width: 320px; flex: 2; }   /* Tienda más ancho: COD - NOMBRE completo */
   #page-informes-o45 .o45-tienda-group .ts-control { min-width: 320px; }
   #page-informes-o45 table.o45-tabla { width:100%; border-collapse:collapse; font-size:12px; }
