@@ -35,6 +35,9 @@
   #page-informes-o45 table.o45-tabla th { background:#faf9ff; position:sticky; top:0; }
   #page-informes-o45 table.o45-tabla td.dim, #page-informes-o45 table.o45-tabla th.dim { text-align:left; }
   #page-informes-o45 table.o45-tabla tr.o45-total td { font-weight:700; background:#f3f1ff; }
+  #page-informes-o45 table.o45-tabla tr[data-negimg] td.dim:first-child { cursor:default; }
+  #o45-img-pop { position:fixed; display:none; z-index:9999; pointer-events:none; background:#fff; border:1px solid var(--border); border-radius:8px; box-shadow:0 6px 20px rgba(45,43,78,0.25); padding:4px; }
+  #o45-img-pop img { max-width:260px; max-height:320px; width:auto; height:auto; display:block; border-radius:4px; }
 </style>
 
 <script>
@@ -60,7 +63,7 @@
       const el=document.getElementById(id); if(!el) return;
       const uniq=[...new Set(valores.filter(v=>v!==''&&v!=null))].sort((a,b)=>String(a).localeCompare(String(b)));
       el.innerHTML = uniq.map(v=>'<option value="'+String(v).replace(/"/g,'&quot;')+'">'+esc(labelFn?labelFn(v):v)+'</option>').join('');
-      if (window.TomSelect){ if(tsRef[id]) tsRef[id].destroy(); tsRef[id]=new TomSelect(el,{plugins:['remove_button'],maxOptions:null}); }
+      if (window.TomSelect){ if(tsRef[id]) tsRef[id].destroy(); tsRef[id]=new TomSelect(el,{plugins:['remove_button'],maxOptions:null,placeholder:'Todas'}); }
     }
 
     function initFiltros(){
@@ -74,7 +77,7 @@
         comboCatalogo.forEach(c=>{ const nom=c.tienda||''; if(!nom||seen[nom])return; seen[nom]=1; opts.push({nom, cod:c.tienda_cod||''}); });
         opts.sort((a,b)=>a.cod.localeCompare(b.cod));
         tEl.innerHTML = opts.map(o=>'<option value="'+esc(o.nom)+'">'+esc(o.cod)+' - '+esc(o.nom)+'</option>').join('');
-        if (window.TomSelect){ if(tsRef['o45-f-tienda']) tsRef['o45-f-tienda'].destroy(); tsRef['o45-f-tienda']=new TomSelect(tEl,{plugins:['remove_button'],maxOptions:null}); }
+        if (window.TomSelect){ if(tsRef['o45-f-tienda']) tsRef['o45-f-tienda'].destroy(); tsRef['o45-f-tienda']=new TomSelect(tEl,{plugins:['remove_button'],maxOptions:null,placeholder:'Todas'}); }
       });
     }
 
@@ -93,7 +96,7 @@
       if(!filas.length){ cont.innerHTML='<p style="padding:16px;color:var(--text-light)">Sin datos.</p>'; return; }
       let h='<table class="o45-tabla" id="o45-tbl"><thead><tr>';
       COLS.forEach(c=> h+='<th'+(c.dim?' class="dim"':'')+'>'+c.t+'</th>'); h+='</tr></thead><tbody>';
-      filas.forEach(f=>{ h+='<tr>'; COLS.forEach(c=>{ const v=f[c.k]; h+='<td'+(c.dim?' class="dim"':'')+'>'+(c.dim?esc(v):c.f(v))+'</td>'; }); h+='</tr>'; });
+      filas.forEach(f=>{ h+='<tr data-negimg="'+esc(f.negocio)+'">'; COLS.forEach(c=>{ const v=f[c.k]; h+='<td'+(c.dim?' class="dim"':'')+'>'+(c.dim?esc(v):c.f(v))+'</td>'; }); h+='</tr>'; });
       const t=d.total||{};
       h+='<tr class="o45-total"><td class="dim">TOTAL</td><td class="dim"></td>';
       ['ventas','tiendas','ind_inventario','stock_cedi','stock_tiendas','total_stock','ind_ventas_mes'].forEach(k=>{
@@ -102,12 +105,16 @@
       h+='</tbody></table>'; cont.innerHTML=h;
     }
 
+    function showLoading(){ if(!window.Swal) return; Swal.fire({title:'Cargando',html:'Obteniendo información…',allowOutsideClick:false,allowEscapeKey:false,showConfirmButton:false,didOpen:()=>Swal.showLoading()}); }
+    function hideLoading(){ if(window.Swal && Swal.isVisible()) Swal.close(); }
+
     window.o45Load = function(){
-      const cont=document.getElementById('o45-tabla'); cont.innerHTML='<p style="padding:16px;color:var(--text-light)">Cargando…</p>';
+      const cont=document.getElementById('o45-tabla');
+      showLoading();
       fetch('api/informe_o45.php?'+buildParams(),{credentials:'same-origin'}).then(r=>r.json()).then(d=>{
         if(!d.ok){ cont.innerHTML='<p style="padding:16px;color:var(--accent)">Error al cargar.</p>'; return; }
         window.__o45last=d; renderTabla(d);
-      }).catch(()=>{ cont.innerHTML='<p style="padding:16px;color:var(--accent)">Error de red.</p>'; });
+      }).catch(()=>{ cont.innerHTML='<p style="padding:16px;color:var(--accent)">Error de red.</p>'; }).finally(hideLoading);
     };
 
     window.o45Export = function(){
@@ -128,12 +135,34 @@
       const hoy = new Date().toISOString().slice(0,10);
       const td = document.getElementById('topbarDates'); td.style.display = '';
       if (!document.getElementById('o45-vdesde')) {
-        td.innerHTML = '<div class="o14-topbar-dates"><label>Desde<input type="date" id="o45-vdesde" value="2025-01-01"></label>'
+        td.innerHTML =
+          '<div class="o14-vfilter"><span class="o14-vfilter-lbl">Ventas</span>'
+          + '<label>Desde<input type="date" id="o45-vdesde" value="2025-01-01"></label>'
           + '<label>Hasta<input type="date" id="o45-vhasta" value="'+hoy+'"></label></div>';
       }
       const rb = document.getElementById('topbarO45Refresh'); if(rb) rb.style.display = '';
       if (!filtrosInit) { initFiltros(); filtrosInit = true; }
       if (!window.__o45last) o45Load();
     };
+
+    // Foto del zapato al pasar el mouse sobre la columna Negocio (col 0), igual que O14.
+    (function initImgHover(){
+      const FOTO_BASE='http://bi.stanton.com.co:81/fotosPBI/';
+      const panel=document.getElementById('o45-tabla'); if(!panel) return;
+      let pop=null,img=null,triedPng=false,curLabel='';
+      function ensurePop(){ if(pop)return; pop=document.createElement('div'); pop.id='o45-img-pop'; img=document.createElement('img'); img.alt='';
+        img.onerror=function(){ if(!triedPng){ triedPng=true; img.src=FOTO_BASE+encodeURIComponent(curLabel)+'.png'; } else hide(); };
+        pop.appendChild(img); document.body.appendChild(pop); }
+      function hide(){ if(pop) pop.style.display='none'; }
+      function position(e){ if(!pop)return; const off=16,w=276,h=336; let x=e.clientX+off,y=e.clientY+off;
+        if(x+w>window.innerWidth)x=e.clientX-off-w; if(y+h>window.innerHeight)y=e.clientY-off-h;
+        pop.style.left=Math.max(4,x)+'px'; pop.style.top=Math.max(4,y)+'px'; }
+      panel.addEventListener('mouseover',function(e){ const td=e.target.closest('td'); if(!td||td.cellIndex!==0)return;
+        const tr=td.closest('tr[data-negimg]'); if(!tr)return; curLabel=tr.getAttribute('data-negimg'); triedPng=false; ensurePop();
+        img.src=FOTO_BASE+encodeURIComponent(curLabel)+'.jpg'; pop.style.display='block'; position(e); });
+      panel.addEventListener('mousemove',function(e){ if(pop&&pop.style.display==='block')position(e); });
+      panel.addEventListener('mouseout',function(e){ const td=e.target.closest('td');
+        if(td&&td.cellIndex===0&&(!e.relatedTarget||!td.contains(e.relatedTarget)))hide(); });
+    })();
   })();
 </script>
