@@ -114,7 +114,7 @@
       showLoading();
       fetch('api/informe_o45.php?'+buildParams(),{credentials:'same-origin'}).then(r=>r.json()).then(d=>{
         if(!d.ok){ cont.innerHTML='<p style="padding:16px;color:var(--accent)">Error al cargar.</p>'; return; }
-        window.__o45last=d; renderTabla(d);
+        window.__o45last=d; if(d.proveedor) setTitle(d.proveedor); renderTabla(d);
       }).catch(()=>{ cont.innerHTML='<p style="padding:16px;color:var(--accent)">Error de red.</p>'; }).finally(hideLoading);
     };
 
@@ -129,8 +129,10 @@
       XLSX.writeFile(wb,'O45_indice_ventas.xlsx');
     };
 
+    function setTitle(prov){ document.getElementById('pageTitle').textContent = 'ÍNDICE DE VENTAS' + (prov ? ' - ' + prov : ''); }
+
     window.o45OnEnter = function(){
-      document.getElementById('pageTitle').textContent = 'ÍNDICE DE VENTAS';
+      setTitle(window.PROVEEDOR_ACTUAL || '');
       document.getElementById('topbar').classList.add('topbar--o14');
       document.getElementById('pageSubtitle').style.display = 'none';
       const hoy = new Date().toISOString().slice(0,10);
