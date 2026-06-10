@@ -500,30 +500,18 @@
         </div>
         <nav class="sidebar-nav">
             <div class="nav-section">
-                <div class="nav-section-title">PRINCIPAL</div>
-                <div class="nav-item active" onclick="showPage('dashboard', this)">
-                    <span class="icon">&#9632;</span> Dashboard
+                <div class="nav-section-title">REPORTES</div>
+                <div class="nav-item active" onclick="showPage('informes-g00', this)">
+                    <span class="icon"><i class="fa-solid fa-chart-column"></i></span> Ventas
                 </div>
-            </div>
-            <div class="nav-section">
-                <div class="nav-section-title">CONSULTAS</div>
-                <div class="nav-item" onclick="showPage('ventas', this)">
-                    <span class="icon">&#9650;</span> Ventas
-                </div>
-                <div class="nav-item" onclick="showPage('inventarios', this)">
-                    <span class="icon">&#9644;</span> Inventarios
-                </div>
-                <div class="nav-item" onclick="showPage('pagos', this)">
-                    <span class="icon">&#9673;</span> Pagos y Facturas
-                </div>
-            </div>
-            <div class="nav-section">
-                <div class="nav-section-title">AN&Aacute;LISIS</div>
                 <div class="nav-item" onclick="showPage('informes-o14', this)">
                     <span class="icon"><i class="fa-solid fa-shoe-prints"></i></span> Siembra/Stock
                 </div>
-                <div class="nav-item" onclick="showPage('informes-g00', this)">
-                    <span class="icon"><i class="fa-solid fa-chart-column"></i></span> Ventas
+                <div class="nav-item" onclick="showPage('indice-ventas', this)">
+                    <span class="icon"><i class="fa-solid fa-arrow-trend-up"></i></span> &Iacute;ndice de Ventas
+                </div>
+                <div class="nav-item" onclick="showPage('evolucion-historica', this)">
+                    <span class="icon"><i class="fa-solid fa-clock-rotate-left"></i></span> Evoluci&oacute;n Hist&oacute;rica
                 </div>
             </div>
             <div class="nav-section">
@@ -580,7 +568,7 @@
         <div class="content">
 
             <!-- ==================== DASHBOARD ==================== -->
-            <div class="page active" id="page-dashboard">
+            <div class="page" id="page-dashboard">
                 <div class="stats-grid">
                     <div class="stat-card">
                         <div class="stat-header">
@@ -967,6 +955,24 @@
             <!-- ==================== INFORME O14 ==================== -->
             <?php include __DIR__ . '/informes/o14.php'; ?>
 
+            <!-- ==================== ÍNDICE DE VENTAS (en desarrollo) ==================== -->
+            <div class="page" id="page-indice-ventas">
+                <div class="card" style="text-align:center;padding:48px 24px;">
+                    <div style="font-size:42px;color:var(--accent);margin-bottom:12px;"><i class="fa-solid fa-arrow-trend-up"></i></div>
+                    <div class="card-title" style="justify-content:center;">&Iacute;ndice de Ventas</div>
+                    <p style="color:var(--text-light);margin-top:8px;">M&oacute;dulo en desarrollo.</p>
+                </div>
+            </div>
+
+            <!-- ==================== EVOLUCIÓN HISTÓRICA (en desarrollo) ==================== -->
+            <div class="page" id="page-evolucion-historica">
+                <div class="card" style="text-align:center;padding:48px 24px;">
+                    <div style="font-size:42px;color:var(--accent);margin-bottom:12px;"><i class="fa-solid fa-clock-rotate-left"></i></div>
+                    <div class="card-title" style="justify-content:center;">Evoluci&oacute;n Hist&oacute;rica</div>
+                    <p style="color:var(--text-light);margin-top:8px;">M&oacute;dulo en desarrollo.</p>
+                </div>
+            </div>
+
             <!-- ==================== ALERTAS ==================== -->
             <div class="page" id="page-alertas">
                 <div class="filters">
@@ -1225,7 +1231,9 @@
             pagos:'PAGOS Y FACTURAS', codificacion:'CODIFICACI\u00d3N',
             documentos:'DOCUMENTACI\u00d3N', alertas:'ALERTAS',
             'informes-g00':'DASHBOARD DE VENTAS',
-            'informes-o14':'SIEMBRA / STOCK'
+            'informes-o14':'SIEMBRA / STOCK',
+            'indice-ventas':'ÍNDICE DE VENTAS',
+            'evolucion-historica':'EVOLUCIÓN HISTÓRICA'
         };
         document.getElementById('pageTitle').textContent = titles[pageId] || pageId;
         // Extras del topbar exclusivos de G00: se ocultan al cambiar de página (g00OnEnter los reactiva).
@@ -1317,6 +1325,9 @@
             proactive.innerHTML = '<button class="dismiss" onclick="event.stopPropagation();this.parentElement.style.display=\'none\'">&#10005;</button><strong style="color:var(--primary);">&#129302; AKA Asistente</strong><br>' + msgs[pageId];
         }
     }
+
+    // Al iniciar sesión, cargar Ventas (informe G00) por defecto.
+    showPage('informes-g00', document.querySelector('.nav-item[onclick*="informes-g00"]'));
 </script>
 </body>
 </html>
