@@ -414,7 +414,7 @@
 
   function loadB(){ showLoading('Cargando O14B');
     fetch('api/informe_o14.php?'+buildParams('b'),{credentials:'same-origin'})
-      .then(r=>r.json()).then(d=>{ if(!d.ok) throw 0; proveedorActual=d.proveedor||proveedorActual;
+      .then(r=>r.json()).then(d=>{ if(!d.ok) throw 0; proveedorActual=d.proveedor||proveedorActual; o14SetTitle();
         renderKpis(d.kpis); renderMatriz('o14-matriz-b', d, 'Negocio', true); populateNegocios(d); lastData.b=d; tabState.b=true; })
       .catch(()=>Swal.fire('Error','No se pudo cargar O14B','error')).finally(hideLoading); }
 
@@ -491,9 +491,11 @@
 
   window.o14Load = function(){ tabState.b=tabState.c=tabState.reco=false; loadCurrentTab(); };
 
+  function o14SetTitle(){ document.getElementById('pageTitle').textContent = 'SIEMBRA / STOCK' + (proveedorActual ? ' - ' + proveedorActual : ''); }
+
   window.o14OnEnter = function(){
-    // Topbar estilo G00: título centrado "SIEMBRA / STOCK", botón Actualizar.
-    document.getElementById('pageTitle').textContent = 'SIEMBRA / STOCK';
+    // Topbar estilo G00: título centrado "SIEMBRA / STOCK" + tercero, botón Actualizar.
+    o14SetTitle();
     document.getElementById('topbar').classList.add('topbar--o14');
     document.getElementById('pageSubtitle').style.display = 'none';
     // Columna izquierda del topbar: control de fecha que afecta SOLO a ventas (default histórico desde 2025-01-01).
