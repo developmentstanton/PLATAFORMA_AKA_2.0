@@ -152,6 +152,14 @@ if ($tab === 'data') {
         ORDER BY ventas DESC");
     if (isset($agg['error'])) jsonFail($agg, $dbConnect);
 
+    $precioMap = [];
+    $pr = run($dbConnect, "
+        SELECT rtrim(f120_referencia) referencia, rtrim(f121_id_ext1_detalle) color, MAX(f126_precio) precio
+        FROM INTEGRACION.dbo.LISTA_PRECIOS_DETAL
+        GROUP BY f120_referencia, f121_id_ext1_detalle");
+    if (!isset($pr['error'])) foreach ($pr as $x)
+        $precioMap[trim((string)$x['referencia']) . '|' . trim((string)$x['color'])] = (float)$x['precio'];
+
     $filas = [];
     $tot = ['ventas'=>0,'ventas30'=>0,'stock_cedi'=>0,'stock_tiendas'=>0,'total_stock'=>0];
     foreach ($agg as $r) {
@@ -160,6 +168,7 @@ if ($tab === 'data') {
         $total_stock = $cedi + $tiendasStock;
         $ind_inv = $ventas30 > 0 ? round($total_stock / $ventas30, 2) : null;
         $ind_vm  = (int)$r['tiendas'] > 0 ? round(($ventas / (int)$r['tiendas']) / ($dias / 30), 2) : 0.0;
+        $precio = $precioMap[trim((string)$r['referencia']) . '|' . trim((string)$r['color'])] ?? null;
         $filas[] = [
             'negocio'=>$r['negocio'], 'referencia'=>trim((string)$r['referencia']), 'color'=>trim((string)$r['color']),
             'marca'=>trim((string)$r['marca']),
@@ -167,6 +176,7 @@ if ($tab === 'data') {
             'stock_cedi'=>$cedi, 'stock_tiendas'=>$tiendasStock, 'total_stock'=>$total_stock,
             'ind_inventario'=>$ind_inv, 'ind_ventas_mes'=>$ind_vm,
             'tallas'=>(int)$r['tallas'],
+            'precio'=>$precio,
         ];
         $tot['ventas']+=$ventas; $tot['ventas30']+=$ventas30; $tot['stock_cedi']+=$cedi;
         $tot['stock_tiendas']+=$tiendasStock; $tot['total_stock']+=$total_stock;
