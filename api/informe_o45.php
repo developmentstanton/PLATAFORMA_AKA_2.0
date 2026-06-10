@@ -158,11 +158,14 @@ if ($tab === 'data') {
         $ventas = (int)$r['ventas']; $ventas30 = (int)$r['ventas30'];
         $cedi = (int)$r['stock_cedi']; $tiendasStock = (int)$r['stock_tiendas'];
         $total_stock = $cedi + $tiendasStock;
+        $ind_inv = $ventas30 > 0 ? round($total_stock / $ventas30, 2) : null;
+        $ind_vm  = (int)$r['tiendas'] > 0 ? round(($ventas / (int)$r['tiendas']) / ($dias / 30), 2) : 0.0;
         $filas[] = [
             'negocio'=>$r['negocio'], 'referencia'=>trim((string)$r['referencia']), 'color'=>trim((string)$r['color']),
             'marca'=>trim((string)$r['marca']),
             'ventas'=>$ventas, 'tiendas'=>(int)$r['tiendas'], 'ventas30'=>$ventas30,
             'stock_cedi'=>$cedi, 'stock_tiendas'=>$tiendasStock, 'total_stock'=>$total_stock,
+            'ind_inventario'=>$ind_inv, 'ind_ventas_mes'=>$ind_vm,
             'tallas'=>(int)$r['tallas'],
         ];
         $tot['ventas']+=$ventas; $tot['ventas30']+=$ventas30; $tot['stock_cedi']+=$cedi;
@@ -171,6 +174,9 @@ if ($tab === 'data') {
     // #tiendas global (distintas con venta), para la fila TOTAL.
     $ct = run($dbConnect, "SELECT COUNT(DISTINCT cia+'-'+bodega) n FROM #base WHERE bodega<>'CEDI' AND ventas<>0");
     $tot['tiendas'] = (!isset($ct['error']) && $ct) ? (int)$ct[0]['n'] : 0;
+
+    $tot['ind_inventario'] = $tot['ventas30'] > 0 ? round($tot['total_stock'] / $tot['ventas30'], 2) : null;
+    $tot['ind_ventas_mes'] = $tot['tiendas']  > 0 ? round(($tot['ventas'] / $tot['tiendas']) / ($dias / 30), 2) : 0.0;
 
     sqlsrv_close($dbConnect);
     echo json_encode(['ok'=>true, 'proveedor'=>$proveedorSesion,
