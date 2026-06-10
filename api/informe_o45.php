@@ -51,6 +51,8 @@ $cre = sqlsrv_query($dbConnect, "CREATE TABLE #base (cia varchar(10), bodega var
     disponible int, hold int, ventas int, ventas30 int)");
 if ($cre===false) jsonFail(['error'=>sqlsrv_errors()], $dbConnect); else sqlsrv_free_stmt($cre);
 
+// Partición de ventas: Ventas_Detal_PBI cubre 2026+ y Ventas_Detal_Acum_PBI ≤2025 (sin solape).
+// Solo se une Acum si la ventana toca ≤2025 (evita escanear 2.7M filas en vano y NO duplica años).
 $acumV   = ($desde    <= '2025-12-31') ? "UNION ALL SELECT rtrim(CIA),rtrim(BODEGA),rtrim(REFERENCIA),rtrim(COLOR),rtrim(TALLA),CANTIDAD FROM INTEGRACION.dbo.Ventas_Detal_Acum_PBI WITH (NOLOCK) WHERE FECHA BETWEEN ? AND ?" : "";
 $acumV30 = ($w30desde <= '2025-12-31') ? "UNION ALL SELECT rtrim(CIA),rtrim(BODEGA),rtrim(REFERENCIA),rtrim(COLOR),rtrim(TALLA),CANTIDAD FROM INTEGRACION.dbo.Ventas_Detal_Acum_PBI WITH (NOLOCK) WHERE FECHA BETWEEN ? AND ?" : "";
 
