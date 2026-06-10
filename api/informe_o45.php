@@ -20,6 +20,8 @@ $dias  = (int) floor((strtotime($hasta) - strtotime($desde)) / 86400) + 1;
 if ($dias < 1) $dias = 1;
 
 $FILTROS_REF = ['marca'=>'MARCA','tipo'=>'TIPO','categoria'=>'CATEGORIA','subcategoria'=>'SUBCATEGORIA','genero'=>'GENERO','publico'=>'PUBLICO_OBJETIVO','referencia'=>'REFERENCIA'];
+// El filtro `tienda[]` va por NOMBRE. `tienda_cod` (COD) que expone tab=filtros es solo para
+// mostrar "COD - NOMBRE" y desduplicar en el front; NO se usa como valor de filtro.
 $FILTROS_BOD = ['grupo'=>'GRUPO','tienda'=>'NOMBRE'];
 function getMulti($key) { $v = $_GET[$key] ?? []; if (!is_array($v)) $v = ($v === '' ? [] : [$v]);
     return array_values(array_filter(array_map('trim', $v), fn($x) => $x !== '')); }
