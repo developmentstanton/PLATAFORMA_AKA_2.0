@@ -234,6 +234,9 @@ if ($tab === 'data') {
     $tot['ind_inventario'] = $tot['ventas30'] > 0 ? round($tot['total_stock'] / $tot['ventas30'], 2) : null;
     $tot['ind_ventas_mes'] = $tot['tiendas']  > 0 ? round(($tot['ventas'] / $tot['tiendas']) / ($dias / 30), 2) : 0.0;
 
+    // Orden final: por Índice de Ventas mes, de mayor a menor.
+    usort($filas, fn($a, $b) => $b['ind_ventas_mes'] <=> $a['ind_ventas_mes']);
+
     sqlsrv_close($dbConnect);
     echo json_encode(['ok'=>true, 'proveedor'=>$proveedorSesion,
         'rango'=>['desde'=>$desde,'hasta'=>$hasta,'w30desde'=>$w30desde,'dias'=>$dias],
