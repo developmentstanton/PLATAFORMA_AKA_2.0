@@ -39,17 +39,19 @@
 
 <script>
   (function(){
+    'use strict';
     let filtrosInit = false, comboCatalogo = [];
     const DIMS = ['marca','tipo','categoria','subcategoria','genero','publico','negocio','referencia'];
     const tsRef = {};
     const nf = n => (n==null?'':Number(n).toLocaleString('es-CO'));
     const nf2 = n => (n==null?'—':Number(n).toLocaleString('es-CO',{minimumFractionDigits:2,maximumFractionDigits:2}));
+    const esc = s => (s==null?'':String(s)).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     const val = id => (document.getElementById(id)?.value || '');
     function getMultiVals(id){ const el=document.getElementById(id); if(!el) return [];
       return Array.from(el.selectedOptions||[]).map(o=>o.value).filter(Boolean); }
 
     function buildParams(){
-      const p = new URLSearchParams({ tab:'data', desde: val('o45-vdesde')||'2025-01-01', hasta: val('o45-vhasta')||'' });
+      const p = new URLSearchParams({ tab:'data', desde: val('o45-vdesde')||'2025-01-01', hasta: val('o45-vhasta')||new Date().toISOString().slice(0,10) });
       ['grupo','tienda',...DIMS].forEach(k=>{ getMultiVals('o45-f-'+k).forEach(v=>p.append(k+'[]', v)); });
       return p.toString();
     }
@@ -79,10 +81,10 @@
     const COLS = [
       {k:'negocio',t:'Negocio',dim:true}, {k:'marca',t:'Marca',dim:true},
       {k:'ventas',t:'Ventas (und)',f:nf}, {k:'tiendas',t:'#tiendas',f:nf},
-      {k:'ind_inventario',t:'Índice inventario',f:nf2}, {k:'stock_cedi',t:'Stock CEDI',f:nf},
+      {k:'ind_inventario',t:'Índice de inventario',f:nf2}, {k:'stock_cedi',t:'Stock CEDI',f:nf},
       {k:'stock_tiendas',t:'Stock Tiendas',f:nf}, {k:'total_stock',t:'Total Stock',f:nf},
-      {k:'ind_ventas_mes',t:'Índice Ventas mes',f:nf2}, {k:'tallas',t:'Tallas',f:nf},
-      {k:'precio',t:'Precio Detal',f:nf},
+      {k:'ind_ventas_mes',t:'Índice de Ventas mes',f:nf2}, {k:'tallas',t:'Tallas',f:nf},
+      {k:'precio',t:'Precio de Venta Detal',f:nf},
     ];
 
     function renderTabla(d){
@@ -91,7 +93,7 @@
       if(!filas.length){ cont.innerHTML='<p style="padding:16px;color:var(--text-light)">Sin datos.</p>'; return; }
       let h='<table class="o45-tabla" id="o45-tbl"><thead><tr>';
       COLS.forEach(c=> h+='<th'+(c.dim?' class="dim"':'')+'>'+c.t+'</th>'); h+='</tr></thead><tbody>';
-      filas.forEach(f=>{ h+='<tr>'; COLS.forEach(c=>{ const v=f[c.k]; h+='<td'+(c.dim?' class="dim"':'')+'>'+(c.dim?(v??''):c.f(v))+'</td>'; }); h+='</tr>'; });
+      filas.forEach(f=>{ h+='<tr>'; COLS.forEach(c=>{ const v=f[c.k]; h+='<td'+(c.dim?' class="dim"':'')+'>'+(c.dim?esc(v):c.f(v))+'</td>'; }); h+='</tr>'; });
       const t=d.total||{};
       h+='<tr class="o45-total"><td class="dim">TOTAL</td><td class="dim"></td>';
       ['ventas','tiendas','ind_inventario','stock_cedi','stock_tiendas','total_stock','ind_ventas_mes'].forEach(k=>{
