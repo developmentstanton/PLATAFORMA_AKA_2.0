@@ -277,10 +277,11 @@
     data.filas.forEach(fila=>{
       const key = fila.key;
       let label, attr='';
-      if(clickable){ label = esc(key.negocio)+' <span style="color:var(--text-light);font-size:10px">('+esc(key.cia)+')</span>';
+      if(clickable){ label = esc(key.negocio);
         attr = ' class="dim o14-clickable" onclick="o14SelectNegocio(\''+esc(key.referencia)+'\',\''+esc(key.color)+'\')"'; }
       else { label = '<strong>'+esc(key.bodega)+'</strong> '+esc(key.nombre)+' <span style="color:var(--text-light);font-size:10px">('+esc(key.grupo)+')</span>'; attr=' class="dim"'; }
-      h += '<tr><td'+attr+'>'+label+'</td>';
+      const negImg = clickable ? ' data-negimg="'+esc(key.negocio)+'"' : '';
+      h += '<tr'+negImg+'><td'+attr+'>'+label+'</td>';
       medidas.forEach(m=>{
         let tot=0;
         tallas.forEach(t=>{ const v=(fila.valores[m]||{})[t]||0; tot+=v; totGen[m][t]=(totGen[m][t]||0)+v;
@@ -344,9 +345,9 @@
   // Pinta una matriz negocio×talla para una medida, con fila TOTAL arriba y botón Excel.
   // Nota por matriz (al lado del título) con el total general de esa medida.
   const RECO_NOTE={
-    sobrante:(n)=>'Usted tiene para reubicar la cantidad de '+nf(n),
-    faltante:(n)=>'A usted le falta la cantidad de '+nf(n),
-    proveedor:(n)=>'Usted debe pedir al proveedor la cantidad de '+nf(n)
+    sobrante:(n)=>'Usted tiene para reubicar '+nf(n)+' Pares/unidades.',
+    faltante:(n)=>'A usted le falta '+nf(n)+' Pares/unidades.',
+    proveedor:(n)=>'Usted debe pedir al proveedor '+nf(n)+' Pares/unidades.'
   };
   function renderRecoMatriz(containerId, data, medida, expIdx){
     const cont=document.getElementById(containerId); if(!cont) return;
@@ -388,10 +389,11 @@
     const caret=document.getElementById('o14-reco-caret-'+med); if(caret) caret.textContent = show?'▼':'▶';
   };
 
-  // Hover de foto del zapato sobre la columna Negocio en las matrices de reco (igual que G00).
-  (function initRecoImgHover(){
+  // Hover de foto del zapato sobre la columna Negocio (col 0) — en Recomendaciones y en Por negocio (igual que G00).
+  (function initImgHover(){
     const FOTO_BASE='http://bi.stanton.com.co:81/fotosPBI/';
-    const panel=document.getElementById('o14-panel-reco'); if(!panel) return;
+    const panels=['o14-panel-reco','o14-panel-b'].map(id=>document.getElementById(id)).filter(Boolean);
+    if(!panels.length) return;
     let pop=null,img=null,triedPng=false,curLabel='';
     function ensurePop(){ if(pop)return; pop=document.createElement('div'); pop.id='o14-img-pop'; img=document.createElement('img'); img.alt='';
       img.onerror=function(){ if(!triedPng){ triedPng=true; img.src=FOTO_BASE+encodeURIComponent(curLabel)+'.png'; } else hide(); };
@@ -400,12 +402,14 @@
     function position(e){ if(!pop)return; const off=16,w=276,h=336; let x=e.clientX+off,y=e.clientY+off;
       if(x+w>window.innerWidth)x=e.clientX-off-w; if(y+h>window.innerHeight)y=e.clientY-off-h;
       pop.style.left=Math.max(4,x)+'px'; pop.style.top=Math.max(4,y)+'px'; }
-    panel.addEventListener('mouseover',function(e){ const td=e.target.closest('td'); if(!td||td.cellIndex!==0)return;
-      const tr=td.closest('tr[data-negimg]'); if(!tr)return; curLabel=tr.getAttribute('data-negimg'); triedPng=false; ensurePop();
-      img.src=FOTO_BASE+encodeURIComponent(curLabel)+'.jpg'; pop.style.display='block'; position(e); });
-    panel.addEventListener('mousemove',function(e){ if(pop&&pop.style.display==='block')position(e); });
-    panel.addEventListener('mouseout',function(e){ const td=e.target.closest('td');
-      if(td&&td.cellIndex===0&&(!e.relatedTarget||!td.contains(e.relatedTarget)))hide(); });
+    panels.forEach(panel=>{
+      panel.addEventListener('mouseover',function(e){ const td=e.target.closest('td'); if(!td||td.cellIndex!==0)return;
+        const tr=td.closest('tr[data-negimg]'); if(!tr)return; curLabel=tr.getAttribute('data-negimg'); triedPng=false; ensurePop();
+        img.src=FOTO_BASE+encodeURIComponent(curLabel)+'.jpg'; pop.style.display='block'; position(e); });
+      panel.addEventListener('mousemove',function(e){ if(pop&&pop.style.display==='block')position(e); });
+      panel.addEventListener('mouseout',function(e){ const td=e.target.closest('td');
+        if(td&&td.cellIndex===0&&(!e.relatedTarget||!td.contains(e.relatedTarget)))hide(); });
+    });
   })();
 
   function loadB(){ showLoading('Cargando O14B');
