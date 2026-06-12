@@ -16,8 +16,8 @@ $tab = $_GET['tab'] ?? 'data';
 
 // === Eje de meses (Año-Mes). Default: enero del año pasado .. mes actual. Tope = mes actual. ===
 $mesActual = date('Y-m');
-$desdeMes = preg_match('/^\d{4}-\d{2}$/', $_GET['desde'] ?? '') ? $_GET['desde'] : (date('Y')-1).'-01';
-$hastaMes = preg_match('/^\d{4}-\d{2}$/', $_GET['hasta'] ?? '') ? $_GET['hasta'] : $mesActual;
+$desdeMes = preg_match('/^\d{4}-\d{2}$/', (string)($_GET['desde'] ?? '')) ? $_GET['desde'] : (date('Y')-1).'-01';
+$hastaMes = preg_match('/^\d{4}-\d{2}$/', (string)($_GET['hasta'] ?? '')) ? $_GET['hasta'] : $mesActual;
 if ($hastaMes > $mesActual) $hastaMes = $mesActual;
 if ($desdeMes > $hastaMes) $desdeMes = $hastaMes;
 $meses = [];
@@ -97,6 +97,7 @@ if ($compSrc !== '') {
       SELECT cs.negocio, cs.mes, cs.cia, cs.bodega, cs.referencia, cs.color, 0, SUM(cs.q), 0
       FROM ( $compSrc ) cs INNER JOIN #refs r ON r.REFERENCIA = cs.referencia
       GROUP BY cs.negocio, cs.mes, cs.cia, cs.bodega, cs.referencia, cs.color";
+    // Orden de params $pC: srcActual(desde,hasta) [si aplica] ; srcHist(desde,hasta) [si aplica].
     $pC = []; if ($srcActual) array_push($pC,$desdeF,$hastaF); if ($srcHist) array_push($pC,$desdeF,$hastaF);
     $rc = run($dbConnect,$insC,$pC); if (isset($rc['error'])) jsonFail($rc,$dbConnect);
 }
@@ -241,7 +242,7 @@ foreach ($agg as $r) {
     $N['valores']['compras'][$m] = $compras;
     $N['valores']['stock'][$m]   = $stock;
     $N['valores']['tiendas'][$m] = $tiendas;
-    $N['valores']['mesesInv'][$m]= $ventas != 0 ? (int)round($stock / $ventas) : 0;
+    $N['valores']['mesesInv'][$m]= $ventas > 0 ? (int)round($stock / $ventas) : 0;
     $N['valores']['indice'][$m]  = $tiendas > 0 ? round(($ventas / $tiendas) / ($diasMes($m) / 30), 2) : 0.0;
     $N['totales']['compras'] += $compras;
     $N['totales']['ventas']  += $ventas;
