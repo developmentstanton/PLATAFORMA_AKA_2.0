@@ -964,7 +964,7 @@
             <!-- ==================== ÍNDICE DE VENTAS (O45) ==================== -->
             <?php include __DIR__ . '/informes/o45.php'; ?>
 
-            <!-- ==================== EVOLUCIÓN HISTÓRICA (en desarrollo) ==================== -->
+            <!-- ==================== EVOLUCIÓN HISTÓRICA ==================== -->
             <?php include __DIR__ . '/informes/evol.php'; ?>
 
             <!-- ==================== ALERTAS ==================== -->
