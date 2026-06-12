@@ -559,6 +559,9 @@
                 <button id="topbarO45Refresh" class="topbar-action" style="display:none;" onclick="o45Load()">
                     <i class="fa-solid fa-arrows-rotate"></i> Actualizar
                 </button>
+                <button id="topbarEvolRefresh" class="topbar-action" style="display:none;" onclick="evolLoad()">
+                    <i class="fa-solid fa-arrows-rotate"></i> Actualizar
+                </button>
                 <button class="notification-btn" onclick="showPage('alertas', document.querySelector('[onclick*=alertas]'))">
                     &#9888;<span class="dot"></span>
                 </button>
@@ -962,13 +965,7 @@
             <?php include __DIR__ . '/informes/o45.php'; ?>
 
             <!-- ==================== EVOLUCIÓN HISTÓRICA (en desarrollo) ==================== -->
-            <div class="page" id="page-evolucion-historica">
-                <div class="card" style="text-align:center;padding:48px 24px;">
-                    <div style="font-size:42px;color:var(--accent);margin-bottom:12px;"><i class="fa-solid fa-clock-rotate-left"></i></div>
-                    <div class="card-title" style="justify-content:center;">Evoluci&oacute;n Hist&oacute;rica</div>
-                    <p style="color:var(--text-light);margin-top:8px;">M&oacute;dulo en desarrollo.</p>
-                </div>
-            </div>
+            <?php include __DIR__ . '/informes/evol.php'; ?>
 
             <!-- ==================== ALERTAS ==================== -->
             <div class="page" id="page-alertas">
@@ -1238,12 +1235,14 @@
         document.getElementById('topbarG00Refresh').style.display = 'none';
         document.getElementById('topbarO14Refresh').style.display = 'none';
         document.getElementById('topbarO45Refresh').style.display = 'none';
+        document.getElementById('topbarEvolRefresh').style.display = 'none';
         document.getElementById('topbar').classList.remove('topbar--g00');
         document.getElementById('topbar').classList.remove('topbar--o14');
         document.getElementById('topbarDates').style.display = 'none';
         if (pageId === 'informes-g00' && typeof g00OnEnter === 'function') g00OnEnter();
         if (pageId === 'informes-o14' && typeof o14OnEnter === 'function') o14OnEnter();
         if (pageId === 'informes-o45' && typeof o45OnEnter === 'function') o45OnEnter();
+        if (pageId === 'evolucion-historica' && typeof evolOnEnter === 'function') evolOnEnter();
         updateAgentContext(pageId);
     }
     document.getElementById('modalCodificacion').addEventListener('click', function(e) {
