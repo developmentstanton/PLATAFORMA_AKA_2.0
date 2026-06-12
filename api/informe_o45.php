@@ -3,6 +3,7 @@
  * API Informe O45 — Índice de Ventas (una fila por negocio).
  * tab=data: cuadro; tab=filtros: catálogo de cascadas.
  * Stock = snapshot actual (inv_actual_PBI + _hold_actual_PBI). Fechas solo afectan ventas.
+ * Hold: bodega = BODEGA_SAL (salida) — específico de O45 (O14 usa BODEGA_ENT/entrada).
  * Dos ventanas de ventas: [desde,hasta] (rango) y [hasta-29,hasta] (ventas30).
  * Spec: docs/superpowers/specs/2026-06-10-o45-indice-ventas-design.md
  */
@@ -14,7 +15,7 @@ $proveedorSesion = $_SESSION['proveedor'] ?? '';
 $proveedor = $proveedorSesion !== '' ? $proveedorSesion : '__SIN_PROVEEDOR__';
 $tab   = $_GET['tab'] ?? 'data';
 $desde = $_GET['desde'] ?? '2025-01-01';
-$hasta = $_GET['hasta'] ?? date('Y-m-d');
+$hasta = $_GET['hasta'] ?? date('Y-m-d', strtotime('-1 day'));   // O45: tope = ayer (hoy - 1 día)
 $w30desde = date('Y-m-d', strtotime($hasta . ' -29 days'));   // ventana de 30 días que termina en hasta
 $dias  = (int) floor((strtotime($hasta) - strtotime($desde)) / 86400) + 1;
 if ($dias < 1) $dias = 1;
@@ -47,34 +48,91 @@ if ($tab === 'data') {
     }
 }
 
+// === Corte de stock: foto viva (fechada ayer) o corte de fin de mes <= hasta ===
+$fv = run($dbConnect, "SELECT TOP 1 CONVERT(varchar(10),FECHA,120) f FROM INTEGRACION.dbo.inv_actual_PBI WITH (NOLOCK)");
+$fechaViva = (!isset($fv['error']) && $fv && !empty($fv[0]['f'])) ? $fv[0]['f'] : date('Y-m-d', strtotime('-1 day'));
+if ($hasta >= $fechaViva) {
+    $modoStock = 'vivo'; $corteStock = null;
+} else {
+    $modoStock = 'corte';
+    $finMes = date('Y-m-t', strtotime($hasta));                 // ultimo dia del mes de hasta
+    $corteStock = ($hasta >= $finMes) ? $finMes                  // hasta ES fin de mes
+                : date('Y-m-t', strtotime(date('Y-m-01', strtotime($hasta)) . ' -1 day')); // fin del mes anterior
+}
+
 // --- #base: disponible, hold, ventas (rango), ventas30 (30d hasta hasta) ---
 $cre = sqlsrv_query($dbConnect, "CREATE TABLE #base (cia varchar(10), bodega varchar(20), negocio varchar(120),
     referencia varchar(50), color varchar(40), talla varchar(40),
-    disponible int, hold int, ventas int, ventas30 int)");
+    disponible int, hold int, ventas int, ventas30 int, inv_hist int)");
 if ($cre===false) jsonFail(['error'=>sqlsrv_errors()], $dbConnect); else sqlsrv_free_stmt($cre);
+
+// #inv_hist: llaves (cia,bodega,ref,color,talla) con inventario>0 en ALGUN corte de fin de mes dentro del rango.
+$creH = sqlsrv_query($dbConnect, "CREATE TABLE #inv_hist (cia varchar(10), bodega varchar(20),
+    referencia varchar(50), color varchar(40), talla varchar(40))");
+if ($creH===false) jsonFail(['error'=>sqlsrv_errors()], $dbConnect); else sqlsrv_free_stmt($creH);
+// Solo se puebla en tab=data (su escaneo histórico no debe afectar la carga del catálogo de filtros).
+if ($tab === 'data') {
+    $insHist = "INSERT INTO #inv_hist
+      SELECT DISTINCT cia,bodega,referencia,color,talla FROM (
+        SELECT RIGHT('000'+rtrim(hi.CIA),3) cia, rtrim(hi.BODEGA) bodega, rtrim(hi.REFERENCIA) referencia,
+               rtrim(hi.COLOR) color, rtrim(hi.TALLA) talla
+          FROM INTEGRACION.dbo.historico_inventarios_PBI hi WITH (NOLOCK)
+           INNER JOIN #refs r ON r.REFERENCIA = rtrim(hi.REFERENCIA)
+          WHERE hi.FECHA BETWEEN ? AND ? AND hi.CIA<>'001'
+                AND rtrim(hi.COLUMNA1) IN ('INV1430','INV1435','400') AND CAST(hi.CANTIDAD AS int) > 0
+        UNION
+        SELECT RIGHT('000'+rtrim(hh.CIA),3), rtrim(hh.BODEGA_SAL), rtrim(hh.REFERENCIA), rtrim(hh.COLOR), rtrim(hh.TALLA)
+          FROM INTEGRACION.dbo.historico_hold_PBI hh WITH (NOLOCK)
+           INNER JOIN #refs r ON r.REFERENCIA = rtrim(hh.REFERENCIA)
+          WHERE hh.FECHA BETWEEN ? AND ? AND hh.CIA<>'001' AND CAST(hh.CANTIDAD AS int) > 0
+      ) z";
+    $rh = run($dbConnect, $insHist, [$desde,$hasta,$desde,$hasta]);
+    if (isset($rh['error'])) jsonFail($rh, $dbConnect);
+}
 
 // Partición de ventas: Ventas_Detal_PBI cubre 2026+ y Ventas_Detal_Acum_PBI ≤2025 (sin solape).
 // Solo se une Acum si la ventana toca ≤2025 (evita escanear 2.7M filas en vano y NO duplica años).
 $acumV   = ($desde    <= '2025-12-31') ? "UNION ALL SELECT rtrim(CIA),rtrim(BODEGA),rtrim(REFERENCIA),rtrim(COLOR),rtrim(TALLA),CANTIDAD FROM INTEGRACION.dbo.Ventas_Detal_Acum_PBI WITH (NOLOCK) WHERE FECHA BETWEEN ? AND ?" : "";
 $acumV30 = ($w30desde <= '2025-12-31') ? "UNION ALL SELECT rtrim(CIA),rtrim(BODEGA),rtrim(REFERENCIA),rtrim(COLOR),rtrim(TALLA),CANTIDAD FROM INTEGRACION.dbo.Ventas_Detal_Acum_PBI WITH (NOLOCK) WHERE FECHA BETWEEN ? AND ?" : "";
 
+// CTE de stock (d=disponible, h=hold) según el modo: vivo (foto) o corte (fin de mes histórico).
+if ($modoStock === 'vivo') {
+    $dCte = "d AS (
+        SELECT RIGHT('000'+rtrim(v.cia),3) cia, rtrim(v.bodega) bodega, rtrim(v.referencia) referencia,
+               rtrim(v.color) color, rtrim(v.talla) talla, SUM(CAST(v.cantidad AS int)) q
+        FROM INTEGRACION.dbo.inv_actual_PBI v WITH (NOLOCK)
+         INNER JOIN #refs r ON r.REFERENCIA = rtrim(v.referencia)
+        WHERE v.cia<>'001' AND v.COLUMNA1 IN ('INV1430','INV1435','400')
+        GROUP BY RIGHT('000'+rtrim(v.cia),3),rtrim(v.bodega),rtrim(v.referencia),rtrim(v.color),rtrim(v.talla))";
+    $hCte = "h AS (
+        SELECT RIGHT('000'+rtrim(v.cia),3) cia, rtrim(v.bodega_sal) bodega, rtrim(v.referencia) referencia,
+               rtrim(v.color) color, rtrim(v.talla) talla, SUM(CAST(v.cantidad AS int)) q
+        FROM INTEGRACION.dbo._hold_actual_PBI v WITH (NOLOCK)
+         INNER JOIN #refs r ON r.REFERENCIA = rtrim(v.referencia)
+        WHERE v.cia<>'001'
+        GROUP BY RIGHT('000'+rtrim(v.cia),3),rtrim(v.bodega_sal),rtrim(v.referencia),rtrim(v.color),rtrim(v.talla))";
+    $pStock = [];
+} else {
+    $dCte = "d AS (
+        SELECT RIGHT('000'+rtrim(v.CIA),3) cia, rtrim(v.BODEGA) bodega, rtrim(v.REFERENCIA) referencia,
+               rtrim(v.COLOR) color, rtrim(v.TALLA) talla, SUM(CAST(v.CANTIDAD AS int)) q
+        FROM INTEGRACION.dbo.historico_inventarios_PBI v WITH (NOLOCK)
+         INNER JOIN #refs r ON r.REFERENCIA = rtrim(v.REFERENCIA)
+        WHERE v.FECHA = ? AND v.CIA<>'001' AND rtrim(v.COLUMNA1) IN ('INV1430','INV1435','400')
+        GROUP BY RIGHT('000'+rtrim(v.CIA),3),rtrim(v.BODEGA),rtrim(v.REFERENCIA),rtrim(v.COLOR),rtrim(v.TALLA))";
+    $hCte = "h AS (
+        SELECT RIGHT('000'+rtrim(v.CIA),3) cia, rtrim(v.BODEGA_SAL) bodega, rtrim(v.REFERENCIA) referencia,
+               rtrim(v.COLOR) color, rtrim(v.TALLA) talla, SUM(CAST(v.CANTIDAD AS int)) q
+        FROM INTEGRACION.dbo.historico_hold_PBI v WITH (NOLOCK)
+         INNER JOIN #refs r ON r.REFERENCIA = rtrim(v.REFERENCIA)
+        WHERE v.FECHA = ? AND v.CIA<>'001'
+        GROUP BY RIGHT('000'+rtrim(v.CIA),3),rtrim(v.BODEGA_SAL),rtrim(v.REFERENCIA),rtrim(v.COLOR),rtrim(v.TALLA))";
+    $pStock = [$corteStock, $corteStock];
+}
+
 $insBase = "
-  WITH d AS (
-    SELECT RIGHT('000'+rtrim(v.cia),3) cia, rtrim(v.bodega) bodega, rtrim(v.referencia) referencia,
-           rtrim(v.color) color, rtrim(v.talla) talla, SUM(CAST(v.cantidad AS int)) q
-    FROM INTEGRACION.dbo.inv_actual_PBI v WITH (NOLOCK)
-     INNER JOIN #refs r ON r.REFERENCIA = rtrim(v.referencia)
-    WHERE v.cia<>'001' AND v.COLUMNA1 IN ('INV1430','INV1435','400')
-    GROUP BY RIGHT('000'+rtrim(v.cia),3),rtrim(v.bodega),rtrim(v.referencia),rtrim(v.color),rtrim(v.talla)
-  ),
-  h AS (
-    SELECT RIGHT('000'+rtrim(v.cia),3) cia, rtrim(v.bodega_ent) bodega, rtrim(v.referencia) referencia,
-           rtrim(v.color) color, rtrim(v.talla) talla, SUM(CAST(v.cantidad AS int)) q
-    FROM INTEGRACION.dbo._hold_actual_PBI v WITH (NOLOCK)
-     INNER JOIN #refs r ON r.REFERENCIA = rtrim(v.referencia)
-    WHERE v.cia<>'001'
-    GROUP BY RIGHT('000'+rtrim(v.cia),3),rtrim(v.bodega_ent),rtrim(v.referencia),rtrim(v.color),rtrim(v.talla)
-  ),
+  WITH $dCte,
+  $hCte,
   ventas_src AS (
     SELECT RIGHT('000'+rtrim(CIA),3) cia, rtrim(BODEGA) bodega, rtrim(REFERENCIA) referencia, rtrim(COLOR) color, rtrim(TALLA) talla, CANTIDAD
     FROM INTEGRACION.dbo.Ventas_Detal_PBI WITH (NOLOCK) WHERE FECHA BETWEEN ? AND ? $acumV
@@ -98,20 +156,24 @@ $insBase = "
     UNION SELECT cia,bodega,referencia,color,talla FROM h
     UNION SELECT cia,bodega,referencia,color,talla FROM v
     UNION SELECT cia,bodega,referencia,color,talla FROM v30
+    UNION SELECT cia,bodega,referencia,color,talla FROM #inv_hist
   )
   INSERT INTO #base
   SELECT k.cia, k.bodega, k.referencia+'-'+k.color, k.referencia, k.color, k.talla,
-         CAST(ISNULL(d.q,0) AS int), CAST(ISNULL(h.q,0) AS int), CAST(ISNULL(v.q,0) AS int), CAST(ISNULL(v30.q,0) AS int)
+         CAST(ISNULL(d.q,0) AS int), CAST(ISNULL(h.q,0) AS int), CAST(ISNULL(v.q,0) AS int), CAST(ISNULL(v30.q,0) AS int),
+         CASE WHEN ih.cia IS NOT NULL THEN 1 ELSE 0 END
   FROM llaves k
    LEFT JOIN d   ON d.cia=k.cia AND d.bodega=k.bodega AND d.referencia=k.referencia AND d.color=k.color AND d.talla=k.talla
    LEFT JOIN h   ON h.cia=k.cia AND h.bodega=k.bodega AND h.referencia=k.referencia AND h.color=k.color AND h.talla=k.talla
    LEFT JOIN v   ON v.cia=k.cia AND v.bodega=k.bodega AND v.referencia=k.referencia AND v.color=k.color AND v.talla=k.talla
-   LEFT JOIN v30 ON v30.cia=k.cia AND v30.bodega=k.bodega AND v30.referencia=k.referencia AND v30.color=k.color AND v30.talla=k.talla";
+   LEFT JOIN v30 ON v30.cia=k.cia AND v30.bodega=k.bodega AND v30.referencia=k.referencia AND v30.color=k.color AND v30.talla=k.talla
+   LEFT JOIN #inv_hist ih ON ih.cia=k.cia AND ih.bodega=k.bodega AND ih.referencia=k.referencia AND ih.color=k.color AND ih.talla=k.talla";
 
-// Orden de params: ventas_src(desde,hasta) [+acumV(desde,hasta)] ; ventas30_src(w30desde,hasta) [+acumV30(w30desde,hasta)]
-$p = [$desde,$hasta];
+// Orden de params: stock(corte) ; ventas_src(desde,hasta) [+acumV(desde,hasta)] ; ventas30_src(w30desde,hasta) [+acumV30(w30desde,hasta)]
+$p = $pStock;                       // <- corte de stock primero (si aplica)
+array_push($p, $desde, $hasta);     // ventas_src
 if ($acumV   !== '') array_push($p, $desde, $hasta);
-array_push($p, $w30desde, $hasta);
+array_push($p, $w30desde, $hasta);  // ventas30_src
 if ($acumV30 !== '') array_push($p, $w30desde, $hasta);
 $ins = run($dbConnect, $insBase, $p);
 if (isset($ins['error'])) jsonFail($ins, $dbConnect);
@@ -191,9 +253,13 @@ if ($tab === 'data') {
                SUM(CASE WHEN b.bodega<>'CEDI' THEN b.ventas30 ELSE 0 END) ventas30,
                SUM(CASE WHEN b.bodega='CEDI'  THEN b.disponible+b.hold ELSE 0 END) stock_cedi,
                SUM(CASE WHEN b.bodega<>'CEDI' THEN b.disponible+b.hold ELSE 0 END) stock_tiendas,
-               COUNT(DISTINCT b.talla) tallas,
-               COUNT(DISTINCT CASE WHEN b.bodega<>'CEDI' AND b.ventas<>0 THEN b.cia+'-'+b.bodega END) tiendas
-        FROM #base b INNER JOIN #refs r ON r.REFERENCIA = b.referencia
+               COUNT(DISTINCT CASE WHEN b.disponible+b.hold>0 OR b.inv_hist=1 OR b.ventas<>0 THEN b.talla END) tallas,
+               -- #tiendas: stock del corte O inventario en algun corte del rango O ventas; excl. grupos BODEGA/ADMINISTRATIVAS.
+               COUNT(DISTINCT CASE WHEN ISNULL(bo.GRUPO,'') NOT IN ('BODEGA','ADMINISTRATIVAS')
+                                    AND (b.disponible+b.hold>0 OR b.inv_hist=1 OR b.ventas<>0) THEN b.cia+'-'+b.bodega END) tiendas
+        FROM #base b
+         INNER JOIN #refs r ON r.REFERENCIA = b.referencia
+         LEFT  JOIN INTEGRACION.dbo.Bodegas bo WITH (NOLOCK) ON bo.COD=b.bodega AND RIGHT('000'+rtrim(bo.CIA),3)=b.cia
         GROUP BY b.cia, b.negocio, b.referencia, b.color
         ORDER BY ventas DESC");
     if (isset($agg['error'])) jsonFail($agg, $dbConnect);
@@ -227,8 +293,12 @@ if ($tab === 'data') {
         $tot['ventas']+=$ventas; $tot['ventas30']+=$ventas30; $tot['stock_cedi']+=$cedi;
         $tot['stock_tiendas']+=$tiendasStock; $tot['total_stock']+=$total_stock;
     }
-    // #tiendas global (distintas con venta), para la fila TOTAL.
-    $ct = run($dbConnect, "SELECT COUNT(DISTINCT cia+'-'+bodega) n FROM #base WHERE bodega<>'CEDI' AND ventas<>0");
+    // #tiendas global (distintas con stock disp+hold>0 O ventas<>0; excl. grupos BODEGA y ADMINISTRATIVAS), para la fila TOTAL.
+    $ct = run($dbConnect, "
+        SELECT COUNT(DISTINCT b.cia+'-'+b.bodega) n
+        FROM #base b
+         LEFT JOIN INTEGRACION.dbo.Bodegas bo WITH (NOLOCK) ON bo.COD=b.bodega AND RIGHT('000'+rtrim(bo.CIA),3)=b.cia
+        WHERE ISNULL(bo.GRUPO,'') NOT IN ('BODEGA','ADMINISTRATIVAS') AND (b.disponible+b.hold>0 OR b.inv_hist=1 OR b.ventas<>0)");
     $tot['tiendas'] = (!isset($ct['error']) && $ct) ? (int)$ct[0]['n'] : 0;
 
     $tot['ind_inventario'] = $tot['ventas30'] > 0 ? round($tot['total_stock'] / $tot['ventas30'], 2) : null;
@@ -239,7 +309,8 @@ if ($tab === 'data') {
 
     sqlsrv_close($dbConnect);
     echo json_encode(['ok'=>true, 'proveedor'=>$proveedorSesion,
-        'rango'=>['desde'=>$desde,'hasta'=>$hasta,'w30desde'=>$w30desde,'dias'=>$dias],
+        'rango'=>['desde'=>$desde,'hasta'=>$hasta,'w30desde'=>$w30desde,'dias'=>$dias,
+                  'stock_corte'=>($modoStock==='vivo' ? 'vivo' : $corteStock)],
         'filas'=>$filas, 'total'=>$tot], JSON_UNESCAPED_UNICODE);
     exit;
 }
