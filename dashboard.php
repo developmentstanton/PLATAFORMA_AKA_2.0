@@ -189,7 +189,7 @@
         .topbar.topbar--o14 .o14-vfilter { display: flex; align-items: center; gap: 10px; }
         .o14-vfilter-lbl { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-light); font-weight: 700; }
         .o14-vfilter label { display: flex; flex-direction: column; gap: 2px; font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-light); font-weight: 600; }
-        .o14-vfilter input[type="date"] { font-family: 'Space Grotesk', sans-serif; font-size: 11px; padding: 3px 6px; border: 1px solid var(--border); border-radius: 6px; background: white; color: var(--text); }
+        .o14-vfilter input[type="date"], .o14-vfilter input[type="month"] { font-family: 'Space Grotesk', sans-serif; font-size: 11px; padding: 3px 6px; border: 1px solid var(--border); border-radius: 6px; background: white; color: var(--text); }
         .topbar-dates table { border-collapse: collapse; }
         .topbar-dates th {
             font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px;
@@ -557,6 +557,9 @@
                     <i class="fa-solid fa-arrows-rotate"></i> Actualizar
                 </button>
                 <button id="topbarO45Refresh" class="topbar-action" style="display:none;" onclick="o45Load()">
+                    <i class="fa-solid fa-arrows-rotate"></i> Actualizar
+                </button>
+                <button id="topbarEvolRefresh" class="topbar-action" style="display:none;" onclick="evolLoad()">
                     <i class="fa-solid fa-arrows-rotate"></i> Actualizar
                 </button>
                 <button class="notification-btn" onclick="showPage('alertas', document.querySelector('[onclick*=alertas]'))">
@@ -961,14 +964,8 @@
             <!-- ==================== ÍNDICE DE VENTAS (O45) ==================== -->
             <?php include __DIR__ . '/informes/o45.php'; ?>
 
-            <!-- ==================== EVOLUCIÓN HISTÓRICA (en desarrollo) ==================== -->
-            <div class="page" id="page-evolucion-historica">
-                <div class="card" style="text-align:center;padding:48px 24px;">
-                    <div style="font-size:42px;color:var(--accent);margin-bottom:12px;"><i class="fa-solid fa-clock-rotate-left"></i></div>
-                    <div class="card-title" style="justify-content:center;">Evoluci&oacute;n Hist&oacute;rica</div>
-                    <p style="color:var(--text-light);margin-top:8px;">M&oacute;dulo en desarrollo.</p>
-                </div>
-            </div>
+            <!-- ==================== EVOLUCIÓN HISTÓRICA ==================== -->
+            <?php include __DIR__ . '/informes/evol.php'; ?>
 
             <!-- ==================== ALERTAS ==================== -->
             <div class="page" id="page-alertas">
@@ -1238,12 +1235,14 @@
         document.getElementById('topbarG00Refresh').style.display = 'none';
         document.getElementById('topbarO14Refresh').style.display = 'none';
         document.getElementById('topbarO45Refresh').style.display = 'none';
+        document.getElementById('topbarEvolRefresh').style.display = 'none';
         document.getElementById('topbar').classList.remove('topbar--g00');
         document.getElementById('topbar').classList.remove('topbar--o14');
         document.getElementById('topbarDates').style.display = 'none';
         if (pageId === 'informes-g00' && typeof g00OnEnter === 'function') g00OnEnter();
         if (pageId === 'informes-o14' && typeof o14OnEnter === 'function') o14OnEnter();
         if (pageId === 'informes-o45' && typeof o45OnEnter === 'function') o45OnEnter();
+        if (pageId === 'evolucion-historica' && typeof evolOnEnter === 'function') evolOnEnter();
         updateAgentContext(pageId);
     }
     document.getElementById('modalCodificacion').addEventListener('click', function(e) {
