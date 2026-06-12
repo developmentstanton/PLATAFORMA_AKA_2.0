@@ -36,10 +36,10 @@
   #page-evolucion-historica table.evol-tabla thead th { background: #faf9ff; position: sticky; top: 0; z-index: 2; }
   /* Inmovilizar las 2 primeras columnas: Negocio + Conceptos */
   #page-evolucion-historica table.evol-tabla td.neg, #page-evolucion-historica table.evol-tabla th.neg {
-    text-align: left; position: sticky; left: 0; box-sizing: border-box; width: 110px; min-width: 110px; max-width: 110px;
-    overflow: hidden; text-overflow: ellipsis; background: #2e7d6b; color: #fff; font-weight: 600; }
+    text-align: left; position: sticky; left: 0; box-sizing: border-box; width: 132px; min-width: 132px; max-width: 132px;
+    white-space: normal; overflow-wrap: anywhere; line-height: 1.2; background: #2e7d6b; color: #fff; font-weight: 600; }
   #page-evolucion-historica table.evol-tabla td.med, #page-evolucion-historica table.evol-tabla th.med {
-    text-align: left; position: sticky; left: 110px; box-sizing: border-box; width: 165px; min-width: 165px; max-width: 165px;
+    text-align: left; position: sticky; left: 132px; box-sizing: border-box; width: 165px; min-width: 165px; max-width: 165px;
     overflow: hidden; text-overflow: ellipsis; background: #f3f1ff; }
   #page-evolucion-historica table.evol-tabla th.med { background: #faf9ff; }
   /* capas: cuerpo fijo por debajo de la cabecera; esquinas por encima de todo */
