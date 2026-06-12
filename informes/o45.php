@@ -21,6 +21,18 @@
     </div>
   </div>
 
+  <!-- KPIs (mismos estilos/tamaños que el informe de ventas G00) -->
+  <div class="stats-grid o45-kpis" style="grid-template-columns: repeat(2, 1fr);">
+    <div class="g00-kpi accent" title="negocios mostrados en la tabla">
+      <div class="g00-kpi-head"><span class="g00-kpi-label"># Negocios</span></div>
+      <div class="g00-kpi-value" id="o45-kpi-negocios"><span class="g00-skeleton" style="width:60px;height:26px;"></span></div>
+    </div>
+    <div class="g00-kpi info" title="días filtrados ÷ 30">
+      <div class="g00-kpi-head"><span class="g00-kpi-label"># Meses filtrados</span></div>
+      <div class="g00-kpi-value" id="o45-kpi-meses"><span class="g00-skeleton" style="width:60px;height:26px;"></span></div>
+    </div>
+  </div>
+
   <div class="tab-bar">
     <button class="g00-btn-export o14-export-btn" onclick="o45Export()">⤓ Excel</button>
   </div>
@@ -28,6 +40,9 @@
 </div>
 
 <style>
+  /* KPIs idénticos a la sección de ventas (G00): mismo tamaño de valor y margen */
+  #page-informes-o45 .stats-grid { margin-bottom: 14px; }
+  #page-informes-o45 .g00-kpi-value { font-size: 22px; }
   #page-informes-o45 .tab-bar { display: flex; justify-content: flex-end; }   /* botón Excel siempre a la derecha */
   #page-informes-o45 .o45-tienda-group { min-width: 320px; flex: 2; }   /* Tienda más ancho: COD - NOMBRE completo */
   #page-informes-o45 .o45-tienda-group .ts-control { min-width: 320px; }
@@ -55,7 +70,7 @@
       return Array.from(el.selectedOptions||[]).map(o=>o.value).filter(Boolean); }
 
     function buildParams(){
-      const p = new URLSearchParams({ tab:'data', desde: val('o45-vdesde')||'2025-01-01', hasta: val('o45-vhasta')||new Date().toISOString().slice(0,10) });
+      const p = new URLSearchParams({ tab:'data', desde: val('o45-vdesde')||'2025-01-01', hasta: val('o45-vhasta')||new Date(Date.now()-86400000).toISOString().slice(0,10) });
       ['grupo','tienda',...DIMS].forEach(k=>{ getMultiVals('o45-f-'+k).forEach(v=>p.append(k+'[]', v)); });
       return p.toString();
     }
@@ -88,7 +103,7 @@
       {k:'ind_inventario',t:'Índice de inventario',f:nf2}, {k:'stock_cedi',t:'Stock CEDI',f:nf},
       {k:'stock_tiendas',t:'Stock Tiendas',f:nf}, {k:'total_stock',t:'Total Stock',f:nf},
       {k:'ind_ventas_mes',t:'Índice de Ventas mes',f:nf2}, {k:'tallas',t:'Tallas',f:nf},
-      {k:'precio',t:'Precio de Venta Detal',f:nf},
+      {k:'precio',t:'Precio de Venta Detal',f:v=>(v==null||v==='')?'':'$ '+nf(v)},
     ];
 
     function renderTabla(d){
@@ -106,6 +121,14 @@
       h+='</tbody></table>'; cont.innerHTML=h;
     }
 
+    // KPIs: # Negocios = filas de la tabla; # Meses = días filtrados ÷ 30 (2 decimales).
+    function renderKpis(d){
+      d = d || {};
+      const set=(id,txt)=>{ const e=document.getElementById(id); if(e) e.textContent=txt; };
+      set('o45-kpi-negocios', nf((d.filas||[]).length));
+      set('o45-kpi-meses', (d.rango && d.rango.dias!=null) ? nf2(d.rango.dias/30) : '—');
+    }
+
     function showLoading(){ if(!window.Swal) return; Swal.fire({title:'Cargando',html:'Obteniendo información…',allowOutsideClick:false,allowEscapeKey:false,showConfirmButton:false,didOpen:()=>Swal.showLoading()}); }
     function hideLoading(){ if(window.Swal && Swal.isVisible()) Swal.close(); }
 
@@ -113,9 +136,9 @@
       const cont=document.getElementById('o45-tabla');
       showLoading();
       fetch('api/informe_o45.php?'+buildParams(),{credentials:'same-origin'}).then(r=>r.json()).then(d=>{
-        if(!d.ok){ cont.innerHTML='<p style="padding:16px;color:var(--accent)">Error al cargar.</p>'; return; }
-        window.__o45last=d; if(d.proveedor) setTitle(d.proveedor); renderTabla(d);
-      }).catch(()=>{ cont.innerHTML='<p style="padding:16px;color:var(--accent)">Error de red.</p>'; }).finally(hideLoading);
+        if(!d.ok){ cont.innerHTML='<p style="padding:16px;color:var(--accent)">Error al cargar.</p>'; renderKpis(); return; }
+        window.__o45last=d; if(d.proveedor) setTitle(d.proveedor); renderTabla(d); renderKpis(d);
+      }).catch(()=>{ cont.innerHTML='<p style="padding:16px;color:var(--accent)">Error de red.</p>'; renderKpis(); }).finally(hideLoading);
     };
 
     window.o45Export = function(){
@@ -135,13 +158,14 @@
       setTitle(window.PROVEEDOR_ACTUAL || '');
       document.getElementById('topbar').classList.add('topbar--o14');
       document.getElementById('pageSubtitle').style.display = 'none';
-      const hoy = new Date().toISOString().slice(0,10);
+      // O45: la fecha Hasta tope (default y máximo del datepicker) es AYER = hoy - 1 día.
+      const ayer = new Date(Date.now()-86400000).toISOString().slice(0,10);
       const td = document.getElementById('topbarDates'); td.style.display = '';
       if (!document.getElementById('o45-vdesde')) {
         td.innerHTML =
           '<div class="o14-vfilter"><span class="o14-vfilter-lbl">Ventas</span>'
           + '<label>Desde<input type="date" id="o45-vdesde" value="2025-01-01"></label>'
-          + '<label>Hasta<input type="date" id="o45-vhasta" value="'+hoy+'"></label></div>';
+          + '<label>Hasta<input type="date" id="o45-vhasta" value="'+ayer+'" max="'+ayer+'"></label></div>';
       }
       const rb = document.getElementById('topbarO45Refresh'); if(rb) rb.style.display = '';
       if (!filtrosInit) { initFiltros(); filtrosInit = true; }
