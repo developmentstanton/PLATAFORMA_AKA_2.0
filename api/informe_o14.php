@@ -22,8 +22,6 @@ $proveedorSesion = $_SESSION['proveedor'] ?? '';
 $proveedor = $proveedorSesion !== '' ? $proveedorSesion : '__SIN_PROVEEDOR__';
 $tab   = $_GET['tab']   ?? 'b';
 $cia   = trim($_GET['cia']   ?? '');
-$refF  = trim($_GET['ref']   ?? '');
-$colF  = trim($_GET['color'] ?? '');
 // desde/hasta delimitan SOLO la ventana de Ventas (siembra/disp/hold son foto actual, sin fecha).
 // Default: histórico desde 2025-01-01 → cruza Ventas_Detal_Acum_PBI + Ventas_Detal_PBI (ver $inclAcum).
 $desde = $_GET['desde'] ?? '2025-01-01';

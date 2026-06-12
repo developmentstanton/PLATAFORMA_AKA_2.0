@@ -507,7 +507,7 @@
                 <div class="nav-item" onclick="showPage('informes-o14', this)">
                     <span class="icon"><i class="fa-solid fa-shoe-prints"></i></span> Siembra/Stock
                 </div>
-                <div class="nav-item" onclick="showPage('indice-ventas', this)">
+                <div class="nav-item" onclick="showPage('informes-o45', this)">
                     <span class="icon"><i class="fa-solid fa-arrow-trend-up"></i></span> &Iacute;ndice de Ventas
                 </div>
                 <div class="nav-item" onclick="showPage('evolucion-historica', this)">
@@ -554,6 +554,9 @@
                     <i class="fa-solid fa-arrows-rotate"></i> Actualizar
                 </button>
                 <button id="topbarO14Refresh" class="topbar-action" style="display:none;" onclick="o14Load()">
+                    <i class="fa-solid fa-arrows-rotate"></i> Actualizar
+                </button>
+                <button id="topbarO45Refresh" class="topbar-action" style="display:none;" onclick="o45Load()">
                     <i class="fa-solid fa-arrows-rotate"></i> Actualizar
                 </button>
                 <button class="notification-btn" onclick="showPage('alertas', document.querySelector('[onclick*=alertas]'))">
@@ -955,14 +958,8 @@
             <!-- ==================== INFORME O14 ==================== -->
             <?php include __DIR__ . '/informes/o14.php'; ?>
 
-            <!-- ==================== ÍNDICE DE VENTAS (en desarrollo) ==================== -->
-            <div class="page" id="page-indice-ventas">
-                <div class="card" style="text-align:center;padding:48px 24px;">
-                    <div style="font-size:42px;color:var(--accent);margin-bottom:12px;"><i class="fa-solid fa-arrow-trend-up"></i></div>
-                    <div class="card-title" style="justify-content:center;">&Iacute;ndice de Ventas</div>
-                    <p style="color:var(--text-light);margin-top:8px;">M&oacute;dulo en desarrollo.</p>
-                </div>
-            </div>
+            <!-- ==================== ÍNDICE DE VENTAS (O45) ==================== -->
+            <?php include __DIR__ . '/informes/o45.php'; ?>
 
             <!-- ==================== EVOLUCIÓN HISTÓRICA (en desarrollo) ==================== -->
             <div class="page" id="page-evolucion-historica">
@@ -1232,7 +1229,7 @@
             documentos:'DOCUMENTACI\u00d3N', alertas:'ALERTAS',
             'informes-g00':'DASHBOARD DE VENTAS',
             'informes-o14':'SIEMBRA / STOCK',
-            'indice-ventas':'ÍNDICE DE VENTAS',
+            'informes-o45':'ÍNDICE DE VENTAS',
             'evolucion-historica':'EVOLUCIÓN HISTÓRICA'
         };
         document.getElementById('pageTitle').textContent = titles[pageId] || pageId;
@@ -1240,11 +1237,13 @@
         document.getElementById('pageSubtitle').style.display = 'none';
         document.getElementById('topbarG00Refresh').style.display = 'none';
         document.getElementById('topbarO14Refresh').style.display = 'none';
+        document.getElementById('topbarO45Refresh').style.display = 'none';
         document.getElementById('topbar').classList.remove('topbar--g00');
         document.getElementById('topbar').classList.remove('topbar--o14');
         document.getElementById('topbarDates').style.display = 'none';
         if (pageId === 'informes-g00' && typeof g00OnEnter === 'function') g00OnEnter();
         if (pageId === 'informes-o14' && typeof o14OnEnter === 'function') o14OnEnter();
+        if (pageId === 'informes-o45' && typeof o45OnEnter === 'function') o45OnEnter();
         updateAgentContext(pageId);
     }
     document.getElementById('modalCodificacion').addEventListener('click', function(e) {

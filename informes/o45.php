@@ -1,0 +1,195 @@
+<?php /* Informe O45 — Índice de Ventas (incluido desde dashboard.php) */ ?>
+<div class="page" id="page-informes-o45">
+  <!-- Filtros -->
+  <div class="g00-filters o45-filters">
+    <div class="g00-filter-row">
+      <div class="filter-group"><label>Grupo</label><select id="o45-f-grupo" multiple></select></div>
+      <div class="filter-group o45-tienda-group"><label>Tienda</label><select id="o45-f-tienda" multiple></select></div>
+      <div class="o14-apply">
+        <button class="g00-btn-refresh" onclick="o45Load()"><i class="fa-solid fa-rotate"></i> Aplicar</button>
+      </div>
+    </div>
+    <div class="g00-filter-row">
+      <div class="filter-group"><label>Marca</label><select id="o45-f-marca" multiple></select></div>
+      <div class="filter-group"><label>Tipo</label><select id="o45-f-tipo" multiple></select></div>
+      <div class="filter-group"><label>Categoría</label><select id="o45-f-categoria" multiple></select></div>
+      <div class="filter-group"><label>Subcategoría</label><select id="o45-f-subcategoria" multiple></select></div>
+      <div class="filter-group"><label>Género</label><select id="o45-f-genero" multiple></select></div>
+      <div class="filter-group"><label>Público</label><select id="o45-f-publico" multiple></select></div>
+      <div class="filter-group"><label>Negocio</label><select id="o45-f-negocio" multiple></select></div>
+      <div class="filter-group"><label>Referencia</label><select id="o45-f-referencia" multiple></select></div>
+    </div>
+  </div>
+
+  <!-- KPIs (mismos estilos/tamaños que el informe de ventas G00) -->
+  <div class="stats-grid o45-kpis" style="grid-template-columns: repeat(2, 1fr);">
+    <div class="g00-kpi accent" title="negocios mostrados en la tabla">
+      <div class="g00-kpi-head"><span class="g00-kpi-label"># Negocios</span></div>
+      <div class="g00-kpi-value" id="o45-kpi-negocios"><span class="g00-skeleton" style="width:60px;height:26px;"></span></div>
+    </div>
+    <div class="g00-kpi info" title="días filtrados ÷ 30">
+      <div class="g00-kpi-head"><span class="g00-kpi-label"># Meses filtrados</span></div>
+      <div class="g00-kpi-value" id="o45-kpi-meses"><span class="g00-skeleton" style="width:60px;height:26px;"></span></div>
+    </div>
+  </div>
+
+  <div class="tab-bar">
+    <button class="g00-btn-export o14-export-btn" onclick="o45Export()">⤓ Excel</button>
+  </div>
+  <div id="o45-tabla" class="o14-matriz-wrap"></div>
+</div>
+
+<style>
+  /* KPIs idénticos a la sección de ventas (G00): mismo tamaño de valor y margen */
+  #page-informes-o45 .stats-grid { margin-bottom: 14px; }
+  #page-informes-o45 .g00-kpi-value { font-size: 22px; }
+  #page-informes-o45 .tab-bar { display: flex; justify-content: flex-end; }   /* botón Excel siempre a la derecha */
+  #page-informes-o45 .o45-tienda-group { min-width: 320px; flex: 2; }   /* Tienda más ancho: COD - NOMBRE completo */
+  #page-informes-o45 .o45-tienda-group .ts-control { min-width: 320px; }
+  #page-informes-o45 table.o45-tabla { width:100%; border-collapse:collapse; font-size:12px; }
+  #page-informes-o45 table.o45-tabla th, #page-informes-o45 table.o45-tabla td { border:1px solid var(--border); padding:4px 8px; text-align:right; white-space:nowrap; }
+  #page-informes-o45 table.o45-tabla th { background:#faf9ff; position:sticky; top:0; }
+  #page-informes-o45 table.o45-tabla td.dim, #page-informes-o45 table.o45-tabla th.dim { text-align:left; }
+  #page-informes-o45 table.o45-tabla tr.o45-total td { font-weight:700; background:#f3f1ff; }
+  #page-informes-o45 table.o45-tabla tr[data-negimg] td.dim:first-child { cursor:default; }
+  #o45-img-pop { position:fixed; display:none; z-index:9999; pointer-events:none; background:#fff; border:1px solid var(--border); border-radius:8px; box-shadow:0 6px 20px rgba(45,43,78,0.25); padding:4px; }
+  #o45-img-pop img { max-width:260px; max-height:320px; width:auto; height:auto; display:block; border-radius:4px; }
+</style>
+
+<script>
+  (function(){
+    'use strict';
+    let filtrosInit = false, comboCatalogo = [];
+    const DIMS = ['marca','tipo','categoria','subcategoria','genero','publico','negocio','referencia'];
+    const tsRef = {};
+    const nf = n => (n==null?'':Number(n).toLocaleString('es-CO'));
+    const nf2 = n => (n==null?'—':Number(n).toLocaleString('es-CO',{minimumFractionDigits:2,maximumFractionDigits:2}));
+    const esc = s => (s==null?'':String(s)).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const val = id => (document.getElementById(id)?.value || '');
+    function getMultiVals(id){ const el=document.getElementById(id); if(!el) return [];
+      return Array.from(el.selectedOptions||[]).map(o=>o.value).filter(Boolean); }
+
+    function buildParams(){
+      const p = new URLSearchParams({ tab:'data', desde: val('o45-vdesde')||'2025-01-01', hasta: val('o45-vhasta')||new Date(Date.now()-86400000).toISOString().slice(0,10) });
+      ['grupo','tienda',...DIMS].forEach(k=>{ getMultiVals('o45-f-'+k).forEach(v=>p.append(k+'[]', v)); });
+      return p.toString();
+    }
+
+    function poblarSelect(id, valores, labelFn){
+      const el=document.getElementById(id); if(!el) return;
+      const uniq=[...new Set(valores.filter(v=>v!==''&&v!=null))].sort((a,b)=>String(a).localeCompare(String(b)));
+      el.innerHTML = uniq.map(v=>'<option value="'+String(v).replace(/"/g,'&quot;')+'">'+esc(labelFn?labelFn(v):v)+'</option>').join('');
+      if (window.TomSelect){ if(tsRef[id]) tsRef[id].destroy(); tsRef[id]=new TomSelect(el,{plugins:['remove_button'],maxOptions:null,placeholder:'Todas'}); }
+    }
+
+    function initFiltros(){
+      fetch('api/informe_o45.php?tab=filtros',{credentials:'same-origin'}).then(r=>r.json()).then(d=>{
+        comboCatalogo = d.combos||[];
+        DIMS.forEach(k=> poblarSelect('o45-f-'+k, comboCatalogo.map(c=>c[k])));
+        poblarSelect('o45-f-grupo', comboCatalogo.map(c=>c.grupo));
+        // Tienda: value = NOMBRE, label = "COD - NOMBRE"
+        const tEl=document.getElementById('o45-f-tienda');
+        const seen={}; const opts=[];
+        comboCatalogo.forEach(c=>{ const nom=c.tienda||''; if(!nom||seen[nom])return; seen[nom]=1; opts.push({nom, cod:c.tienda_cod||''}); });
+        opts.sort((a,b)=>a.cod.localeCompare(b.cod));
+        tEl.innerHTML = opts.map(o=>'<option value="'+esc(o.nom)+'">'+esc(o.cod)+' - '+esc(o.nom)+'</option>').join('');
+        if (window.TomSelect){ if(tsRef['o45-f-tienda']) tsRef['o45-f-tienda'].destroy(); tsRef['o45-f-tienda']=new TomSelect(tEl,{plugins:['remove_button'],maxOptions:null,placeholder:'Todas'}); }
+      });
+    }
+
+    const COLS = [
+      {k:'negocio',t:'Negocio',dim:true}, {k:'marca',t:'Marca',dim:true},
+      {k:'ventas',t:'Ventas (und)',f:nf}, {k:'tiendas',t:'#tiendas',f:nf},
+      {k:'ind_inventario',t:'Índice de inventario',f:nf2}, {k:'stock_cedi',t:'Stock CEDI',f:nf},
+      {k:'stock_tiendas',t:'Stock Tiendas',f:nf}, {k:'total_stock',t:'Total Stock',f:nf},
+      {k:'ind_ventas_mes',t:'Índice de Ventas mes',f:nf2}, {k:'tallas',t:'Tallas',f:nf},
+      {k:'precio',t:'Precio de Venta Detal',f:v=>(v==null||v==='')?'':'$ '+nf(v)},
+    ];
+
+    function renderTabla(d){
+      const cont=document.getElementById('o45-tabla');
+      const filas=d.filas||[];
+      if(!filas.length){ cont.innerHTML='<p style="padding:16px;color:var(--text-light)">Sin datos.</p>'; return; }
+      let h='<table class="o45-tabla" id="o45-tbl"><thead><tr>';
+      COLS.forEach(c=> h+='<th'+(c.dim?' class="dim"':'')+'>'+c.t+'</th>'); h+='</tr></thead><tbody>';
+      filas.forEach(f=>{ h+='<tr data-negimg="'+esc(f.negocio)+'">'; COLS.forEach(c=>{ const v=f[c.k]; h+='<td'+(c.dim?' class="dim"':'')+'>'+(c.dim?esc(v):c.f(v))+'</td>'; }); h+='</tr>'; });
+      const t=d.total||{};
+      h+='<tr class="o45-total"><td class="dim">TOTAL</td><td class="dim"></td>';
+      ['ventas','tiendas','ind_inventario','stock_cedi','stock_tiendas','total_stock','ind_ventas_mes'].forEach(k=>{
+        const fmt=(k==='ind_inventario'||k==='ind_ventas_mes')?nf2:nf; h+='<td>'+fmt(t[k])+'</td>'; });
+      h+='<td></td><td></td></tr>';   // Tallas y Precio en blanco
+      h+='</tbody></table>'; cont.innerHTML=h;
+    }
+
+    // KPIs: # Negocios = filas de la tabla; # Meses = días filtrados ÷ 30 (2 decimales).
+    function renderKpis(d){
+      d = d || {};
+      const set=(id,txt)=>{ const e=document.getElementById(id); if(e) e.textContent=txt; };
+      set('o45-kpi-negocios', nf((d.filas||[]).length));
+      set('o45-kpi-meses', (d.rango && d.rango.dias!=null) ? nf2(d.rango.dias/30) : '—');
+    }
+
+    function showLoading(){ if(!window.Swal) return; Swal.fire({title:'Cargando',html:'Obteniendo información…',allowOutsideClick:false,allowEscapeKey:false,showConfirmButton:false,didOpen:()=>Swal.showLoading()}); }
+    function hideLoading(){ if(window.Swal && Swal.isVisible()) Swal.close(); }
+
+    window.o45Load = function(){
+      const cont=document.getElementById('o45-tabla');
+      showLoading();
+      fetch('api/informe_o45.php?'+buildParams(),{credentials:'same-origin'}).then(r=>r.json()).then(d=>{
+        if(!d.ok){ cont.innerHTML='<p style="padding:16px;color:var(--accent)">Error al cargar.</p>'; renderKpis(); return; }
+        window.__o45last=d; if(d.proveedor) setTitle(d.proveedor); renderTabla(d); renderKpis(d);
+      }).catch(()=>{ cont.innerHTML='<p style="padding:16px;color:var(--accent)">Error de red.</p>'; renderKpis(); }).finally(hideLoading);
+    };
+
+    window.o45Export = function(){
+      const tbl=document.getElementById('o45-tbl');
+      if(!tbl || typeof XLSX==='undefined'){ if(window.Swal) Swal.fire('Exportar','Carga el informe primero.','info'); return; }
+      const aoa=[...tbl.querySelectorAll('tr')].map(tr=>[...tr.children].map(td=>{
+        const txt=td.textContent.trim(); const num=Number(txt.replace(/\./g,'').replace(',','.'));
+        return (txt!=='' && !isNaN(num) && /[0-9]/.test(txt)) ? num : txt; }));
+      const wb=XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), 'Indice');
+      XLSX.writeFile(wb,'O45_indice_ventas.xlsx');
+    };
+
+    function setTitle(prov){ document.getElementById('pageTitle').textContent = 'ÍNDICE DE VENTAS' + (prov ? ' - ' + prov : ''); }
+
+    window.o45OnEnter = function(){
+      setTitle(window.PROVEEDOR_ACTUAL || '');
+      document.getElementById('topbar').classList.add('topbar--o14');
+      document.getElementById('pageSubtitle').style.display = 'none';
+      // O45: la fecha Hasta tope (default y máximo del datepicker) es AYER = hoy - 1 día.
+      const ayer = new Date(Date.now()-86400000).toISOString().slice(0,10);
+      const td = document.getElementById('topbarDates'); td.style.display = '';
+      if (!document.getElementById('o45-vdesde')) {
+        td.innerHTML =
+          '<div class="o14-vfilter"><span class="o14-vfilter-lbl">Ventas</span>'
+          + '<label>Desde<input type="date" id="o45-vdesde" value="2025-01-01"></label>'
+          + '<label>Hasta<input type="date" id="o45-vhasta" value="'+ayer+'" max="'+ayer+'"></label></div>';
+      }
+      const rb = document.getElementById('topbarO45Refresh'); if(rb) rb.style.display = '';
+      if (!filtrosInit) { initFiltros(); filtrosInit = true; }
+      if (!window.__o45last) o45Load();
+    };
+
+    // Foto del zapato al pasar el mouse sobre la columna Negocio (col 0), igual que O14.
+    (function initImgHover(){
+      const FOTO_BASE='http://bi.stanton.com.co:81/fotosPBI/';
+      const panel=document.getElementById('o45-tabla'); if(!panel) return;
+      let pop=null,img=null,triedPng=false,curLabel='';
+      function ensurePop(){ if(pop)return; pop=document.createElement('div'); pop.id='o45-img-pop'; img=document.createElement('img'); img.alt='';
+        img.onerror=function(){ if(!triedPng){ triedPng=true; img.src=FOTO_BASE+encodeURIComponent(curLabel)+'.png'; } else hide(); };
+        pop.appendChild(img); document.body.appendChild(pop); }
+      function hide(){ if(pop) pop.style.display='none'; }
+      function position(e){ if(!pop)return; const off=16,w=276,h=336; let x=e.clientX+off,y=e.clientY+off;
+        if(x+w>window.innerWidth)x=e.clientX-off-w; if(y+h>window.innerHeight)y=e.clientY-off-h;
+        pop.style.left=Math.max(4,x)+'px'; pop.style.top=Math.max(4,y)+'px'; }
+      panel.addEventListener('mouseover',function(e){ const td=e.target.closest('td'); if(!td||td.cellIndex!==0)return;
+        const tr=td.closest('tr[data-negimg]'); if(!tr)return; curLabel=tr.getAttribute('data-negimg'); triedPng=false; ensurePop();
+        img.src=FOTO_BASE+encodeURIComponent(curLabel)+'.jpg'; pop.style.display='block'; position(e); });
+      panel.addEventListener('mousemove',function(e){ if(pop&&pop.style.display==='block')position(e); });
+      panel.addEventListener('mouseout',function(e){ const td=e.target.closest('td');
+        if(td&&td.cellIndex===0&&(!e.relatedTarget||!td.contains(e.relatedTarget)))hide(); });
+    })();
+  })();
+</script>
