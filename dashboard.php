@@ -189,7 +189,7 @@
         .topbar.topbar--o14 .o14-vfilter { display: flex; align-items: center; gap: 10px; }
         .o14-vfilter-lbl { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-light); font-weight: 700; }
         .o14-vfilter label { display: flex; flex-direction: column; gap: 2px; font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-light); font-weight: 600; }
-        .o14-vfilter input[type="date"] { font-family: 'Space Grotesk', sans-serif; font-size: 11px; padding: 3px 6px; border: 1px solid var(--border); border-radius: 6px; background: white; color: var(--text); }
+        .o14-vfilter input[type="date"], .o14-vfilter input[type="month"] { font-family: 'Space Grotesk', sans-serif; font-size: 11px; padding: 3px 6px; border: 1px solid var(--border); border-radius: 6px; background: white; color: var(--text); }
         .topbar-dates table { border-collapse: collapse; }
         .topbar-dates th {
             font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px;

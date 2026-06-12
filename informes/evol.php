@@ -34,13 +34,26 @@
   #page-evolucion-historica table.evol-tabla th, #page-evolucion-historica table.evol-tabla td {
     border: 1px solid var(--border); padding: 2px 6px; text-align: right; white-space: nowrap; }
   #page-evolucion-historica table.evol-tabla thead th { background: #faf9ff; position: sticky; top: 0; z-index: 2; }
+  /* Inmovilizar las 2 primeras columnas: Negocio + Conceptos */
   #page-evolucion-historica table.evol-tabla td.neg, #page-evolucion-historica table.evol-tabla th.neg {
-    text-align: left; position: sticky; left: 0; background: #2e7d6b; color: #fff; font-weight: 600; z-index: 1; }
-  #page-evolucion-historica table.evol-tabla td.med { text-align: left; background: #f3f1ff; }
+    text-align: left; position: sticky; left: 0; box-sizing: border-box; width: 110px; min-width: 110px; max-width: 110px;
+    overflow: hidden; text-overflow: ellipsis; background: #2e7d6b; color: #fff; font-weight: 600; }
+  #page-evolucion-historica table.evol-tabla td.med, #page-evolucion-historica table.evol-tabla th.med {
+    text-align: left; position: sticky; left: 110px; box-sizing: border-box; width: 165px; min-width: 165px; max-width: 165px;
+    overflow: hidden; text-overflow: ellipsis; background: #f3f1ff; }
+  #page-evolucion-historica table.evol-tabla th.med { background: #faf9ff; }
+  /* capas: cuerpo fijo por debajo de la cabecera; esquinas por encima de todo */
+  #page-evolucion-historica table.evol-tabla tbody td.neg, #page-evolucion-historica table.evol-tabla tbody td.med { z-index: 1; }
+  #page-evolucion-historica table.evol-tabla thead th.neg, #page-evolucion-historica table.evol-tabla thead th.med { z-index: 4; }
   #page-evolucion-historica table.evol-tabla td.tot { font-weight: 700; background: #efeefb; }
   #page-evolucion-historica table.evol-tabla tr.m-ventas td.val { background: #c9f7d2; }
   #page-evolucion-historica table.evol-tabla tr.m-stock  td.val { background: #cfe0f5; }
-  #page-evolucion-historica table.evol-tabla tr.m-indice td.val { background: #faecc8; }
+  /* Índice Ventas Detal Mes: toda la fila con el amarillo de los datos */
+  #page-evolucion-historica table.evol-tabla tr.m-indice td.val,
+  #page-evolucion-historica table.evol-tabla tr.m-indice td.med,
+  #page-evolucion-historica table.evol-tabla tr.m-indice td.tot { background: #faecc8; }
+  /* Datos negativos en rojo */
+  #page-evolucion-historica table.evol-tabla td.neg-val { color: #d4001a; }
   #evol-img-pop { position: fixed; display: none; z-index: 9999; pointer-events: none; background: #fff;
     border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 6px 20px rgba(45,43,78,.25); padding: 4px; }
   #evol-img-pop img { max-width: 260px; max-height: 320px; display: block; border-radius: 4px; }
@@ -105,7 +118,7 @@
     const meses=d.meses||[], negs=d.negocios||[];
     if(!negs.length){ cont.innerHTML='<p style="padding:16px;color:var(--text-light)">Sin datos.</p>'; return; }
     let h='<table class="evol-tabla" id="evol-tbl"><thead><tr>';
-    h+='<th class="neg">Negocio</th><th class="med">Medida</th>';
+    h+='<th class="neg">Negocio</th><th class="med">CONCEPTOS</th>';
     meses.forEach(m=> h+='<th>'+fmtMesHdr(m)+'</th>');
     h+='<th>Total</th></tr></thead><tbody>';
     negs.forEach(n=>{
@@ -113,9 +126,10 @@
         h+='<tr class="'+med.cls+'"'+(i===0?' data-negimg="'+esc(n.foto)+'"':'')+'>';
         if(i===0) h+='<td class="neg" rowspan="'+MEDIDAS.length+'">'+esc(n.negocio)+'</td>';
         h+='<td class="med">'+med.t+'</td>';
-        meses.forEach(m=>{ const v=(n.valores[med.k]||{})[m]; h+='<td class="val">'+med.f(v)+'</td>'; });
+        meses.forEach(m=>{ const v=(n.valores[med.k]||{})[m];
+          h+='<td class="val'+(typeof v==='number'&&v<0?' neg-val':'')+'">'+med.f(v)+'</td>'; });
         const tot = med.sum ? (n.totales[med.k]) : '';
-        h+='<td class="tot">'+(med.sum?med.f(tot):'')+'</td>';
+        h+='<td class="tot'+(med.sum&&typeof tot==='number'&&tot<0?' neg-val':'')+'">'+(med.sum?med.f(tot):'')+'</td>';
         h+='</tr>';
       });
     });
