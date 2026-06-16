@@ -390,6 +390,7 @@ if ($tab === 'tiendas') {
             LEFT  JOIN INTEGRACION.dbo.Bodegas b WITH (NOLOCK) ON b.COD = v.BODEGA AND b.CIA = 7
             WHERE (v.FECHA BETWEEN ? AND ? OR v.FECHA BETWEEN ? AND ?)
               $filtroExtra
+              $sameStoreClause
         )
         SELECT
             GROUPING_ID(BODEGA, REFERENCIA, COLOR) AS gid,
@@ -410,6 +411,7 @@ if ($tab === 'tiendas') {
         [$gmin, $gmax, $gmin, $gmax],                 // CTE pushdown
         [$desdeAct, $hastaAct, $desdeAnt, $hastaAnt], // vt OR-filter (act, ant)
         $paramsExtra,
+        $sameStoreParams,                             // S.S.S (vacío si no es same)
         [$desdeAct,$hastaAct, $desdeAnt,$hastaAnt,    // val_act / val_ant
          $desdeAct,$hastaAct, $desdeAnt,$hastaAnt,    // ups_act / ups_ant
          $desdeAct,$hastaAct]                          // margen_prom
