@@ -162,7 +162,7 @@
         .user-role { font-size: 10px; color: rgba(255,255,255,0.45); }
 
         /* MAIN */
-        .main { flex: 1; margin-left: 256px; }
+        .main { flex: 1; margin-left: 256px; min-width: 0; } /* min-width:0 evita que tablas anchas (O14) desborden el flex item y empujen topbar/KPIs fuera del viewport */
         .topbar {
             background: white; padding: 14px 28px; border-bottom: 1px solid var(--border);
             display: flex; align-items: center; justify-content: space-between;
@@ -182,6 +182,14 @@
         /* Modo G00: 3 secciones (tabla fechas | titulo centrado | botones) */
         .topbar.topbar--g00 { display: grid; grid-template-columns: auto 1fr auto; gap: 16px; }
         .topbar.topbar--g00 .topbar-titles { align-items: center; text-align: center; }
+        /* O14: sin tablita de fechas → spacer izquierdo 1fr para centrar el título y empujar acciones a la derecha */
+        .topbar.topbar--o14 { display: grid; grid-template-columns: 1fr auto 1fr; gap: 16px; align-items: center; }
+        .topbar.topbar--o14 .topbar-titles { align-items: center; text-align: center; }
+        .topbar.topbar--o14 .topbar-actions { justify-self: end; }
+        .topbar.topbar--o14 .o14-vfilter { display: flex; align-items: center; gap: 10px; }
+        .o14-vfilter-lbl { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-light); font-weight: 700; }
+        .o14-vfilter label { display: flex; flex-direction: column; gap: 2px; font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-light); font-weight: 600; }
+        .o14-vfilter input[type="date"] { font-family: 'Space Grotesk', sans-serif; font-size: 11px; padding: 3px 6px; border: 1px solid var(--border); border-radius: 6px; background: white; color: var(--text); }
         .topbar-dates table { border-collapse: collapse; }
         .topbar-dates th {
             font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px;
@@ -492,30 +500,18 @@
         </div>
         <nav class="sidebar-nav">
             <div class="nav-section">
-                <div class="nav-section-title">PRINCIPAL</div>
-                <div class="nav-item active" onclick="showPage('dashboard', this)">
-                    <span class="icon">&#9632;</span> Dashboard
-                </div>
-            </div>
-            <div class="nav-section">
-                <div class="nav-section-title">CONSULTAS</div>
-                <div class="nav-item" onclick="showPage('ventas', this)">
-                    <span class="icon">&#9650;</span> Ventas
-                </div>
-                <div class="nav-item" onclick="showPage('inventarios', this)">
-                    <span class="icon">&#9644;</span> Inventarios
-                </div>
-                <div class="nav-item" onclick="showPage('pagos', this)">
-                    <span class="icon">&#9673;</span> Pagos y Facturas
-                </div>
-            </div>
-            <div class="nav-section">
-                <div class="nav-section-title">AN&Aacute;LISIS</div>
-                <div class="nav-item" onclick="showPage('informes-o14', this)">
-                    <span class="icon"><i class="fa-solid fa-shoe-prints"></i></span> O14 &mdash; Siembra/Stock
-                </div>
-                <div class="nav-item" onclick="showPage('informes-g00', this)">
+                <div class="nav-section-title">REPORTES</div>
+                <div class="nav-item active" onclick="showPage('informes-g00', this)">
                     <span class="icon"><i class="fa-solid fa-chart-column"></i></span> Ventas
+                </div>
+                <div class="nav-item" onclick="showPage('informes-o14', this)">
+                    <span class="icon"><i class="fa-solid fa-shoe-prints"></i></span> Siembra/Stock
+                </div>
+                <div class="nav-item" onclick="showPage('indice-ventas', this)">
+                    <span class="icon"><i class="fa-solid fa-arrow-trend-up"></i></span> &Iacute;ndice de Ventas
+                </div>
+                <div class="nav-item" onclick="showPage('evolucion-historica', this)">
+                    <span class="icon"><i class="fa-solid fa-clock-rotate-left"></i></span> Evoluci&oacute;n Hist&oacute;rica
                 </div>
             </div>
             <div class="nav-section">
@@ -557,6 +553,9 @@
                 <button id="topbarG00Refresh" class="topbar-action" style="display:none;" onclick="g00Load()">
                     <i class="fa-solid fa-arrows-rotate"></i> Actualizar
                 </button>
+                <button id="topbarO14Refresh" class="topbar-action" style="display:none;" onclick="o14Load()">
+                    <i class="fa-solid fa-arrows-rotate"></i> Actualizar
+                </button>
                 <button class="notification-btn" onclick="showPage('alertas', document.querySelector('[onclick*=alertas]'))">
                     &#9888;<span class="dot"></span>
                 </button>
@@ -569,7 +568,7 @@
         <div class="content">
 
             <!-- ==================== DASHBOARD ==================== -->
-            <div class="page active" id="page-dashboard">
+            <div class="page" id="page-dashboard">
                 <div class="stats-grid">
                     <div class="stat-card">
                         <div class="stat-header">
@@ -956,6 +955,24 @@
             <!-- ==================== INFORME O14 ==================== -->
             <?php include __DIR__ . '/informes/o14.php'; ?>
 
+            <!-- ==================== ÍNDICE DE VENTAS (en desarrollo) ==================== -->
+            <div class="page" id="page-indice-ventas">
+                <div class="card" style="text-align:center;padding:48px 24px;">
+                    <div style="font-size:42px;color:var(--accent);margin-bottom:12px;"><i class="fa-solid fa-arrow-trend-up"></i></div>
+                    <div class="card-title" style="justify-content:center;">&Iacute;ndice de Ventas</div>
+                    <p style="color:var(--text-light);margin-top:8px;">M&oacute;dulo en desarrollo.</p>
+                </div>
+            </div>
+
+            <!-- ==================== EVOLUCIÓN HISTÓRICA (en desarrollo) ==================== -->
+            <div class="page" id="page-evolucion-historica">
+                <div class="card" style="text-align:center;padding:48px 24px;">
+                    <div style="font-size:42px;color:var(--accent);margin-bottom:12px;"><i class="fa-solid fa-clock-rotate-left"></i></div>
+                    <div class="card-title" style="justify-content:center;">Evoluci&oacute;n Hist&oacute;rica</div>
+                    <p style="color:var(--text-light);margin-top:8px;">M&oacute;dulo en desarrollo.</p>
+                </div>
+            </div>
+
             <!-- ==================== ALERTAS ==================== -->
             <div class="page" id="page-alertas">
                 <div class="filters">
@@ -1214,13 +1231,17 @@
             pagos:'PAGOS Y FACTURAS', codificacion:'CODIFICACI\u00d3N',
             documentos:'DOCUMENTACI\u00d3N', alertas:'ALERTAS',
             'informes-g00':'DASHBOARD DE VENTAS',
-            'informes-o14':'INFORME O14 \u2014 SIEMBRA & STOCK x TIENDA x TALLA'
+            'informes-o14':'SIEMBRA / STOCK',
+            'indice-ventas':'ÍNDICE DE VENTAS',
+            'evolucion-historica':'EVOLUCIÓN HISTÓRICA'
         };
         document.getElementById('pageTitle').textContent = titles[pageId] || pageId;
         // Extras del topbar exclusivos de G00: se ocultan al cambiar de página (g00OnEnter los reactiva).
         document.getElementById('pageSubtitle').style.display = 'none';
         document.getElementById('topbarG00Refresh').style.display = 'none';
+        document.getElementById('topbarO14Refresh').style.display = 'none';
         document.getElementById('topbar').classList.remove('topbar--g00');
+        document.getElementById('topbar').classList.remove('topbar--o14');
         document.getElementById('topbarDates').style.display = 'none';
         if (pageId === 'informes-g00' && typeof g00OnEnter === 'function') g00OnEnter();
         if (pageId === 'informes-o14' && typeof o14OnEnter === 'function') o14OnEnter();
@@ -1304,6 +1325,9 @@
             proactive.innerHTML = '<button class="dismiss" onclick="event.stopPropagation();this.parentElement.style.display=\'none\'">&#10005;</button><strong style="color:var(--primary);">&#129302; AKA Asistente</strong><br>' + msgs[pageId];
         }
     }
+
+    // Al iniciar sesión, cargar Ventas (informe G00) por defecto.
+    showPage('informes-g00', document.querySelector('.nav-item[onclick*="informes-g00"]'));
 </script>
 </body>
 </html>
