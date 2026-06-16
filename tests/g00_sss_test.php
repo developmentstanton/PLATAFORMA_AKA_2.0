@@ -49,5 +49,18 @@ foreach (($sam['tiendas']??[]) as $t) {
     }
 }
 
+// ---- PERIODOS: same-store reduce las ventas del año anterior (excluye tiendas cerradas) ----
+function sum_periodos($d, $campo) {
+    $s = 0; foreach (($d['dias'] ?? []) as $x) $s += (float)($x[$campo] ?? 0); return $s;
+}
+$pNos = call_endpoint($php, $runner, $prov, "tab=periodos&$PER&sss=nosame", $nul);
+$pSam = call_endpoint($php, $runner, $prov, "tab=periodos&$PER&sss=same", $nul);
+if (!($pNos['ok'] ?? false) || !($pSam['ok'] ?? false)) { echo "FALLO: periodos no ok\n"; $fail=1; }
+$antNos = sum_periodos($pNos, 'val_ant');
+$antSam = sum_periodos($pSam, 'val_ant');
+echo "periodos val_ant: nosame=".number_format($antNos)."  same=".number_format($antSam)."\n";
+// BH BRANDS vendió en AKA FUNZA (cerrada) en may-2025 -> same debe excluir esas ventas del año anterior
+if (!($antSam < $antNos)) { echo "FALLO: periodos same val_ant debería ser MENOR que nosame (excluye tienda cerrada)\n"; $fail=1; }
+
 echo $fail ? "RESULTADO: FALLO\n" : "RESULTADO: OK\n";
 exit($fail);

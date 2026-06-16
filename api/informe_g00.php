@@ -477,6 +477,10 @@ if ($tab === 'periodos') {
     $pAntHasta = date('Y-m-d', strtotime($hastaAct . ' -1 year'));
     $pGmin = ($pAntDesde < $desdeAct) ? $pAntDesde : $desdeAct;
     $pGmax = ($hastaAct   > $pAntHasta) ? $hastaAct  : $pAntHasta;
+    // S.S.S en Periodos: misma cláusula EXISTS, pero con la fecha de año-anterior CALENDARIO
+    // de esta pestaña ($pAntDesde), no la global ($desdeAnt). Vacío salvo sss=same.
+    $sameStorePeriodos = ''; $ssParamsPeriodos = [];
+    if ($sss === 'same') { $sameStorePeriodos = $sameStoreClause; $ssParamsPeriodos = [$pAntDesde, $hastaAct]; }
     $sql = cteVentas() . "
         SELECT
             MONTH(FECHA) AS mes,
@@ -490,13 +494,15 @@ if ($tab === 'periodos') {
         LEFT  JOIN INTEGRACION.dbo.Bodegas b WITH (NOLOCK) ON b.COD        = v.BODEGA AND b.CIA = 7
         WHERE 1=1
           $filtroExtra
+          $sameStorePeriodos
         GROUP BY MONTH(FECHA), DAY(FECHA)
     ";
     $params = array_merge(
         [$pGmin, $pGmax, $pGmin, $pGmax],            // CTE pushdown
         [$desdeAct,$hastaAct, $pAntDesde,$pAntHasta, // val_act / val_ant
          $desdeAct,$hastaAct, $pAntDesde,$pAntHasta],// ups_act / ups_ant
-        $paramsExtra
+        $paramsExtra,
+        $ssParamsPeriodos                            // S.S.S (vacío si no es same) — va al final: el WHERE es textualmente posterior al SELECT
     );
     $rows = run($dbConnect, $sql, $params);
     if (isset($rows['error'])) jsonFail($rows, $dbConnect);
