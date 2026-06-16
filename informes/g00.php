@@ -201,7 +201,7 @@
             <div class="filter-group">
                 <label>S.S.S</label>
                 <div class="g00-seg" id="g00-sss">
-                    <button type="button" class="g00-seg-btn active" data-val="nosame">No Same</button>
+                    <button type="button" class="g00-seg-btn" data-val="nosame">No Same</button>
                     <button type="button" class="g00-seg-btn" data-val="same">Same</button>
                 </div>
             </div>
@@ -377,6 +377,18 @@
             });
         });
     }
+    // Variante toggle para S.S.S: se puede dejar ninguno activo; clic en el activo lo apaga;
+    // los botones del grupo son mutuamente excluyentes.
+    function initSegToggle(id) {
+        document.querySelectorAll('#' + id + ' .g00-seg-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const wasActive = btn.classList.contains('active');
+                document.querySelectorAll('#' + id + ' .g00-seg-btn').forEach(b => b.classList.remove('active'));
+                if (!wasActive) btn.classList.add('active');
+                g00Load();
+            });
+        });
+    }
 
     function selectedOf(field) { return tom[field] ? tom[field].getValue() : []; }
 
@@ -467,7 +479,7 @@
             });
         });
         initSeg('g00-cal');
-        initSeg('g00-sss');
+        initSegToggle('g00-sss');
         fetch('api/informe_g00.php?tab=filtros', { credentials: 'same-origin' })
             .then(r => r.json())
             .then(data => {
