@@ -44,6 +44,14 @@ if ($tallaTest !== '') {
     }
 }
 
+// 2c) REGRESIÓN: color[] como array (lo que envía el front) NO debe tronar en trim() al tope del endpoint.
+$colTest = $sku[0]['color'] ?? '';
+if ($colTest !== '') {
+    $fc = ep($php, $runner, $prov, 'tab=b&color[]=' . rawurlencode($colTest), $nul);
+    echo "tab=b color[]=$colTest: filas=" . count($fc['filas'] ?? []) . " ok=" . (($fc['ok']??false)?'1':'0') . "\n";
+    if (!($fc['ok'] ?? false)) { echo "FALLO: tab=b color[] (regresión trim array) \n"; $fail = 1; }
+}
+
 // 2b) filtro de dimensión de referencia (marca): debe aplicar (filas ⊆ base) y mantener invariante
 $marcaTest = '';
 foreach (($combos ?? []) as $c) { if (!empty($c['marca'])) { $marcaTest = $c['marca']; break; } }
