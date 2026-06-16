@@ -24,6 +24,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AKA 2.0 — Portal de Aliados (Preview)</title>
+    <link rel="shortcut icon" href="img/aka.ico" type="image/x-icon">
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="awesome/css/fontawesome.min.css">
     <link rel="stylesheet" href="awesome/css/solid.min.css">
@@ -32,6 +33,8 @@
     <link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
+    <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>window.PROVEEDOR_ACTUAL = <?= json_encode($_SESSION['proveedor'] ?? '') ?>;</script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -372,7 +375,7 @@
 
         /* ============ AGENTE AKA (Clippy) ============ */
         .agent-fab {
-            position: fixed; bottom: 24px; right: 24px; z-index: 300;
+            position: fixed; bottom: 24px; right: 24px; z-index: 1500;
             width: 56px; height: 56px; border-radius: 50%;
             background: var(--primary); color: white; border: none;
             cursor: pointer; font-size: 24px; box-shadow: 0 4px 20px rgba(74,71,130,0.4);
@@ -388,7 +391,7 @@
             100% { transform: scale(1.6); opacity: 0; }
         }
         .agent-panel {
-            display: none; position: fixed; bottom: 92px; right: 24px; z-index: 300;
+            display: none; position: fixed; bottom: 92px; right: 24px; z-index: 1500;
             width: 380px; height: 520px; background: white; border-radius: 16px;
             box-shadow: 0 8px 40px rgba(0,0,0,0.2); flex-direction: column; overflow: hidden;
         }
@@ -513,6 +516,9 @@
                 <div class="nav-item" onclick="showPage('evolucion-historica', this)">
                     <span class="icon"><i class="fa-solid fa-clock-rotate-left"></i></span> Evoluci&oacute;n Hist&oacute;rica
                 </div>
+                <div class="nav-item" onclick="showPage('georreferenciacion', this)">
+                    <span class="icon"><i class="fa-solid fa-location-dot"></i></span> Georeferenciaci&oacute;n
+                </div>
             </div>
             <div class="nav-section">
                 <div class="nav-section-title">GESTI&Oacute;N</div>
@@ -560,6 +566,9 @@
                     <i class="fa-solid fa-arrows-rotate"></i> Actualizar
                 </button>
                 <button id="topbarEvolRefresh" class="topbar-action" style="display:none;" onclick="evolLoad()">
+                    <i class="fa-solid fa-arrows-rotate"></i> Actualizar
+                </button>
+                <button id="topbarGeoRefresh" class="topbar-action" style="display:none;" onclick="geoLoad()">
                     <i class="fa-solid fa-arrows-rotate"></i> Actualizar
                 </button>
                 <button class="notification-btn" onclick="showPage('alertas', document.querySelector('[onclick*=alertas]'))">
@@ -967,6 +976,9 @@
             <!-- ==================== EVOLUCIÓN HISTÓRICA ==================== -->
             <?php include __DIR__ . '/informes/evol.php'; ?>
 
+            <!-- ==================== GEOREFERENCIACIÓN ==================== -->
+            <?php include __DIR__ . '/informes/geo.php'; ?>
+
             <!-- ==================== ALERTAS ==================== -->
             <div class="page" id="page-alertas">
                 <div class="filters">
@@ -1227,7 +1239,8 @@
             'informes-g00':'DASHBOARD DE VENTAS',
             'informes-o14':'SIEMBRA / STOCK',
             'informes-o45':'ÍNDICE DE VENTAS',
-            'evolucion-historica':'EVOLUCIÓN HISTÓRICA'
+            'evolucion-historica':'EVOLUCIÓN HISTÓRICA',
+            'georreferenciacion':'GEOREFERENCIACIÓN'
         };
         document.getElementById('pageTitle').textContent = titles[pageId] || pageId;
         // Extras del topbar exclusivos de G00: se ocultan al cambiar de página (g00OnEnter los reactiva).
@@ -1236,6 +1249,7 @@
         document.getElementById('topbarO14Refresh').style.display = 'none';
         document.getElementById('topbarO45Refresh').style.display = 'none';
         document.getElementById('topbarEvolRefresh').style.display = 'none';
+        document.getElementById('topbarGeoRefresh').style.display = 'none';
         document.getElementById('topbar').classList.remove('topbar--g00');
         document.getElementById('topbar').classList.remove('topbar--o14');
         document.getElementById('topbarDates').style.display = 'none';
@@ -1243,6 +1257,7 @@
         if (pageId === 'informes-o14' && typeof o14OnEnter === 'function') o14OnEnter();
         if (pageId === 'informes-o45' && typeof o45OnEnter === 'function') o45OnEnter();
         if (pageId === 'evolucion-historica' && typeof evolOnEnter === 'function') evolOnEnter();
+        if (pageId === 'georreferenciacion' && typeof geoOnEnter === 'function') geoOnEnter();
         updateAgentContext(pageId);
     }
     document.getElementById('modalCodificacion').addEventListener('click', function(e) {
