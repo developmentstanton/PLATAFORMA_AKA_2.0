@@ -1250,7 +1250,9 @@
         document.getElementById('topbar').classList.add('topbar--g00');
         document.getElementById('pageSubtitle').style.display = 'none';
         const dt = document.getElementById('topbarDates');
-        dt.style.display = ''; dt.innerHTML = renderTopbarDates(null);
+        // En re-entrada el tab está cacheado y loadDetal() no corre, así que reusamos el rango
+        // de la última carga (lastDetal). Sin esto, el topbar se queda en el placeholder «…».
+        dt.style.display = ''; dt.innerHTML = renderTopbarDates(lastDetal ? lastDetal.rango : null);
         document.getElementById('topbarG00Refresh').style.display = '';
         if (!filtrosInit) { initFiltros(); filtrosInit = true; }
         if (!tabState.detal) loadDetal();
