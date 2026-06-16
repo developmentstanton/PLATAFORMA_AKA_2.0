@@ -374,7 +374,7 @@
 
         /* ============ AGENTE AKA (Clippy) ============ */
         .agent-fab {
-            position: fixed; bottom: 24px; right: 24px; z-index: 300;
+            position: fixed; bottom: 24px; right: 24px; z-index: 1500;
             width: 56px; height: 56px; border-radius: 50%;
             background: var(--primary); color: white; border: none;
             cursor: pointer; font-size: 24px; box-shadow: 0 4px 20px rgba(74,71,130,0.4);
@@ -390,7 +390,7 @@
             100% { transform: scale(1.6); opacity: 0; }
         }
         .agent-panel {
-            display: none; position: fixed; bottom: 92px; right: 24px; z-index: 300;
+            display: none; position: fixed; bottom: 92px; right: 24px; z-index: 1500;
             width: 380px; height: 520px; background: white; border-radius: 16px;
             box-shadow: 0 8px 40px rgba(0,0,0,0.2); flex-direction: column; overflow: hidden;
         }
