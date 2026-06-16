@@ -39,8 +39,8 @@
   #page-georreferenciacion .geo-list { right: 14px; bottom: 22px; width: 240px; max-height: 46%; overflow: auto; padding: 8px 12px; }
   #page-georreferenciacion .geo-list h4 { margin: 0 0 6px; font-size: 12px; text-align: center; color: var(--primary); }
   #page-georreferenciacion .geo-list .row { padding: 1px 0; white-space: nowrap; }
-  .geo-tip b { color: #fff; }
-  .leaflet-tooltip.geo-tooltip { background: #2d2b4e; color: #fff; border: none; box-shadow: 0 2px 8px rgba(0,0,0,.4); font-size: 12px; }
+  .leaflet-tooltip.geo-tooltip { background: #fff; color: #2d2b4e; border: 1px solid #2d2b4e; border-radius: 6px; box-shadow: 0 2px 10px rgba(0,0,0,.25); font-size: 12px; }
+  .leaflet-tooltip.geo-tooltip b { color: #2d2b4e; }
   .leaflet-tooltip.geo-tooltip::before { border-top-color: #2d2b4e; }
 </style>
 
