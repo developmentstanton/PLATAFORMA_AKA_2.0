@@ -2,7 +2,6 @@
 <div class="page" id="page-evolucion-historica">
   <div class="g00-filters evol-filters">
     <div class="g00-filter-row">
-      <div class="filter-group"><label>Grupo</label><select id="evol-f-grupo" multiple></select></div>
       <div class="filter-group evol-tienda-group"><label>Tienda</label><select id="evol-f-tienda" multiple></select></div>
       <div class="o14-apply">
         <button class="g00-btn-refresh" onclick="evolLoad()"><i class="fa-solid fa-rotate"></i> Aplicar</button>
@@ -30,8 +29,8 @@
 
 <style>
   #page-evolucion-historica .tab-bar { display: flex; justify-content: flex-end; }
-  #page-evolucion-historica .evol-tienda-group { min-width: 320px; flex: 2; }
-  #page-evolucion-historica .evol-tienda-group .ts-control { min-width: 320px; }
+  #page-evolucion-historica .evol-tienda-group { min-width: 480px; flex: 2; }
+  #page-evolucion-historica .evol-tienda-group .ts-control { min-width: 480px; }
   #page-evolucion-historica table.evol-tabla { border-collapse: collapse; font-size: 11px; }
   #page-evolucion-historica table.evol-tabla th, #page-evolucion-historica table.evol-tabla td {
     border: 1px solid var(--border); padding: 2px 6px; text-align: right; white-space: nowrap; }
@@ -85,7 +84,7 @@
 
   function buildParams(){
     const p = new URLSearchParams({ tab:'data', desde: val('evol-vdesde')||defDesde(), hasta: val('evol-vhasta')||defHasta() });
-    ['grupo','tienda',...DIMS].forEach(k=>{ getMultiVals('evol-f-'+k).forEach(v=>p.append(k+'[]', v)); });
+    ['tienda',...DIMS].forEach(k=>{ getMultiVals('evol-f-'+k).forEach(v=>p.append(k+'[]', v)); });
     return p.toString();
   }
 
@@ -100,7 +99,6 @@
     fetch('api/informe_evol.php?tab=filtros',{credentials:'same-origin'}).then(r=>r.json()).then(d=>{
       comboCatalogo = d.combos||[];
       DIMS.forEach(k=> poblarSelect('evol-f-'+k, comboCatalogo.map(c=>c[k])));
-      poblarSelect('evol-f-grupo', comboCatalogo.map(c=>c.grupo));
       const tEl=document.getElementById('evol-f-tienda'); const seen={}; const opts=[];
       comboCatalogo.forEach(c=>{ const nom=c.tienda||''; if(!nom||seen[nom])return; seen[nom]=1; opts.push({nom, cod:c.tienda_cod||''}); });
       opts.sort((a,b)=>a.cod.localeCompare(b.cod));

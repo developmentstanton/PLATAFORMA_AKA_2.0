@@ -2,7 +2,6 @@
 <div class="page" id="page-georreferenciacion">
   <div class="g00-filters geo-filters">
     <div class="g00-filter-row">
-      <div class="filter-group"><label>Grupo</label><select id="geo-f-grupo" multiple></select></div>
       <div class="filter-group geo-tienda-group"><label>Tienda</label><select id="geo-f-tienda" multiple></select></div>
       <div class="o14-apply">
         <button class="g00-btn-refresh" onclick="geoLoad()"><i class="fa-solid fa-rotate"></i> Aplicar</button>
@@ -30,8 +29,8 @@
 </div>
 
 <style>
-  #page-georreferenciacion .geo-tienda-group { min-width: 320px; flex: 2; }
-  #page-georreferenciacion .geo-tienda-group .ts-control { min-width: 320px; }
+  #page-georreferenciacion .geo-tienda-group { min-width: 480px; flex: 2; }
+  #page-georreferenciacion .geo-tienda-group .ts-control { min-width: 480px; }
   #page-georreferenciacion .geo-wrap { position: relative; }
   #page-georreferenciacion #geo-map { width: 100%; height: calc(100vh - 230px); min-height: 460px; border-radius: 8px; }
   #page-georreferenciacion .geo-box { position: absolute; z-index: 1000; background: rgba(255,255,255,.93);
@@ -64,7 +63,7 @@
 
   function buildParams(){
     const p = new URLSearchParams({ tab:'data', desde: val('geo-vdesde')||defDesde(), hasta: val('geo-vhasta')||defHasta() });
-    ['grupo','tienda',...DIMS].forEach(k=>{ getMultiVals('geo-f-'+k).forEach(v=>p.append(k+'[]', v)); });
+    ['tienda',...DIMS].forEach(k=>{ getMultiVals('geo-f-'+k).forEach(v=>p.append(k+'[]', v)); });
     return p.toString();
   }
 
@@ -79,7 +78,6 @@
     fetch('api/informe_geo.php?tab=filtros',{credentials:'same-origin'}).then(r=>r.json()).then(d=>{
       comboCatalogo = d.combos||[];
       DIMS.forEach(k=> poblarSelect('geo-f-'+k, comboCatalogo.map(c=>c[k])));
-      poblarSelect('geo-f-grupo', comboCatalogo.map(c=>c.grupo));
       const tEl=document.getElementById('geo-f-tienda'); const seen={}; const opts=[];
       comboCatalogo.forEach(c=>{ const nom=c.tienda||''; if(!nom||seen[nom])return; seen[nom]=1; opts.push({nom, cod:c.tienda_cod||''}); });
       opts.sort((a,b)=>a.cod.localeCompare(b.cod));
