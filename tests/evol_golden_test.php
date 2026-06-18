@@ -43,5 +43,36 @@ $chk('mesesInv 2026-06',$g('mesesInv','2026-06'), 45);
 $chk('indice 2025-03',  $g('indice','2025-03'),   2.56);
 $chk('indice 2026-06',  $g('indice','2026-06'),   0.82);
 
+// === TOTAL general: estructura + invariantes (sin golden fijo, se autovalida vs negocios) ===
+$tg = $d['totalGeneral'] ?? null;
+if (!$tg) { echo "FALLO: falta totalGeneral\n"; $fail=1; }
+else {
+  $sumNeg = function($med,$mes) use ($d){ $s=0; foreach(($d['negocios']??[]) as $n){ $v=$n['valores'][$med][$mes]??0; if(is_numeric($v)) $s+=$v; } return $s; };
+  $maxNeg = function($med,$mes) use ($d){ $mx=0; foreach(($d['negocios']??[]) as $n){ $v=$n['valores'][$med][$mes]??0; if(is_numeric($v)&&$v>$mx) $mx=$v; } return $mx; };
+  $mesAct = date('Y-m');
+  $dias = function($m) use ($mesAct){ return $m===$mesAct ? max(1,(int)date('j',strtotime('-1 day'))) : (int)date('t',strtotime($m.'-01')); };
+  foreach ($meses as $m) {
+    // Ingreso/Ventas/Stock = suma exacta sobre negocios
+    foreach (['compras','ventas','stock'] as $med) {
+      $got=$tg['valores'][$med][$m]??null; $exp=$sumNeg($med,$m);
+      if ((string)$got !== (string)$exp) { echo "FALLO totalGeneral $med $m: got=".var_export($got,true)." exp=$exp\n"; $fail=1; }
+    }
+    // Tiendas (conteo distinto): entre el máximo por negocio y la suma (dedup)
+    $tT=(int)($tg['valores']['tiendas'][$m]??0); $sT=$sumNeg('tiendas',$m); $xT=$maxNeg('tiendas',$m);
+    if ($tT > $sT || $tT < $xT) { echo "FALLO totalGeneral tiendas $m: $tT fuera de [$xT,$sT]\n"; $fail=1; }
+    // Meses de Inv = round(stock/ventas); Índice = round((ventas/tiendas)/(dias/30),2)
+    $vv=(int)($tg['valores']['ventas'][$m]??0); $ss=(int)($tg['valores']['stock'][$m]??0);
+    $expMI = $vv>0 ? (int)round($ss/$vv) : 0;
+    if ((string)($tg['valores']['mesesInv'][$m]??null) !== (string)$expMI) { echo "FALLO totalGeneral mesesInv $m\n"; $fail=1; }
+    $expIdx = $tT>0 ? round(($vv/$tT)/($dias($m)/30),2) : 0.0;
+    if ((string)($tg['valores']['indice'][$m]??null) !== (string)$expIdx) { echo "FALLO totalGeneral indice $m\n"; $fail=1; }
+  }
+  // Columna Total (compras/ventas) = suma de los meses
+  foreach (['compras','ventas'] as $med) {
+    $expT=0; foreach($meses as $m) $expT += (int)($tg['valores'][$med][$m]??0);
+    if ((string)($tg['totales'][$med]??null) !== (string)$expT) { echo "FALLO totalGeneral totales.$med\n"; $fail=1; }
+  }
+}
+
 echo $fail ? "RESULTADO: FALLO\n" : "RESULTADO: OK\n";
 exit($fail);

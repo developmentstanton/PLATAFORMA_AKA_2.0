@@ -16,6 +16,8 @@
       <div class="filter-group"><label>Género</label><select id="evol-f-genero" multiple></select></div>
       <div class="filter-group"><label>Público</label><select id="evol-f-publico" multiple></select></div>
       <div class="filter-group"><label>Negocio</label><select id="evol-f-negocio" multiple></select></div>
+    </div>
+    <div class="g00-filter-row" style="flex-wrap:nowrap;">
       <div class="filter-group"><label>Referencia</label><select id="evol-f-referencia" multiple></select></div>
     </div>
   </div>
@@ -34,6 +36,8 @@
   #page-evolucion-historica table.evol-tabla th, #page-evolucion-historica table.evol-tabla td {
     border: 1px solid var(--border); padding: 2px 6px; text-align: right; white-space: nowrap; }
   #page-evolucion-historica table.evol-tabla thead th { background: #faf9ff; position: sticky; top: 0; z-index: 2; }
+  /* El wrap es el contenedor de scroll (alto limitado) => el thead sticky queda fijo al hacer scroll vertical */
+  #page-evolucion-historica .o14-matriz-wrap { max-height: calc(100vh - 320px); min-height: 280px; overflow: auto; }
   /* Inmovilizar las 2 primeras columnas: Negocio + Conceptos */
   #page-evolucion-historica table.evol-tabla td.neg, #page-evolucion-historica table.evol-tabla th.neg {
     text-align: left; position: sticky; left: 0; box-sizing: border-box; width: 132px; min-width: 132px; max-width: 132px;
@@ -54,6 +58,9 @@
   #page-evolucion-historica table.evol-tabla tr.m-indice td.tot { background: #faecc8; }
   /* Datos negativos en rojo */
   #page-evolucion-historica table.evol-tabla td.neg-val { color: #d4001a; }
+  /* Bloque TOTAL general (al final): negrita + etiqueta en verde oscuro */
+  #page-evolucion-historica table.evol-tabla tr.evol-tot td { font-weight: 700; }
+  #page-evolucion-historica table.evol-tabla td.neg.evol-tot-neg { background: #1f5e50; }
   #evol-img-pop { position: fixed; display: none; z-index: 9999; pointer-events: none; background: #fff;
     border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 6px 20px rgba(45,43,78,.25); padding: 4px; }
   #evol-img-pop img { max-width: 260px; max-height: 320px; display: block; border-radius: 4px; }
@@ -104,7 +111,7 @@
 
   // Las 6 medidas (orden de la imagen). 'sum' indica si la columna Total acumula.
   const MEDIDAS = [
-    {k:'compras',  t:'Compras Cauchosol', f:nf,  cls:'',        sum:true },
+    {k:'compras',  t:'Ingreso',           f:nf,  cls:'',        sum:true },
     {k:'ventas',   t:'Total Ventas',      f:nf,  cls:'m-ventas', sum:true },
     {k:'stock',    t:'Stock',             f:nf,  cls:'m-stock',  sum:false},
     {k:'tiendas',  t:'Tiendas con Inv',   f:nf,  cls:'',         sum:false},
@@ -117,26 +124,34 @@
     const cont=document.getElementById('evol-tabla');
     const meses=d.meses||[], negs=d.negocios||[];
     if(!negs.length){ cont.innerHTML='<p style="padding:16px;color:var(--text-light)">Sin datos.</p>'; return; }
+    // Un bloque de 6 medidas (negocio o fila TOTAL general). foto=null => sin hover de foto.
+    const bloque=(label,valores,totales,foto,esTotal)=>{
+      let b='';
+      MEDIDAS.forEach((med,i)=>{
+        b+='<tr class="'+med.cls+(esTotal?' evol-tot':'')+'"'+(i===0&&foto!=null?' data-negimg="'+esc(foto)+'"':'')+'>';
+        if(i===0) b+='<td class="neg'+(esTotal?' evol-tot-neg':'')+'" rowspan="'+MEDIDAS.length+'">'+esc(label)+'</td>';
+        b+='<td class="med">'+med.t+'</td>';
+        meses.forEach(m=>{ const v=(valores[med.k]||{})[m];
+          b+='<td class="val'+(typeof v==='number'&&v<0?' neg-val':'')+'">'+med.f(v)+'</td>'; });
+        const tot = med.sum ? (totales[med.k]) : '';
+        b+='<td class="tot'+(med.sum&&typeof tot==='number'&&tot<0?' neg-val':'')+'">'+(med.sum?med.f(tot):'')+'</td>';
+        b+='</tr>';
+      });
+      return b;
+    };
     let h='<table class="evol-tabla" id="evol-tbl"><thead><tr>';
     h+='<th class="neg">Negocio</th><th class="med">CONCEPTOS</th>';
     meses.forEach(m=> h+='<th>'+fmtMesHdr(m)+'</th>');
     h+='<th>Total</th></tr></thead><tbody>';
-    negs.forEach(n=>{
-      MEDIDAS.forEach((med,i)=>{
-        h+='<tr class="'+med.cls+'"'+(i===0?' data-negimg="'+esc(n.foto)+'"':'')+'>';
-        if(i===0) h+='<td class="neg" rowspan="'+MEDIDAS.length+'">'+esc(n.negocio)+'</td>';
-        h+='<td class="med">'+med.t+'</td>';
-        meses.forEach(m=>{ const v=(n.valores[med.k]||{})[m];
-          h+='<td class="val'+(typeof v==='number'&&v<0?' neg-val':'')+'">'+med.f(v)+'</td>'; });
-        const tot = med.sum ? (n.totales[med.k]) : '';
-        h+='<td class="tot'+(med.sum&&typeof tot==='number'&&tot<0?' neg-val':'')+'">'+(med.sum?med.f(tot):'')+'</td>';
-        h+='</tr>';
-      });
-    });
+    negs.forEach(n=> h+=bloque(n.negocio, n.valores, n.totales, n.foto, false));
+    if(d.totalGeneral) h+=bloque('TOTAL', d.totalGeneral.valores, d.totalGeneral.totales, null, true);
     h+='</tbody></table>'; cont.innerHTML=h;
   }
 
-  function showLoading(){ if(!window.Swal) return; Swal.fire({title:'Cargando',html:'Obteniendo información…',allowOutsideClick:false,allowEscapeKey:false,showConfirmButton:false,didOpen:()=>Swal.showLoading()}); }
+  function showLoading(){ if(!window.Swal) return; const ter=(window.PROVEEDOR_ACTUAL||'');
+    Swal.fire({title:'Cargando...',
+      html:'<div style="font-size:15px;font-weight:600;color:#4A4782;margin-top:4px">Evolución Histórica</div>'+(ter?'<div style="font-size:13px;color:#6b7280;margin-top:2px">'+esc(ter)+'</div>':''),
+      allowOutsideClick:false,allowEscapeKey:false,showConfirmButton:false,didOpen:()=>Swal.showLoading()}); }
   function hideLoading(){ if(window.Swal && Swal.isVisible()) Swal.close(); }
 
   window.evolLoad = function(){

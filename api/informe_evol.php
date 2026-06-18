@@ -252,11 +252,45 @@ foreach ($agg as $r) {
 $negocios = array_values($neg);
 usort($negocios, fn($a,$b) => $b['totales']['ventas'] <=> $a['totales']['ventas']);
 
+// === TOTAL general por mes (todos los negocios). Ingreso/Ventas/Stock = suma;
+//     Tiendas = conteo distinto de tiendas con inventario (NO suma, evita doble conteo);
+//     Meses de Inv e Índice se RECALCULAN sobre los totales (mismas fórmulas por-negocio). ===
+$aggTot = run($dbConnect, "
+  WITH perbod AS (
+    SELECT b.mes, b.cia, b.bodega, SUM(b.ventas) ventas, SUM(b.compras) compras, SUM(b.stock) stock
+    FROM #base b GROUP BY b.mes, b.cia, b.bodega )
+  SELECT pb.mes,
+         SUM(pb.ventas) ventas, SUM(pb.compras) compras, SUM(pb.stock) stock,
+         COUNT(DISTINCT CASE WHEN pb.stock>0 AND ISNULL(bo.GRUPO,'') NOT IN ('BODEGA','ADMINISTRATIVAS')
+                              THEN pb.cia+'-'+pb.bodega END) tiendas
+  FROM perbod pb
+   LEFT JOIN INTEGRACION.dbo.Bodegas bo WITH (NOLOCK) ON bo.COD=pb.bodega AND RIGHT('000'+rtrim(bo.CIA),3)=pb.cia
+  GROUP BY pb.mes");
+if (isset($aggTot['error'])) jsonFail($aggTot, $dbConnect);
+
+$totalGeneral = [
+    'valores'=>['compras'=>[], 'ventas'=>[], 'stock'=>[], 'tiendas'=>[], 'mesesInv'=>[], 'indice'=>[]],
+    'totales'=>['compras'=>0, 'ventas'=>0],
+];
+foreach ($aggTot as $r) {
+    $m = $r['mes'];
+    $ventas=(int)$r['ventas']; $compras=(int)$r['compras']; $stock=(int)$r['stock']; $tiendas=(int)$r['tiendas'];
+    $totalGeneral['valores']['ventas'][$m]   = $ventas;
+    $totalGeneral['valores']['compras'][$m]  = $compras;
+    $totalGeneral['valores']['stock'][$m]    = $stock;
+    $totalGeneral['valores']['tiendas'][$m]  = $tiendas;
+    $totalGeneral['valores']['mesesInv'][$m] = $ventas > 0 ? (int)round($stock / $ventas) : 0;
+    $totalGeneral['valores']['indice'][$m]   = $tiendas > 0 ? round(($ventas / $tiendas) / ($diasMes($m) / 30), 2) : 0.0;
+    $totalGeneral['totales']['compras'] += $compras;
+    $totalGeneral['totales']['ventas']  += $ventas;
+}
+
 sqlsrv_close($dbConnect);
 echo json_encode([
     'ok'=>true, 'proveedor'=>$proveedorSesion,
     'meses'=>$meses, 'mesActual'=>$mesActual,
     'rango'=>['desde'=>$desdeMes,'hasta'=>$hastaMes,'corte_ventas'=>$hastaF],
     'negocios'=>$negocios,
+    'totalGeneral'=>$totalGeneral,
 ], JSON_UNESCAPED_UNICODE);
 exit;
