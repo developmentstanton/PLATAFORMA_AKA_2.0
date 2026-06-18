@@ -148,6 +148,38 @@ function jsonFail($rows, $conn) {
 }
 
 /**
+ * Tiendas con Siembra: # distinto de bodegas con siembra (>0) de cualquier referencia del
+ * proveedor, respetando los MISMOS filtros de producto/bodega que el resto de G00
+ * ($filtroExtra con aliases i=#refs, v=siembra COLOR/TALLA, b=Bodegas). Sin fecha (la siembra
+ * es foto actual) ni S.S.S. Fuente idéntica a O14: stanton.dbo.t400_cm_existencia.
+ * Soft-fail → null (el front muestra '—'). Requiere que #refs ya exista.
+ */
+function countTiendasSiembra($conn, $filtroExtra, $paramsExtra) {
+    $sql = "
+      SELECT COUNT(DISTINCT v.bodega) AS n
+      FROM (
+        SELECT rtrim(f150_id) bodega, rtrim(f120_referencia) REFERENCIA,
+               rtrim(f121_id_ext1_detalle) COLOR, rtrim(f121_id_ext2_detalle) TALLA,
+               SUM(CAST(f400_cant_nivel_min_1 AS int)) q
+        FROM stanton.dbo.t400_cm_existencia
+         INNER JOIN stanton.dbo.t150_mc_bodegas           ON f150_rowid = f400_rowid_bodega
+         INNER JOIN stanton.dbo.t121_mc_items_extensiones ON f121_rowid = f400_rowid_item_ext
+         INNER JOIN stanton.dbo.t120_mc_items             ON f120_rowid = f121_rowid_item
+        WHERE (f400_cant_nivel_min_1>0 OR f400_cant_nivel_pedido>0) AND f120_referencia<>'GIFTCARD'
+        GROUP BY rtrim(f150_id), rtrim(f120_referencia), rtrim(f121_id_ext1_detalle), rtrim(f121_id_ext2_detalle)
+      ) v
+      INNER JOIN #refs i                                 ON i.REFERENCIA = v.REFERENCIA
+      LEFT  JOIN INTEGRACION.dbo.Bodegas b WITH (NOLOCK) ON b.COD = v.bodega AND b.CIA = 7
+      WHERE v.q > 0
+        AND ISNULL(b.GRUPO,'') NOT IN ('BODEGA','ADMINISTRATIVAS')
+      $filtroExtra
+    ";
+    $r = run($conn, $sql, $paramsExtra);
+    if (isset($r['error'])) return null;
+    return (int)($r[0]['n'] ?? 0);
+}
+
+/**
  * Ensambla filas de un GROUPING SETS de 2 niveles en {rows:[{label,...,children:[]}], total}.
  * $gidTotal = gid de la fila grand-total (); $gidPadre = gid de la fila padre (hijo NULL).
  * $padreKey($r)→etiqueta del padre; $hijoLabel($r)→etiqueta del hijo.
@@ -457,11 +489,13 @@ if ($tab === 'tiendas') {
     $tiendas = array_values($tiendaMap);
     usort($tiendas, fn($x,$y)=>$y['val_act']<=>$x['val_act']);
 
-    $tiendasAct = 0; foreach ($tiendas as $t) if ($t['val_act']>0) $tiendasAct++;
+    // Solo cuentan como tienda los grupos tipo TIENDAS (excluye BODEGA/ADMINISTRATIVAS); sus ventas SÍ aparecen en la lista.
+    $tiendasAct = 0; foreach ($tiendas as $t) if ($t['val_act']>0 && !in_array(strtoupper(trim((string)$t['grupo'])), ['BODEGA','ADMINISTRATIVAS'], true)) $tiendasAct++;
     $kpis = [
-        'tiendas_actual' => $tiendasAct,
-        'ticket_prom'    => $kpi['ups_act']>0 ? $kpi['val_act']/$kpi['ups_act'] : 0,
-        'margen_prom'    => $kpi['margen'],
+        'tiendas_siembra' => countTiendasSiembra($dbConnect, $filtroExtra, $paramsExtra),
+        'tiendas_actual'  => $tiendasAct,
+        'ticket_prom'     => $kpi['ups_act']>0 ? $kpi['val_act']/$kpi['ups_act'] : 0,
+        'margen_prom'     => $kpi['margen'],
     ];
     sqlsrv_close($dbConnect);
     echo json_encode(['ok'=>true,'kpis'=>$kpis,'anio'=>(int)date('Y',strtotime($hastaAct)),'tiendas'=>$tiendas], JSON_UNESCAPED_UNICODE);
@@ -533,13 +567,14 @@ if ($tab === 'productos') {
         SUM(CASE WHEN FECHA BETWEEN ? AND ? THEN CANTIDAD ELSE 0 END) AS ups_act,
         SUM(CASE WHEN FECHA BETWEEN ? AND ? THEN CANTIDAD ELSE 0 END) AS ups_ant,
         AVG(CASE WHEN FECHA BETWEEN ? AND ? AND CANTIDAD > 0 THEN CAST(MARGEN AS float) END) AS margen_prom,
-        COUNT(DISTINCT CASE WHEN FECHA BETWEEN ? AND ? THEN BODEGA END) AS tiendas_act,
-        COUNT(DISTINCT CASE WHEN FECHA BETWEEN ? AND ? THEN BODEGA END) AS tiendas_ant";
+        COUNT(DISTINCT CASE WHEN FECHA BETWEEN ? AND ? AND GRUPO NOT IN ('BODEGA','ADMINISTRATIVAS') THEN BODEGA END) AS tiendas_act,
+        COUNT(DISTINCT CASE WHEN FECHA BETWEEN ? AND ? AND GRUPO NOT IN ('BODEGA','ADMINISTRATIVAS') THEN BODEGA END) AS tiendas_ant";
 
     $prodCte = cteVentas() . "
         , ventas_enriq AS (
             SELECT v.FECHA, v.BODEGA, v.CANTIDAD, v.VALOR, v.MARGEN,
                    v.REFERENCIA, ISNULL(v.COLOR,'') AS COLOR, ISNULL(v.TALLA,'') AS TALLA,
+                   ISNULL(b.GRUPO,'SIN GRUPO')   AS GRUPO,
                    ISNULL(i.CATEGORIA,'')        AS CATEGORIA,
                    ISNULL(i.SUBCATEGORIA,'')     AS SUBCATEGORIA,
                    ISNULL(i.GENERO,'')           AS GENERO,
@@ -650,8 +685,8 @@ $sqlConsolidado = cteVentas() . "
         SUM(CASE WHEN FECHA BETWEEN ? AND ? THEN CANTIDAD ELSE 0 END) AS ups_act,
         SUM(CASE WHEN FECHA BETWEEN ? AND ? THEN CANTIDAD ELSE 0 END) AS ups_ant,
         AVG(CASE WHEN FECHA BETWEEN ? AND ? AND CANTIDAD > 0 THEN CAST(MARGEN AS float) END) AS margen_prom,
-        COUNT(DISTINCT CASE WHEN FECHA BETWEEN ? AND ? THEN BODEGA END) AS tiendas_act,
-        COUNT(DISTINCT CASE WHEN FECHA BETWEEN ? AND ? THEN BODEGA END) AS tiendas_ant
+        COUNT(DISTINCT CASE WHEN FECHA BETWEEN ? AND ? AND GRUPO NOT IN ('BODEGA','ADMINISTRATIVAS') THEN BODEGA END) AS tiendas_act,
+        COUNT(DISTINCT CASE WHEN FECHA BETWEEN ? AND ? AND GRUPO NOT IN ('BODEGA','ADMINISTRATIVAS') THEN BODEGA END) AS tiendas_ant
     FROM ventas_enriq
     GROUP BY GROUPING SETS (
         (),
@@ -733,6 +768,7 @@ $mesAntExpr = $shiftToActualDays > 0
 $sqlMensual = cteVentas() . "
     , vm AS (
         SELECT v.FECHA, v.BODEGA, v.CANTIDAD, v.VALOR,
+               ISNULL(b.GRUPO, 'SIN GRUPO') AS GRUPO,
                CASE WHEN v.FECHA BETWEEN ? AND ? THEN MONTH(v.FECHA) ELSE $mesAntExpr END AS mes
         FROM ventas v
         INNER JOIN #refs i                                 ON i.REFERENCIA = v.REFERENCIA
@@ -748,8 +784,8 @@ $sqlMensual = cteVentas() . "
         SUM(CASE WHEN FECHA BETWEEN ? AND ? THEN VALOR    ELSE 0 END) AS val_ant,
         SUM(CASE WHEN FECHA BETWEEN ? AND ? THEN CANTIDAD ELSE 0 END) AS ups_act,
         SUM(CASE WHEN FECHA BETWEEN ? AND ? THEN CANTIDAD ELSE 0 END) AS ups_ant,
-        COUNT(DISTINCT CASE WHEN FECHA BETWEEN ? AND ? THEN BODEGA END) AS tiendas_act,
-        COUNT(DISTINCT CASE WHEN FECHA BETWEEN ? AND ? THEN BODEGA END) AS tiendas_ant
+        COUNT(DISTINCT CASE WHEN FECHA BETWEEN ? AND ? AND GRUPO NOT IN ('BODEGA','ADMINISTRATIVAS') THEN BODEGA END) AS tiendas_act,
+        COUNT(DISTINCT CASE WHEN FECHA BETWEEN ? AND ? AND GRUPO NOT IN ('BODEGA','ADMINISTRATIVAS') THEN BODEGA END) AS tiendas_ant
     FROM vm
     GROUP BY GROUPING SETS ((mes), ())
 ";
@@ -837,6 +873,9 @@ foreach ($marcaArr as &$mref) {
 }
 unset($mref);
 
+// Tiendas con Siembra (cualquier marca del proveedor, según filtros de producto/bodega; sin fecha ni S.S.S).
+$tiendasSiembra = countTiendasSiembra($dbConnect, $filtroExtra, $paramsExtra);
+
 $out = [
     'ok'        => true,
     'proveedor' => $proveedorSesion,
@@ -854,6 +893,7 @@ $out = [
         'ups_actual'       => $upsAct,
         'ups_anterior'     => $upsAnt,
         'delta_ups'        => $deltaUps,
+        'tiendas_siembra'  => $tiendasSiembra,
         'tiendas_actual'   => $tiendasAc,
         'tiendas_anterior' => $tiendasAn,
         'delta_tiendas'    => $deltaTiendas,
