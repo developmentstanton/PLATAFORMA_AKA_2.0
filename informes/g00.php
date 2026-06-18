@@ -217,10 +217,10 @@
             <div class="filter-group"><label>Subcategoría</label><select id="g00-f-subcategoria" multiple></select></div>
             <div class="filter-group"><label>Género</label><select id="g00-f-genero" multiple></select></div>
             <div class="filter-group"><label>Público</label><select id="g00-f-publico" multiple></select></div>
-            <div class="filter-group"><label>Referencia</label><select id="g00-f-referencia" multiple></select></div>
         </div>
-        <!-- Fila 3: color / talla -->
-        <div class="g00-filter-row">
+        <!-- Fila 3: referencia / color / talla (juntos, sin salto de línea) -->
+        <div class="g00-filter-row" style="flex-wrap:nowrap;">
+            <div class="filter-group"><label>Referencia</label><select id="g00-f-referencia" multiple></select></div>
             <div class="filter-group"><label>Color</label><select id="g00-f-color" multiple></select></div>
             <div class="filter-group"><label>Talla</label><select id="g00-f-talla" multiple></select></div>
         </div>
@@ -490,11 +490,12 @@
             .catch(() => { combos = []; sku = []; });
     }
 
-    function showLoading(accion) {
-        const prov = proveedorActual ? ' del proveedor <strong>' + esc(proveedorActual) + '</strong>' : '';
+    function showLoading() {
+        const ter = (proveedorActual || window.PROVEEDOR_ACTUAL || '');
         Swal.fire({
-            title: accion || 'Cargando datos',
-            html: 'Obteniendo información' + prov + '…',
+            title: 'Cargando...',
+            html: '<div style="font-size:15px;font-weight:600;color:#4A4782;margin-top:4px">Ventas</div>'
+                + (ter ? '<div style="font-size:13px;color:#6b7280;margin-top:2px">' + esc(ter) + '</div>' : ''),
             allowOutsideClick: false,
             allowEscapeKey: false,
             showConfirmButton: false,
