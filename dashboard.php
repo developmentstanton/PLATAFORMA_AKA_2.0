@@ -521,6 +521,9 @@
                 </div>
             </div>
             <div class="nav-section">
+                <div class="nav-section-title">PAGOS</div>
+            </div>
+            <div class="nav-section">
                 <div class="nav-section-title">GESTI&Oacute;N</div>
                 <div class="nav-item" onclick="showPage('codificacion', this)">
                     <span class="icon">&#9998;</span> Codificaci&oacute;n
@@ -837,15 +840,39 @@
             <div class="page" id="page-codificacion">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
                     <div class="tab-bar" style="margin-bottom:0;">
-                        <div class="tab active" onclick="showCodTab('solicitudes')">Mis solicitudes</div>
-                        <div class="tab" onclick="showCodTab('masiva')">Carga masiva</div>
-                        <div class="tab">Historial</div>
+                        <div class="tab active" onclick="showCodTab('masiva')">Archivos</div>
+                        <div class="tab" onclick="showCodTab('solicitudes')">Mis solicitudes</div>
                     </div>
                     <button class="btn btn-primary" onclick="document.getElementById('modalCodificacion').classList.add('active')">+ NUEVA SOLICITUD</button>
                 </div>
 
+                <!-- ARCHIVOS: DESCARGA DE PLANTILLAS + CARGA MASIVA -->
+                <div id="codTab-masiva">
+
+                <!-- DESCARGA DE PLANTILLAS -->
+                <div class="card">
+                    <div class="card-title">DESCARGA DE PLANTILLAS</div>
+                    <p style="font-size:13px;color:var(--text-light);margin-bottom:20px;">
+                        Descarga las plantillas oficiales en Excel para diligenciar tus solicitudes.
+                    </p>
+                    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;">
+                        <div style="border:1px solid #e8e6f0;border-radius:10px;padding:20px;display:flex;flex-direction:column;align-items:flex-start;gap:8px;background:#fff;">
+                            <div style="font-size:30px;">&#128196;</div>
+                            <div style="font-size:15px;font-weight:700;color:var(--primary);">Planilla de Codificaci&oacute;n</div>
+                            <div style="font-size:12px;color:var(--text-light);">Formato Excel &bull; .xlsx</div>
+                            <a class="btn btn-primary btn-sm" href="Archivos/codificacion.xlsx" download style="margin-top:8px;text-decoration:none;">&#11015; Descargar</a>
+                        </div>
+                        <div style="border:1px solid #e8e6f0;border-radius:10px;padding:20px;display:flex;flex-direction:column;align-items:flex-start;gap:8px;background:#fff;">
+                            <div style="font-size:30px;">&#128196;</div>
+                            <div style="font-size:15px;font-weight:700;color:var(--primary);">Planilla de Aviso de Llegada</div>
+                            <div style="font-size:12px;color:var(--text-light);">Formato Excel &bull; .xlsx</div>
+                            <a class="btn btn-primary btn-sm" href="Archivos/aviso.xlsx" download style="margin-top:8px;text-decoration:none;">&#11015; Descargar</a>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- CARGA MASIVA -->
-                <div class="card" id="codTab-masiva" style="display:none;">
+                <div class="card">
                     <div class="card-title">CARGA MASIVA DE CODIFICACI&Oacute;N</div>
                     <p style="font-size:13px;color:var(--text-light);margin-bottom:20px;">
                         Sube un archivo Excel con la Plantilla 270 para codificar m&uacute;ltiples referencias de una sola vez.
@@ -888,9 +915,10 @@
                         </div>
                     </div>
                 </div>
+                </div><!-- /codTab-masiva -->
 
                 <!-- LISTA SOLICITUDES -->
-                <div class="card" id="codTab-solicitudes">
+                <div class="card" id="codTab-solicitudes" style="display:none;">
                     <table>
                         <thead><tr><th>Referencia</th><th>Descripci&oacute;n</th><th>Marca</th><th>Colores</th><th>Tallas</th><th>Recepci&oacute;n</th><th>P.V.S.P</th><th>Estado</th><th></th></tr></thead>
                         <tbody>
@@ -1246,7 +1274,7 @@
         document.getElementById('codTab-solicitudes').style.display = tab === 'solicitudes' ? '' : 'none';
         document.getElementById('codTab-masiva').style.display = tab === 'masiva' ? '' : 'none';
         document.querySelectorAll('#page-codificacion .tab').forEach((t,i) => {
-            t.classList.toggle('active', (tab === 'solicitudes' && i === 0) || (tab === 'masiva' && i === 1));
+            t.classList.toggle('active', (tab === 'masiva' && i === 0) || (tab === 'solicitudes' && i === 1));
         });
     }
 
@@ -1307,7 +1335,7 @@
         const msgs = {
             inventarios: 'Las tallas 8.5-9.5 de la ref 06-160650-3 muestran un desbalance entre stock y ventas. \u00bfQuiero que analice la curva completa?',
             pagos: 'Tienes 3 facturas vencidas por $18.7M. Esto podr\u00eda retrasar la aprobaci\u00f3n de nuevas codificaciones.',
-            codificacion: 'Tip: Si vas a codificar m\u00e1s de 5 referencias, usa la "Carga masiva" con tu Plantilla 270. Es mucho m\u00e1s r\u00e1pido.',
+            codificacion: 'Tip: Si vas a codificar m\u00e1s de 5 referencias, usa la pesta\u00f1a "Archivos" con tu Plantilla 270. Es mucho m\u00e1s r\u00e1pido.',
             alertas: 'Tienes 2 alertas cr\u00edticas de rotaci\u00f3n. Las tallas centrales se agotan 3x m\u00e1s r\u00e1pido que las extremas.',
         };
         if (msgs[pageId] && !document.getElementById('agentPanel').classList.contains('active')) {
