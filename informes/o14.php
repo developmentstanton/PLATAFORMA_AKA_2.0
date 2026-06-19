@@ -37,9 +37,9 @@
       <div class="filter-group"><label>Negocio</label>
         <select id="o14-negocio" onchange="o14PickNegocio(this.value)"><option value="">— Todos —</option></select>
       </div>
-      <div class="filter-group"><label>Referencia</label><select id="o14-f-referencia" multiple></select></div>
     </div>
-    <div class="g00-filter-row">
+    <div class="g00-filter-row" style="flex-wrap:nowrap;">
+      <div class="filter-group"><label>Referencia</label><select id="o14-f-referencia" multiple></select></div>
       <div class="filter-group"><label>Color</label><select id="o14-f-color" multiple></select></div>
       <div class="filter-group"><label>Talla</label><select id="o14-f-talla" multiple></select></div>
     </div>
@@ -183,8 +183,10 @@
       .catch(()=>{ combos=[]; sku=[]; });
   }
 
-  function showLoading(accion){ const p=proveedorActual?(' del proveedor <strong>'+esc(proveedorActual)+'</strong>'):'';
-    Swal.fire({title:accion||'Cargando',html:'Obteniendo información'+p+'…',allowOutsideClick:false,allowEscapeKey:false,showConfirmButton:false,didOpen:()=>Swal.showLoading()}); }
+  function showLoading(){ const ter=(proveedorActual||window.PROVEEDOR_ACTUAL||'');
+    Swal.fire({title:'Cargando...',
+      html:'<div style="font-size:15px;font-weight:600;color:#4A4782;margin-top:4px">Siembra / Stock</div>'+(ter?'<div style="font-size:13px;color:#6b7280;margin-top:2px">'+esc(ter)+'</div>':''),
+      allowOutsideClick:false,allowEscapeKey:false,showConfirmButton:false,didOpen:()=>Swal.showLoading()}); }
   function hideLoading(){ if(window.Swal && Swal.isVisible()) Swal.close(); }
   const nf = (n)=> (Math.round(n)||0).toLocaleString('es-CO');
   function esc(s){ return (s==null?'':String(s)).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]); }

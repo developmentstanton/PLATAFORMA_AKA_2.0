@@ -40,7 +40,7 @@
         color: var(--text-light); font-weight: 600;
     }
     .g00-filters input[type="date"], .g00-filters select {
-        padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px;
+        padding: 4px 10px; border: 1px solid var(--border); border-radius: 6px;
         font-size: 12px; font-family: 'Space Grotesk', sans-serif; outline: none;
         background: white; color: var(--text); cursor: pointer;
     }
@@ -127,11 +127,18 @@
     /* Botones segmentados (Calendario / S.S.S) */
     .g00-seg { display:inline-flex; border:1px solid var(--border); border-radius:6px; overflow:hidden; }
     .g00-seg-btn { border:none; background:white; color:var(--text); font-family:'Space Grotesk',sans-serif;
-        font-size:12px; padding:6px 12px; cursor:pointer; }
+        font-size:12px; padding:4px 12px; cursor:pointer; }
     .g00-seg-btn.active { background:var(--primary); color:white; font-weight:600; }
     /* Tom Select compacto acorde a la barra */
-    .g00-filters .ts-control { min-width:150px; font-size:12px; border-radius:6px; border-color:var(--border); }
+    .g00-filters .ts-control { min-width:150px; font-size:12px; border-radius:6px; border-color:var(--border); padding-top:2px; padding-bottom:2px; min-height:28px; }
+    /* Fila 4 (bodega): Tienda mantiene su ancho (320px) y CC/Depto/Ciudad quedan unidos a su derecha, a la izquierda de la fila (sin estirar Tienda) */
+    #page-informes-g00 .g00-row-bod { justify-content: flex-start; }
+    #page-informes-g00 .g00-row-bod .filter-group { flex: 0 0 170px; }
+    #page-informes-g00 .g00-row-bod .g00-tienda-wide { flex: 0 0 320px; }
+    #page-informes-g00 .g00-tienda-wide .ts-control { min-width:320px; }
     .g00-filters .ts-wrapper { min-width:150px; }
+    /* Fila 2 (dimensiones + ref/color/talla): selects 20% más angostos (150 -> 120) */
+    #page-informes-g00 .g00-row-dim .ts-control, #page-informes-g00 .g00-row-dim .ts-wrapper { min-width:120px; }
     /* Tablas comparativas tipo Power BI */
     table.disp-table th, table.disp-table td { white-space: nowrap; font-size: 12px; }
     table.disp-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
@@ -209,8 +216,8 @@
                 <button class="g00-btn-refresh" onclick="g00Load()"><i class="fa-solid fa-filter"></i> Aplicar</button>
             </div>
         </div>
-        <!-- Fila 2: criterios de referencia -->
-        <div class="g00-filter-row">
+        <!-- Fila 2: criterios de referencia + color/talla (fusionadas) -->
+        <div class="g00-filter-row g00-row-dim">
             <div class="filter-group"><label>Marca</label><select id="g00-f-marca" multiple></select></div>
             <div class="filter-group"><label>Tipo</label><select id="g00-f-tipo" multiple></select></div>
             <div class="filter-group"><label>Categoría</label><select id="g00-f-categoria" multiple></select></div>
@@ -218,16 +225,12 @@
             <div class="filter-group"><label>Género</label><select id="g00-f-genero" multiple></select></div>
             <div class="filter-group"><label>Público</label><select id="g00-f-publico" multiple></select></div>
             <div class="filter-group"><label>Referencia</label><select id="g00-f-referencia" multiple></select></div>
-        </div>
-        <!-- Fila 3: color / talla -->
-        <div class="g00-filter-row">
             <div class="filter-group"><label>Color</label><select id="g00-f-color" multiple></select></div>
             <div class="filter-group"><label>Talla</label><select id="g00-f-talla" multiple></select></div>
         </div>
         <!-- Fila 4: criterios de bodega -->
-        <div class="g00-filter-row">
-            <div class="filter-group"><label>Grupo</label><select id="g00-f-grupo" multiple></select></div>
-            <div class="filter-group"><label>Tienda</label><select id="g00-f-tienda" multiple></select></div>
+        <div class="g00-filter-row g00-row-bod">
+            <div class="filter-group g00-tienda-wide"><label>Tienda</label><select id="g00-f-tienda" multiple></select></div>
             <div class="filter-group"><label>Centro comercial</label><select id="g00-f-centro_comercial" multiple></select></div>
             <div class="filter-group"><label>Departamento</label><select id="g00-f-depto" multiple></select></div>
             <div class="filter-group"><label>Ciudad</label><select id="g00-f-ciudad" multiple></select></div>
@@ -246,9 +249,13 @@
     <div class="g00-tab-panel active" id="g00-panel-detal">
 
         <!-- Franja de 3 KPIs (estilo Power BI) -->
-        <div class="stats-grid" style="grid-template-columns: repeat(3, 1fr);">
+        <div class="stats-grid" style="grid-template-columns: repeat(4, 1fr);">
+            <div class="g00-kpi info" title="tiendas con siembra de cualquier marca del proveedor (según filtros)">
+                <div class="g00-kpi-head"><span class="g00-kpi-label">Tiendas con Siembra</span></div>
+                <div class="g00-kpi-value" id="g00-kpi-siembra"><span class="g00-skeleton" style="width:60px;height:26px;"></span></div>
+            </div>
             <div class="g00-kpi accent" title="bodegas con venta">
-                <div class="g00-kpi-head"><span class="g00-kpi-label">Tiendas <span id="g00-kpi-anio-1">—</span></span></div>
+                <div class="g00-kpi-head"><span class="g00-kpi-label">Tiendas con Venta <span id="g00-kpi-anio-1">—</span></span></div>
                 <div class="g00-kpi-value" id="g00-kpi-tiendas"><span class="g00-skeleton" style="width:60px;height:26px;"></span></div>
             </div>
             <div class="g00-kpi success" title="$ por par (valor ÷ unidades)">
@@ -289,9 +296,13 @@
 
     <!-- ============ TAB DETALLE TIENDAS ============ -->
     <div class="g00-tab-panel" id="g00-panel-tiendas">
-        <div class="stats-grid" style="grid-template-columns: repeat(3, 1fr);">
+        <div class="stats-grid" style="grid-template-columns: repeat(4, 1fr);">
+            <div class="g00-kpi info" title="tiendas con siembra de cualquier marca del proveedor (según filtros)">
+                <div class="g00-kpi-head"><span class="g00-kpi-label">Tiendas con Siembra</span></div>
+                <div class="g00-kpi-value" id="g00t-kpi-siembra"><span class="g00-skeleton" style="width:60px;height:26px;"></span></div>
+            </div>
             <div class="g00-kpi accent" title="bodegas con venta">
-                <div class="g00-kpi-head"><span class="g00-kpi-label">Tiendas <span id="g00t-kpi-anio-1">—</span></span></div>
+                <div class="g00-kpi-head"><span class="g00-kpi-label">Tiendas con Venta <span id="g00t-kpi-anio-1">—</span></span></div>
                 <div class="g00-kpi-value" id="g00t-kpi-tiendas"><span class="g00-skeleton" style="width:60px;height:26px;"></span></div>
             </div>
             <div class="g00-kpi success" title="$ por par (valor ÷ unidades)">
@@ -355,7 +366,7 @@
 
     const REF_FIELDS    = ['marca','tipo','categoria','subcategoria','genero','publico','referencia'];
     const SKU_FIELDS    = ['color','talla'];
-    const BODEGA_FIELDS = ['grupo','tienda','centro_comercial','depto','ciudad'];
+    const BODEGA_FIELDS = ['tienda','centro_comercial','depto','ciudad'];
     const COMBO_FIELDS  = [...REF_FIELDS, ...BODEGA_FIELDS];   // campos presentes en una fila de `combos`
     const FILTER_FIELDS = [...REF_FIELDS, ...SKU_FIELDS, ...BODEGA_FIELDS];
     const tom = {};            // field -> instancia TomSelect
@@ -490,11 +501,12 @@
             .catch(() => { combos = []; sku = []; });
     }
 
-    function showLoading(accion) {
-        const prov = proveedorActual ? ' del proveedor <strong>' + esc(proveedorActual) + '</strong>' : '';
+    function showLoading() {
+        const ter = (proveedorActual || window.PROVEEDOR_ACTUAL || '');
         Swal.fire({
-            title: accion || 'Cargando datos',
-            html: 'Obteniendo información' + prov + '…',
+            title: 'Cargando...',
+            html: '<div style="font-size:15px;font-weight:600;color:#4A4782;margin-top:4px">Ventas</div>'
+                + (ter ? '<div style="font-size:13px;color:#6b7280;margin-top:2px">' + esc(ter) + '</div>' : ''),
             allowOutsideClick: false,
             allowEscapeKey: false,
             showConfirmButton: false,
@@ -561,6 +573,8 @@
         pfx = pfx || 'g00-kpi-';
         document.getElementById(pfx+'anio-1').textContent = anio;
         document.getElementById(pfx+'anio-2').textContent = anio;
+        const sib = document.getElementById(pfx+'siembra');
+        if (sib) { if (k.tiendas_siembra == null) sib.textContent = '—'; else animate(sib, k.tiendas_siembra, (n) => Math.round(n).toString()); }
         animate(document.getElementById(pfx+'tiendas'), k.tiendas_actual, (n) => Math.round(n).toString());
         animate(document.getElementById(pfx+'ticket'),  k.ticket_prom,    fmtMoneyFull);
         animate(document.getElementById(pfx+'margen'),  k.margen_prom,    (n) => n.toFixed(2) + '%');
@@ -852,13 +866,15 @@
         const tot = {ua:0,ub:0,va:0,vb:0,ta:0,tb:0};
         (rows||[]).forEach(r => {
             tot.ua+=r.ups_act; tot.ub+=r.ups_ant; tot.va+=r.val_act; tot.vb+=r.val_ant;
+            tot.ta+=(r.tiendas_act||0); tot.tb+=(r.tiendas_ant||0);
             h += rowGrupo(r, false);
         });
-        // Fila Total (sumas; MB total = promedio simple de filas con dato — aprox. consistente)
+        // Fila Total (sumas; MB total = promedio simple de filas con dato — aprox. consistente).
+        // Tiendas: suma por grupo (cada bodega tiene un solo grupo) = total distinto de tiendas.
         const margenes = (rows||[]).map(r=>r.margen).filter(m=>m>0);
         const mbTot = margenes.length ? margenes.reduce((x,y)=>x+y,0)/margenes.length : 0;
         h += rowGrupo({label:'Total', ups_act:tot.ua,ups_ant:tot.ub, val_act:tot.va,val_ant:tot.vb,
-                       margen:mbTot, tiendas_act:0, tiendas_ant:0}, true);
+                       margen:mbTot, tiendas_act:tot.ta, tiendas_ant:tot.tb}, true);
         h += '</tbody>';
         document.getElementById('g00-tabla-grupo').innerHTML = h;
     }
@@ -874,10 +890,8 @@
             + '<td class="num">'+(r.margen?r.margen.toFixed(2)+'%':'—')+'</td>'
             + '<td class="num">'+fmtMoneyFull(pb)+'</td><td class="num">'+fmtMoneyFull(pa)+'</td>'
             + pctCell(pa, pb)
-            + (isTotal
-                ? '<td class="num">—</td><td class="num">—</td><td class="num">—</td>'
-                : '<td class="num">'+fmtInt(r.tiendas_ant)+'</td><td class="num">'+fmtInt(r.tiendas_act)+'</td>'
-                  + '<td class="num '+(difT>=0?'pos':'neg')+'">'+(difT>=0?'+':'')+fmtInt(difT)+'</td>')
+            + '<td class="num">'+fmtInt(r.tiendas_ant)+'</td><td class="num">'+fmtInt(r.tiendas_act)+'</td>'
+            + '<td class="num '+(difT>=0?'pos':'neg')+'">'+(difT>=0?'+':'')+fmtInt(difT)+'</td>'
             + '</tr>';
     }
 
@@ -1265,7 +1279,6 @@
         // En re-entrada el tab está cacheado y loadDetal() no corre, así que reusamos el rango
         // de la última carga (lastDetal). Sin esto, el topbar se queda en el placeholder «…».
         dt.style.display = ''; dt.innerHTML = renderTopbarDates(lastDetal ? lastDetal.rango : null);
-        document.getElementById('topbarG00Refresh').style.display = '';
         if (!filtrosInit) { initFiltros(); filtrosInit = true; }
         if (!tabState.detal) loadDetal();
         else Object.values(charts).forEach(c => c && c.resize());

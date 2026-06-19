@@ -556,24 +556,6 @@
                 <div id="pageSubtitle" class="topbar-subtitle" style="display:none;"></div>
             </div>
             <div class="topbar-actions">
-                <button id="topbarG00Refresh" class="topbar-action" style="display:none;" onclick="g00Load()">
-                    <i class="fa-solid fa-arrows-rotate"></i> Actualizar
-                </button>
-                <button id="topbarO14Refresh" class="topbar-action" style="display:none;" onclick="o14Load()">
-                    <i class="fa-solid fa-arrows-rotate"></i> Actualizar
-                </button>
-                <button id="topbarO45Refresh" class="topbar-action" style="display:none;" onclick="o45Load()">
-                    <i class="fa-solid fa-arrows-rotate"></i> Actualizar
-                </button>
-                <button id="topbarEvolRefresh" class="topbar-action" style="display:none;" onclick="evolLoad()">
-                    <i class="fa-solid fa-arrows-rotate"></i> Actualizar
-                </button>
-                <button id="topbarGeoRefresh" class="topbar-action" style="display:none;" onclick="geoLoad()">
-                    <i class="fa-solid fa-arrows-rotate"></i> Actualizar
-                </button>
-                <button class="notification-btn" onclick="showPage('alertas', document.querySelector('[onclick*=alertas]'))">
-                    &#9888;<span class="dot"></span>
-                </button>
                 <a href="logout.php" class="notification-btn" title="Cerrar sesión" style="text-decoration:none;color:var(--text);">
                     <i class="fa-solid fa-right-from-bracket"></i>
                 </a>
@@ -1245,11 +1227,6 @@
         document.getElementById('pageTitle').textContent = titles[pageId] || pageId;
         // Extras del topbar exclusivos de G00: se ocultan al cambiar de página (g00OnEnter los reactiva).
         document.getElementById('pageSubtitle').style.display = 'none';
-        document.getElementById('topbarG00Refresh').style.display = 'none';
-        document.getElementById('topbarO14Refresh').style.display = 'none';
-        document.getElementById('topbarO45Refresh').style.display = 'none';
-        document.getElementById('topbarEvolRefresh').style.display = 'none';
-        document.getElementById('topbarGeoRefresh').style.display = 'none';
         document.getElementById('topbar').classList.remove('topbar--g00');
         document.getElementById('topbar').classList.remove('topbar--o14');
         document.getElementById('topbarDates').style.display = 'none';

@@ -3,7 +3,6 @@
   <!-- Filtros -->
   <div class="g00-filters o45-filters">
     <div class="g00-filter-row">
-      <div class="filter-group"><label>Grupo</label><select id="o45-f-grupo" multiple></select></div>
       <div class="filter-group o45-tienda-group"><label>Tienda</label><select id="o45-f-tienda" multiple></select></div>
       <div class="o14-apply">
         <button class="g00-btn-refresh" onclick="o45Load()"><i class="fa-solid fa-rotate"></i> Aplicar</button>
@@ -17,6 +16,8 @@
       <div class="filter-group"><label>Género</label><select id="o45-f-genero" multiple></select></div>
       <div class="filter-group"><label>Público</label><select id="o45-f-publico" multiple></select></div>
       <div class="filter-group"><label>Negocio</label><select id="o45-f-negocio" multiple></select></div>
+    </div>
+    <div class="g00-filter-row" style="flex-wrap:nowrap;">
       <div class="filter-group"><label>Referencia</label><select id="o45-f-referencia" multiple></select></div>
     </div>
   </div>
@@ -44,8 +45,8 @@
   #page-informes-o45 .stats-grid { margin-bottom: 14px; }
   #page-informes-o45 .g00-kpi-value { font-size: 22px; }
   #page-informes-o45 .tab-bar { display: flex; justify-content: flex-end; }   /* botón Excel siempre a la derecha */
-  #page-informes-o45 .o45-tienda-group { min-width: 320px; flex: 2; }   /* Tienda más ancho: COD - NOMBRE completo */
-  #page-informes-o45 .o45-tienda-group .ts-control { min-width: 320px; }
+  #page-informes-o45 .o45-tienda-group { min-width: 480px; flex: 2; }   /* Tienda al ancho de Grupo+Tienda (Grupo quitado) */
+  #page-informes-o45 .o45-tienda-group .ts-control { min-width: 480px; }
   #page-informes-o45 table.o45-tabla { width:100%; border-collapse:collapse; font-size:12px; }
   #page-informes-o45 table.o45-tabla th, #page-informes-o45 table.o45-tabla td { border:1px solid var(--border); padding:4px 8px; text-align:right; white-space:nowrap; }
   #page-informes-o45 table.o45-tabla th { background:#faf9ff; position:sticky; top:0; }
@@ -71,7 +72,7 @@
 
     function buildParams(){
       const p = new URLSearchParams({ tab:'data', desde: val('o45-vdesde')||'2025-01-01', hasta: val('o45-vhasta')||new Date(Date.now()-86400000).toISOString().slice(0,10) });
-      ['grupo','tienda',...DIMS].forEach(k=>{ getMultiVals('o45-f-'+k).forEach(v=>p.append(k+'[]', v)); });
+      ['tienda',...DIMS].forEach(k=>{ getMultiVals('o45-f-'+k).forEach(v=>p.append(k+'[]', v)); });
       return p.toString();
     }
 
@@ -86,7 +87,6 @@
       fetch('api/informe_o45.php?tab=filtros',{credentials:'same-origin'}).then(r=>r.json()).then(d=>{
         comboCatalogo = d.combos||[];
         DIMS.forEach(k=> poblarSelect('o45-f-'+k, comboCatalogo.map(c=>c[k])));
-        poblarSelect('o45-f-grupo', comboCatalogo.map(c=>c.grupo));
         // Tienda: value = NOMBRE, label = "COD - NOMBRE"
         const tEl=document.getElementById('o45-f-tienda');
         const seen={}; const opts=[];
@@ -129,7 +129,10 @@
       set('o45-kpi-meses', (d.rango && d.rango.dias!=null) ? nf2(d.rango.dias/30) : '—');
     }
 
-    function showLoading(){ if(!window.Swal) return; Swal.fire({title:'Cargando',html:'Obteniendo información…',allowOutsideClick:false,allowEscapeKey:false,showConfirmButton:false,didOpen:()=>Swal.showLoading()}); }
+    function showLoading(){ if(!window.Swal) return; const ter=(window.PROVEEDOR_ACTUAL||'');
+      Swal.fire({title:'Cargando...',
+        html:'<div style="font-size:15px;font-weight:600;color:#4A4782;margin-top:4px">Índice de Ventas</div>'+(ter?'<div style="font-size:13px;color:#6b7280;margin-top:2px">'+esc(ter)+'</div>':''),
+        allowOutsideClick:false,allowEscapeKey:false,showConfirmButton:false,didOpen:()=>Swal.showLoading()}); }
     function hideLoading(){ if(window.Swal && Swal.isVisible()) Swal.close(); }
 
     window.o45Load = function(){
