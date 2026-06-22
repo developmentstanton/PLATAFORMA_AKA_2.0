@@ -1,0 +1,122 @@
+-- FUENTE VERBATIM (M Power Query) de la consulta "Flujo Proyectado".
+-- Es el SQL exacto que va dentro de Sql.Database(...,[Query="..."]).
+-- Codificación M: #(lf) = salto de línea, #(tab) = tabulación.
+-- Al portar al endpoint: decodificar #(lf)->\n, #(tab)->\t y AÑADIR el filtro por NIT
+--   (WHERE RTRIM(NIT) = ?) lo más temprano posible (sobre INTEGRACION.DBO.FLUJO_OC_PBI).
+-- Fuente: INTEGRACION.DBO.FLUJO_OC_PBI
+
+WITH CalculosIntermedios AS (
+    SELECT
+        RTRIM(CIA) AS CIA,
+        DIA AS FECHA,
+        RTRIM(DOCUMENTO) AS DOCUMENTO,
+        RTRIM(NIT) AS NIT,
+        RTRIM(PROVEEDOR) AS PROVEEDOR,
+        CASE
+            WHEN CLASE_PROVEEDOR = '' THEN 'SEMANA'
+            WHEN CLASE_PROVEEDOR LIKE 'PROV.%' THEN 'SEMANA'
+            ELSE RTRIM(CLASE_PROVEEDOR)
+        END AS CLASE_PROVEEDOR,
+        RTRIM(TIPO_PROVEEDOR) AS TIPO_PROVEEDOR,
+        RTRIM(CAUSADO) AS CAUSADO,
+        RTRIM(ITEM) AS DESCRIPCION,
+        RTRIM(MONEDA) AS MONEDA,
+        VALOR,
+        CASE DATENAME(dw, DIA)
+            WHEN 'Monday' THEN 'Lunes'
+            WHEN 'Tuesday' THEN 'Martes'
+            WHEN 'Wednesday' THEN 'Miercoles'
+            WHEN 'Thursday' THEN 'Jueves'
+            WHEN 'Friday' THEN 'Viernes'
+            WHEN 'Saturday' THEN 'Sabado'
+            WHEN 'Sunday' THEN 'Domingo'
+        END AS DIA_CORTE,
+        CASE
+            WHEN (CASE WHEN CLASE_PROVEEDOR = '' THEN 'SEMANA' WHEN CLASE_PROVEEDOR LIKE 'PROV.%' THEN 'SEMANA' ELSE RTRIM(CLASE_PROVEEDOR) END) = 'QUINCENA' AND DAY(DIA) <= 15
+            THEN CONVERT(DATE, CONVERT(VARCHAR(10), DATEFROMPARTS(YEAR(DIA), MONTH(DIA), 15)))
+            WHEN (CASE WHEN CLASE_PROVEEDOR = '' THEN 'SEMANA' WHEN CLASE_PROVEEDOR LIKE 'PROV.%' THEN 'SEMANA' ELSE RTRIM(CLASE_PROVEEDOR) END) IN ('PUNTUAL', 'SEMANA')
+            THEN DATEADD(DAY,
+                            CASE DATENAME(dw, DIA)
+                                WHEN 'Monday' THEN 4
+                                WHEN 'Tuesday' THEN 3
+                                WHEN 'Wednesday' THEN 2
+                                WHEN 'Thursday' THEN 1
+                                WHEN 'Friday' THEN 0
+                                WHEN 'Saturday' THEN 6
+                                WHEN 'Sunday' THEN 5
+                            END, DIA)
+            ELSE
+                DATEFROMPARTS(
+                    CASE WHEN MONTH(DIA) = 12 THEN YEAR(DIA) + 1 ELSE YEAR(DIA) END,
+                    CASE
+                        WHEN MONTH(DIA) = 1 THEN 2
+                        WHEN MONTH(DIA) = 2 THEN 3
+                        WHEN MONTH(DIA) = 3 THEN 4
+                        WHEN MONTH(DIA) = 4 THEN 5
+                        WHEN MONTH(DIA) = 5 THEN 6
+                        WHEN MONTH(DIA) = 6 THEN 7
+                        WHEN MONTH(DIA) = 7 THEN 8
+                        WHEN MONTH(DIA) = 8 THEN 9
+                        WHEN MONTH(DIA) = 9 THEN 10
+                        WHEN MONTH(DIA) = 10 THEN 11
+                        WHEN MONTH(DIA) = 11 THEN 12
+                        WHEN MONTH(DIA) = 12 THEN 1
+                    END,
+                    1
+                )
+        END AS FECHA_CORTE_REAL
+    FROM INTEGRACION.DBO.FLUJO_OC_PBI
+    -- AL PORTAR: agregar aquí  WHERE RTRIM(NIT) = ?  (filtro por proveedor)
+), CalculosFinales AS (
+    SELECT
+        *,
+        -- Lógica principal de la fecha de pago
+        CASE
+            WHEN CLASE_PROVEEDOR = 'QUINCENA' AND DATENAME(dw, FECHA_CORTE_REAL) IN ('Thursday', 'Friday') THEN
+                CASE
+                    WHEN (DATENAME(dw, FECHA_CORTE_REAL) = 'Friday' AND DAY(FECHA_CORTE_REAL) = 15) OR (DATENAME(dw, FECHA_CORTE_REAL) = 'Thursday' AND DAY(FECHA_CORTE_REAL) = 1) THEN DATEADD(day, 7, FECHA_CORTE_REAL)
+                    WHEN (DATENAME(dw, FECHA_CORTE_REAL) = 'Friday' AND DAY(FECHA_CORTE_REAL) = 1) THEN DATEADD(day, 6, FECHA_CORTE_REAL)
+                    ELSE DATEADD(day, 8, FECHA_CORTE_REAL)
+                END
+            ELSE
+                DATEADD(day,
+                    CASE DATENAME(dw, FECHA_CORTE_REAL)
+                        WHEN 'Monday' THEN 4
+                        WHEN 'Tuesday' THEN 3
+                        WHEN 'Wednesday' THEN 2
+                        WHEN 'Thursday' THEN 1
+                        WHEN 'Friday' THEN 0
+                        WHEN 'Saturday' THEN 6
+                        WHEN 'Sunday' THEN 5
+                    END,
+                    FECHA_CORTE_REAL)
+        END AS FECHA_PAGO_CALCULADA
+    FROM CalculosIntermedios
+)
+SELECT
+    CIA, FECHA, DOCUMENTO, NIT, PROVEEDOR, CLASE_PROVEEDOR, TIPO_PROVEEDOR, CAUSADO,
+    DESCRIPCION, MONEDA, VALOR, DIA_CORTE,
+    CONVERT(VARCHAR(10), FECHA_CORTE_REAL, 103) AS FECHA_CORTE,
+    CASE
+        WHEN FECHA_PAGO_CALCULADA < GETDATE() THEN
+            DATEADD(day,
+                CASE DATENAME(dw, GETDATE())
+                    WHEN 'Monday' THEN 4
+                    WHEN 'Tuesday' THEN 3
+                    WHEN 'Wednesday' THEN 2
+                    WHEN 'Thursday' THEN 1
+                    WHEN 'Friday' THEN 0
+                    WHEN 'Saturday' THEN 6
+                    WHEN 'Sunday' THEN 5
+                END,
+                GETDATE())
+        ELSE FECHA_PAGO_CALCULADA
+    END AS FECHA_PAGO
+FROM CalculosFinales
+ORDER BY 1, 2 DESC;
+
+-- NOTA: el M original calcula DIA_CORTE2 con CASE anidados gigantes para QUINCENA (día 1/15)
+-- y luego usa DIA_CORTE2 en CalculosFinales. Aquí se simplificó usando DATENAME(dw, FECHA_CORTE_REAL)
+-- directamente, que es equivalente para la rama QUINCENA jueves/viernes. VALIDAR contra el PBI:
+-- si hay diferencias en proveedores QUINCENA, restaurar la columna DIA_CORTE2 literal del pbix
+-- (ver fuentes_powerbi_M.md / P78.pbix consulta "Flujo Proyectado").
