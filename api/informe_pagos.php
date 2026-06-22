@@ -21,6 +21,13 @@ if ($nit === '') {
     exit;
 }
 
+// --- Filtros opcionales (aplicados en PHP, post-query) ---
+$causado = strtoupper(trim($_GET['causado'] ?? 'TODAS'));
+$diasMin = isset($_GET['dias_min']) && $_GET['dias_min']!=='' ? (int)$_GET['dias_min'] : null;
+$diasMax = isset($_GET['dias_max']) && $_GET['dias_max']!=='' ? (int)$_GET['dias_max'] : null;
+$fdesde  = trim($_GET['fdesde'] ?? '');
+$fhasta  = trim($_GET['fhasta'] ?? '');
+
 require __DIR__ . '/../conexion/conexion_integracion.php';
 if ($dbConnect === false) {
     echo json_encode(['ok' => false, 'error' => 'Conexión DB fallida']);
@@ -301,6 +308,14 @@ $filas = [];
 $razon = '';
 while ($r = sqlsrv_fetch_array($stmt, SQLSRV_FETCH_ASSOC)) {
     $razon = $razon ?: trim((string)($r['razon_social'] ?? ''));
+    // --- Filtros post-query ---
+    $cau = trim((string)($r['causado'] ?? ''));
+    if ($causado!=='TODAS' && strtoupper($cau)!==$causado) continue;
+    $di = (int)$r['dias'];
+    if ($diasMin!==null && $di < $diasMin) continue;
+    if ($diasMax!==null && $di > $diasMax) continue;
+    if ($fdesde!=='' && (string)$r['fecha_venc'] < $fdesde) continue;
+    if ($fhasta!=='' && (string)$r['fecha_venc'] > $fhasta) continue;
     $fv = $r['fecha_venc']; $fp = $r['fecha_pago'];
     $filas[] = [
         'fecha_venc' => is_object($fv) ? $fv->format('Y-m-d') : ($fv !== null ? (string)$fv : null),
