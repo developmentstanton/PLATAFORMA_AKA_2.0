@@ -143,9 +143,9 @@
     table.disp-table th, table.disp-table td { white-space: nowrap; font-size: 12px; }
     table.disp-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
     table.disp-table tr.g00-total td { background: #fdf6e3; font-weight: 700; }
-    /* Zebra suave en filas pares. Excluye la fila Total; no pisa colores con mayor especificidad
-       (pg-total-col amarillo, zebra verde de #pg-gen-tabla). Va antes del hover para que el hover gane. */
-    table.disp-table tr:nth-child(even):not(.g00-total) td { background: #f7f7fa; }
+    /* Zebra por filas VISIBLES (clase .zebra puesta por JS restripeTable, para no contar filas
+       ocultas de los desplegables). Va antes del hover para que el hover gane. */
+    table.disp-table tr.zebra td { background: #f7f7fa; }
     table.disp-table tr.g00-tipo td:first-child { padding-left: 26px; color: var(--text-light); font-weight: 500; }
     table.disp-table tr.g00-marca-row { cursor: pointer; }
     table.disp-table tr.g00-marca-row:hover td { background: #faf9fe; }

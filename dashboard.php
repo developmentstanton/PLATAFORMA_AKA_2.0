@@ -1356,6 +1356,29 @@
         }
     }
 
+    // ===== Zebra por filas VISIBLES en tablas disp-table (G00 + pagos) =====
+    // nth-child cuenta filas ocultas de los desplegables; por eso se raya con JS sobre las visibles.
+    function restripeTable(table) {
+        if (!table) return;
+        let v = 0;
+        table.querySelectorAll('tr').forEach(tr => {
+            tr.classList.remove('zebra');
+            if (tr.parentElement && tr.parentElement.tagName === 'THEAD') return;
+            if (tr.style.display === 'none') return;
+            if (tr.classList.contains('g00-total')) return;
+            v++;
+            if (v % 2 === 0) tr.classList.add('zebra');
+        });
+    }
+    function setupZebra() {
+        document.querySelectorAll('table.disp-table').forEach(t => {
+            restripeTable(t);
+            new MutationObserver(() => restripeTable(t)).observe(t, { childList: true, subtree: true });
+            t.addEventListener('click', () => setTimeout(() => restripeTable(t), 0));
+        });
+    }
+    setupZebra();
+
     // Al iniciar sesión, cargar Ventas (informe G00) por defecto.
     showPage('informes-g00', document.querySelector('.nav-item[onclick*="informes-g00"]'));
 </script>

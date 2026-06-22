@@ -83,7 +83,10 @@
   .o14-matriz thead th { background:#f3f2fa; color:var(--primary); position:sticky; top:0; }
   .o14-matriz th.dim, .o14-matriz td.dim { text-align:center; position:sticky; left:0; background:#fff; z-index:1; }
   .o14-matriz thead th.dim { background:#f3f2fa; z-index:2; }
-  .o14-matriz tr:hover td { background:#faf9ff; }
+  /* Zebra en filas pares de datos (la matriz re-renderiza al colapsar → nth-child cuenta solo visibles).
+     Excluye filas/celdas con color semántico (heatmap fal/sob, grupos, almacén, totales, columna dim). */
+  #page-informes-o14 .o14-matriz tbody tr:nth-child(even):not(.o14-row-grupo):not(.o14-row-alm):not(.o14-total):not(.o14-grupo-total) td:not(.dim):not(.o14-cell-fal):not(.o14-cell-sob):not(.blocktot) { background:#f7f7fa; }
+  #page-informes-o14 .o14-matriz tr:hover td { background:#faf9ff; }
   .o14-clickable { cursor:pointer; color:var(--primary); font-weight:600; }
   .o14-clickable:hover { text-decoration:underline; }
   .o14-cell-fal { background:#ffe3e3; color:#c0001a; font-weight:600; }

@@ -20,7 +20,7 @@
   #page-informes-pagos #pg-gen-tabla thead th { background: #2e6f4e; color: #fff; border-color: #27603f; }
   #page-informes-pagos #pg-gen-tabla tr.g00-total td { background: #d8ede0; color: #1c4d35; }
   #page-informes-pagos #pg-gen-tabla tr.g00-marca-row:hover td { background: #eef7f1; }
-  #page-informes-pagos #pg-gen-tabla tbody tr:nth-child(even):not(.g00-total) td { background: #f4faf6; }
+  #page-informes-pagos #pg-gen-tabla tr.zebra td { background: #f4faf6; }
 </style>
 <div class="page" id="page-informes-pagos">
   <div class="g00-filters">
@@ -62,11 +62,24 @@
     return p.toString();
   }
 
+  function pgShowLoading() {
+    if (!window.Swal) return;
+    const ter = (window.PROVEEDOR_ACTUAL || '');
+    Swal.fire({ title: 'Cargando...',
+      html: '<div style="font-size:15px;font-weight:600;color:#4A4782;margin-top:4px">Análisis de Pagos</div>'
+          + (ter ? '<div style="font-size:13px;color:#6b7280;margin-top:2px">' + ter + '</div>' : ''),
+      allowOutsideClick: false, allowEscapeKey: false, showConfirmButton: false,
+      didOpen: () => Swal.showLoading() });
+  }
+  function pgHideLoading() { if (window.Swal && Swal.isVisible()) Swal.close(); }
+
   function pgLoad() {
+    pgShowLoading();
     fetch('api/informe_pagos.php?' + pgParams(), { credentials: 'same-origin' })
       .then(r => r.json())
       .then(d => {
         if (!d.ok) {
+          pgHideLoading();
           (window.Swal ? Swal.fire('Pagos', d.error || 'Error', 'error') : alert(d.error));
           return;
         }
@@ -80,6 +93,7 @@
         pgGenLoad();
       })
       .catch(e => {
+        pgHideLoading();
         if (window.Swal) Swal.fire('Pagos', 'No se pudo cargar: ' + e.message, 'error');
       });
   }
@@ -208,9 +222,9 @@
   function pgGenLoad() {
     fetch('api/informe_pagos_generados.php?' + pgParams(), { credentials:'same-origin' })
       .then(r => r.json())
-      .then(d => { if (!d.ok) { if (window.Swal) Swal.fire('Pagos Generados', d.error||'Error', 'error'); return; }
+      .then(d => { pgHideLoading(); if (!d.ok) { if (window.Swal) Swal.fire('Pagos Generados', d.error||'Error', 'error'); return; }
         pgGenData = d; pgGenRender(d); })
-      .catch(e => { if (window.Swal) Swal.fire('Pagos Generados', 'No se pudo cargar: ' + e.message, 'error'); });
+      .catch(e => { pgHideLoading(); if (window.Swal) Swal.fire('Pagos Generados', 'No se pudo cargar: ' + e.message, 'error'); });
   }
 
   function pgGenRender(d) {
