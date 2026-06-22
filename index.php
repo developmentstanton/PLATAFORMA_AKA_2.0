@@ -67,16 +67,18 @@
 
 				// Resolver nombre del proveedor cruzando con stanton.dbo.t202_mm_proveedores
 				// (los nombre_usuario no son idénticos al f202_descripcion_sucursal, por eso LIKE).
-				$sqlProv = "SELECT TOP 1 f202_descripcion_sucursal
-							FROM stanton.dbo.t202_mm_proveedores
-							WHERE f202_id_cia = '7'
-							  AND f202_descripcion_sucursal LIKE '%' + REPLACE(?, '_', ' ') + '%'
-							ORDER BY LEN(f202_descripcion_sucursal) ASC";
+				$sqlProv = "SELECT TOP 1 RTRIM(p.f202_descripcion_sucursal) AS razon, RTRIM(t.f200_nit) AS nit
+							FROM stanton.dbo.t202_mm_proveedores p
+							JOIN stanton.dbo.t200_mm_terceros t ON t.f200_rowid = p.f202_rowid_tercero
+							WHERE p.f202_id_cia = '7'
+							  AND p.f202_descripcion_sucursal LIKE '%' + REPLACE(?, '_', ' ') + '%'
+							ORDER BY LEN(p.f202_descripcion_sucursal) ASC";
 				$stmtProv = sqlsrv_query($dbConnect, $sqlProv, array($user['nombre_usuario']));
 				if ($stmtProv !== false) {
 					$rowProv = sqlsrv_fetch_array($stmtProv, SQLSRV_FETCH_ASSOC);
-					if ($rowProv && !empty($rowProv['f202_descripcion_sucursal'])) {
-						$_SESSION['proveedor'] = trim($rowProv['f202_descripcion_sucursal']);
+					if ($rowProv) {
+						if (!empty($rowProv['razon'])) $_SESSION['proveedor'] = trim($rowProv['razon']);
+						if (!empty($rowProv['nit']))   $_SESSION['nit'] = trim($rowProv['nit']);
 					}
 					sqlsrv_free_stmt($stmtProv);
 				}

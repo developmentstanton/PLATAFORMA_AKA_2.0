@@ -522,6 +522,9 @@
             </div>
             <div class="nav-section">
                 <div class="nav-section-title">PAGOS</div>
+                <div class="nav-item" onclick="showPage('informes-pagos', this)">
+                    <span class="icon"><i class="fa-solid fa-money-bill-wave"></i></span> An&aacute;lisis de Pagos
+                </div>
             </div>
             <div class="nav-section">
                 <div class="nav-section-title">GESTI&Oacute;N</div>
@@ -989,6 +992,9 @@
             <!-- ==================== GEOREFERENCIACIÓN ==================== -->
             <?php include __DIR__ . '/informes/geo.php'; ?>
 
+            <!-- ==================== ANÁLISIS DE PAGOS ==================== -->
+            <?php include __DIR__ . '/informes/pagos.php'; ?>
+
             <!-- ==================== ALERTAS ==================== -->
             <div class="page" id="page-alertas">
                 <div class="filters">
@@ -1250,7 +1256,8 @@
             'informes-o14':'SIEMBRA / STOCK',
             'informes-o45':'ÍNDICE DE VENTAS',
             'evolucion-historica':'EVOLUCIÓN HISTÓRICA',
-            'georreferenciacion':'GEOREFERENCIACIÓN'
+            'georreferenciacion':'GEOREFERENCIACIÓN',
+            'informes-pagos':'ANÁLISIS DE PAGOS'
         };
         document.getElementById('pageTitle').textContent = titles[pageId] || pageId;
         // Extras del topbar exclusivos de G00: se ocultan al cambiar de página (g00OnEnter los reactiva).
@@ -1263,6 +1270,7 @@
         if (pageId === 'informes-o45' && typeof o45OnEnter === 'function') o45OnEnter();
         if (pageId === 'evolucion-historica' && typeof evolOnEnter === 'function') evolOnEnter();
         if (pageId === 'georreferenciacion' && typeof geoOnEnter === 'function') geoOnEnter();
+        if (pageId === 'informes-pagos' && typeof pgOnEnter === 'function') pgOnEnter();
         updateAgentContext(pageId);
     }
     document.getElementById('modalCodificacion').addEventListener('click', function(e) {
@@ -1341,6 +1349,10 @@
         if (msgs[pageId] && !document.getElementById('agentPanel').classList.contains('active')) {
             proactive.style.display = 'block';
             proactive.innerHTML = '<button class="dismiss" onclick="event.stopPropagation();this.parentElement.style.display=\'none\'">&#10005;</button><strong style="color:var(--primary);">&#129302; AKA Asistente</strong><br>' + msgs[pageId];
+        } else {
+            // Páginas sin mensaje proactivo propio (p.ej. Análisis de Pagos): ocultar
+            // cualquier aviso que haya quedado de una página anterior.
+            proactive.style.display = 'none';
         }
     }
 
