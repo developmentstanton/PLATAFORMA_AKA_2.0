@@ -8,9 +8,16 @@ $NIT_A = getenv('PAGOS_NIT_A') ?: '860009034';
 $NIT_B = getenv('PAGOS_NIT_B') ?: '860029964';
 function call_ep($php,$runner,$nit,$qs,$nul){
   $cmd = escapeshellarg($php).' '.escapeshellarg($runner).' '.escapeshellarg($nit).' '.escapeshellarg($qs).' 2>'.$nul;
-  $raw = (string)shell_exec($cmd);
-  $a=strpos($raw,'{'); $b=strrpos($raw,'}');
-  return json_decode(($a!==false&&$b!==false)?substr($raw,$a,$b-$a+1):$raw,true);
+  $r = null;
+  for ($i=0; $i<4; $i++) {
+    $raw = (string)shell_exec($cmd);
+    $a=strpos($raw,'{'); $b=strrpos($raw,'}');
+    $r = json_decode(($a!==false&&$b!==false)?substr($raw,$a,$b-$a+1):$raw,true);
+    // Reintenta solo ante fallo de conexión intermitente al RDS (no enmascara fallos reales).
+    if (is_array($r) && !(isset($r['ok']) && $r['ok']===false && stripos($r['error']??'','onexi')!==false)) return $r;
+    usleep(400000);
+  }
+  return $r;
 }
 $fail=0;
 $d = call_ep($php,$runner,$NIT_A,'',$nul);

@@ -20,6 +20,7 @@
   </div>
   <div class="card">
     <div class="card-title">Resumen Mensual Flujo de Egresos<button class="g00-btn-export" onclick="pgExport()">&#10551; Excel</button></div>
+    <div id="pg-aviso" style="display:none; margin:6px 0; padding:6px 10px; background:#fff3cd; color:#7a5b00; border:1px solid #ffe08a; border-radius:6px; font-size:12px;"></div>
     <div style="overflow-x:auto;"><table id="pg-tabla" class="disp-table"></table></div>
   </div>
 </div>
@@ -49,6 +50,11 @@
         }
         pgData = d;
         document.getElementById('pg-prov').value = d.razon_social || '';
+        const av = document.getElementById('pg-aviso');
+        if (d.trm && d.trm.fallback) {
+          av.style.display = '';
+          av.textContent = '⚠ Tasa de cambio no disponible hoy (usando último valor del ' + (d.trm.fecha || '—') + '). Los montos en USD/EU pueden no estar actualizados.';
+        } else { av.style.display = 'none'; }
         pgRender(d);
       })
       .catch(e => {
@@ -72,6 +78,11 @@
   function pgRender(d) {
     const { meses, anios, grupos } = pgBuildGroups(d);
     const fechas = Object.keys(grupos).sort();
+
+    if (fechas.length === 0) {
+      document.getElementById('pg-tabla').innerHTML = '<tbody><tr><td style="text-align:center;color:var(--text-light);padding:20px;">Sin datos</td></tr></tbody>';
+      return;
+    }
 
     // Header
     let h = '<thead><tr><th>Fecha vencimiento</th><th>D&iacute;as</th><th>RAZON_SOCIAL</th>';

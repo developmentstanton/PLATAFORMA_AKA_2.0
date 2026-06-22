@@ -29,6 +29,12 @@ $fdesde  = trim($_GET['fdesde'] ?? '');
 $fhasta  = trim($_GET['fhasta'] ?? '');
 
 require __DIR__ . '/../conexion/conexion_integracion.php';
+// El RDS rechaza intermitentemente conexiones rápidas; reintentar unas veces evita
+// caídas espurias ("Conexión DB fallida") sin afectar el caso normal (1 sola conexión).
+for ($intento = 0; $dbConnect === false && $intento < 4; $intento++) {
+    usleep(300000);
+    $dbConnect = sqlsrv_connect($servidor, $infoconn);
+}
 if ($dbConnect === false) {
     echo json_encode(['ok' => false, 'error' => 'Conexión DB fallida']);
     exit;
@@ -316,12 +322,15 @@ while ($r = sqlsrv_fetch_array($stmt, SQLSRV_FETCH_ASSOC)) {
     if ($diasMax!==null && $di > $diasMax) continue;
     if ($fdesde!=='' && (string)$r['fecha_venc'] < $fdesde) continue;
     if ($fhasta!=='' && (string)$r['fecha_venc'] > $fhasta) continue;
+    // Descartar filas sin mes de pago válido (FECHA_PAGO nula → YEAR/MONTH = 0):
+    // no tienen columna donde ubicarse en el pivote mensual.
+    if ((int)$r['anio_pago'] < 1 || (int)$r['mes_pago'] < 1) continue;
     $fv = $r['fecha_venc']; $fp = $r['fecha_pago'];
     $filas[] = [
         'fecha_venc' => is_object($fv) ? $fv->format('Y-m-d') : ($fv !== null ? (string)$fv : null),
         'dias'       => (int)$r['dias'],
         'documento'  => trim((string)($r['documento'] ?? '')),
-        'causado'    => trim((string)($r['causado'] ?? '')),
+        'causado'    => strtoupper(trim((string)($r['causado'] ?? ''))),
         'moneda'     => trim((string)($r['moneda'] ?? '')),
         'valor'      => (float)($r['valor'] ?? 0),
         'en_pesos'   => (function() use ($r, $trm) {
