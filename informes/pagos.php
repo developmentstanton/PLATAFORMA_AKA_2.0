@@ -1,5 +1,13 @@
 <style>
-  #page-informes-pagos .pg-filters { display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; padding:8px 12px; margin-bottom:10px; }
+  /* Extiende el estilo de inputs de .g00-filters (que solo cubre date/select) a number/text */
+  #page-informes-pagos .g00-filters input[type="number"], #page-informes-pagos .g00-filters input[type="text"] {
+    padding: 4px 10px; border: 1px solid var(--border); border-radius: 6px;
+    font-size: 12px; font-family: 'Space Grotesk', sans-serif; outline: none;
+    background: white; color: var(--text);
+  }
+  #page-informes-pagos .g00-filters input[type="number"]:focus, #page-informes-pagos .g00-filters input[type="text"]:focus { border-color: var(--primary); }
+  #page-informes-pagos #pg-dias-min, #page-informes-pagos #pg-dias-max { width: 90px; }
+  #page-informes-pagos #pg-prov { min-width: 180px; }
   #page-informes-pagos table.disp-table th, #page-informes-pagos table.disp-table td { white-space:nowrap; font-size:11px; }
   #page-informes-pagos table.disp-table td.num { text-align:right; font-variant-numeric:tabular-nums; }
   #page-informes-pagos .pg-neg { color: var(--danger,#e3342f); }
@@ -8,18 +16,22 @@
   #page-informes-pagos #pg-tabla th:last-child, #page-informes-pagos #pg-tabla td:last-child { border-left:2px solid var(--g00-divider,#adabb6); }
 </style>
 <div class="page" id="page-informes-pagos">
-  <div class="pg-filters">
-    <div class="filter-group"><label>Causado</label>
-      <select id="pg-causado"><option value="">Todas</option><option value="SI">SI</option><option value="NO">NO</option></select></div>
-    <div class="filter-group"><label>D&iacute;as Vto (min)</label><input type="number" id="pg-dias-min"></div>
-    <div class="filter-group"><label>D&iacute;as Vto (max)</label><input type="number" id="pg-dias-max"></div>
-    <div class="filter-group"><label>Desde</label><input type="date" id="pg-fdesde"></div>
-    <div class="filter-group"><label>Hasta</label><input type="date" id="pg-fhasta"></div>
-    <div class="filter-group"><label>Proveedor</label><input type="text" id="pg-prov" readonly style="min-width:180px;"></div>
-    <button class="g00-btn-refresh" onclick="pgLoad()"><i class="fa-solid fa-filter"></i> Aplicar</button>
+  <div class="g00-filters">
+    <div class="g00-filter-row">
+      <div class="filter-group"><label>Causado</label>
+        <select id="pg-causado"><option value="">Todas</option><option value="SI">SI</option><option value="NO">NO</option></select></div>
+      <div class="filter-group"><label>D&iacute;as Vto (min)</label><input type="number" id="pg-dias-min"></div>
+      <div class="filter-group"><label>D&iacute;as Vto (max)</label><input type="number" id="pg-dias-max"></div>
+      <div class="filter-group"><label>Desde</label><input type="date" id="pg-fdesde"></div>
+      <div class="filter-group"><label>Hasta</label><input type="date" id="pg-fhasta"></div>
+      <div class="filter-group"><label>Proveedor</label><input type="text" id="pg-prov" readonly></div>
+      <div style="margin-left:auto; align-self:flex-end;">
+        <button class="g00-btn-refresh" onclick="pgLoad()"><i class="fa-solid fa-filter"></i> Aplicar</button>
+      </div>
+    </div>
   </div>
   <div class="card">
-    <div class="card-title">Resumen Mensual Flujo de Egresos<button class="g00-btn-export" onclick="pgExport()">&#10551; Excel</button></div>
+    <div class="card-title">Resumen Mensual Flujo de Egresos<button class="g00-btn-export" onclick="pgExport()">&#10515; Excel</button></div>
     <div id="pg-aviso" style="display:none; margin:6px 0; padding:6px 10px; background:#fff3cd; color:#7a5b00; border:1px solid #ffe08a; border-radius:6px; font-size:12px;"></div>
     <div style="overflow-x:auto;"><table id="pg-tabla" class="disp-table"></table></div>
   </div>
