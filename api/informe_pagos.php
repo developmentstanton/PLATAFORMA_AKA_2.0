@@ -22,12 +22,12 @@ if ($nit === '') {
 }
 
 require __DIR__ . '/../conexion/conexion_integracion.php';
-require __DIR__ . '/lib_trm.php';
-$trm = obtener_trm();
 if ($dbConnect === false) {
     echo json_encode(['ok' => false, 'error' => 'Conexión DB fallida']);
     exit;
 }
+require __DIR__ . '/lib_trm.php';
+$trm = obtener_trm();
 
 // --- SQL unificado: 3 sub-CTEs filtradas por NIT, normalizadas a esquema común, UNION ALL ---
 // Parámetros: 1 NIT por sub-CTE (docs=?, flujo=?, antic=?), en orden de aparición.
