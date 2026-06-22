@@ -22,6 +22,8 @@ if ($nit === '') {
 }
 
 require __DIR__ . '/../conexion/conexion_integracion.php';
+require __DIR__ . '/lib_trm.php';
+$trm = obtener_trm();
 if ($dbConnect === false) {
     echo json_encode(['ok' => false, 'error' => 'Conexión DB fallida']);
     exit;
@@ -307,7 +309,11 @@ while ($r = sqlsrv_fetch_array($stmt, SQLSRV_FETCH_ASSOC)) {
         'causado'    => trim((string)($r['causado'] ?? '')),
         'moneda'     => trim((string)($r['moneda'] ?? '')),
         'valor'      => (float)($r['valor'] ?? 0),
-        'en_pesos'   => (float)($r['valor'] ?? 0), // TRM en Task 2
+        'en_pesos'   => (function() use ($r, $trm) {
+            $m = trim((string)($r['moneda'] ?? '')); $val = (float)($r['valor'] ?? 0);
+            $tasa = ($m==='COP') ? 1.0 : (($m==='USD') ? ($trm['USD']?:1) : (($m==='EU'||$m==='EUR') ? ($trm['EUR']?:1) : 1));
+            return $val * $tasa;
+        })(),
         'fecha_pago' => is_object($fp) ? $fp->format('Y-m-d') : ($fp !== null ? (string)$fp : null),
         'anio_pago'  => (int)$r['anio_pago'],
         'mes_pago'   => (int)$r['mes_pago'],
@@ -318,6 +324,6 @@ sqlsrv_free_stmt($stmt);
 sqlsrv_close($dbConnect);
 
 echo json_encode(
-    ['ok' => true, 'nit' => $nit, 'razon_social' => $razon, 'filas' => $filas],
+    ['ok' => true, 'nit' => $nit, 'razon_social' => $razon, 'filas' => $filas, 'trm' => $trm],
     JSON_UNESCAPED_UNICODE
 );

@@ -38,5 +38,11 @@ if ($cnt_a === $cnt_b && $NIT_A !== $NIT_B)
 // Sin sesión de NIT -> error
 $z = call_ep($php,$runner,'','',$nul);
 if (($z['ok']??true) !== false) { echo "FALLO: sin NIT debería dar ok=false\n"; $fail=1; }
+// Task 2: TRM — En Pesos debe convertir divisas; COP debe quedar igual a valor
+foreach ($filas as $f) {
+  if ($f['moneda']==='COP' && abs($f['en_pesos']-$f['valor'])>0.5) { echo "FALLO: COP en_pesos!=valor\n"; $fail=1; break; }
+  if ($f['moneda']!=='COP' && $f['valor']!=0 && $f['en_pesos']==$f['valor']) { echo "FALLO: ".$f['moneda']." sin convertir\n"; $fail=1; break; }
+}
+if (!isset($d['trm']['fecha'])) { echo "FALLO: falta trm.fecha\n"; $fail=1; }
 echo $fail?"RESULTADO: FALLO\n":"RESULTADO: OK (filas con campos + aislamiento + guard NIT)\n";
 exit($fail);
