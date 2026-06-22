@@ -13,6 +13,14 @@
   #page-informes-pagos .pg-total-col { background:#fdf3c7; font-weight:700; }
   #page-informes-pagos #pg-tabla th:nth-child(3), #page-informes-pagos #pg-tabla td:nth-child(3) { border-right:2px solid var(--g00-divider,#adabb6); }
   #page-informes-pagos #pg-tabla th:last-child, #page-informes-pagos #pg-tabla td:last-child { border-left:2px solid var(--g00-divider,#adabb6); }
+  /* "Resumen de Pagos Generados": paleta verde (diferenciarla de la matriz) + todo centrado */
+  #page-informes-pagos #pg-gen-tabla th,
+  #page-informes-pagos #pg-gen-tabla td,
+  #page-informes-pagos #pg-gen-tabla td.num { text-align: center; }
+  #page-informes-pagos #pg-gen-tabla thead th { background: #2e6f4e; color: #fff; border-color: #27603f; }
+  #page-informes-pagos #pg-gen-tabla tr.g00-total td { background: #d8ede0; color: #1c4d35; }
+  #page-informes-pagos #pg-gen-tabla tr.g00-marca-row:hover td { background: #eef7f1; }
+  #page-informes-pagos #pg-gen-tabla tbody tr:nth-child(even):not(.g00-total) td { background: #f4faf6; }
 </style>
 <div class="page" id="page-informes-pagos">
   <div class="g00-filters">
