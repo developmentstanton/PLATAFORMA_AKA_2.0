@@ -338,7 +338,12 @@ while ($r = sqlsrv_fetch_array($stmt, SQLSRV_FETCH_ASSOC)) {
 sqlsrv_free_stmt($stmt);
 sqlsrv_close($dbConnect);
 
+$mset = [];
+foreach ($filas as $f) { $mset[sprintf('%04d-%02d',$f['anio_pago'],$f['mes_pago'])] = [$f['anio_pago'],$f['mes_pago']]; }
+ksort($mset);
+$meses = array_values(array_map(fn($x)=>['anio'=>$x[0],'mes'=>$x[1]], $mset));
+
 echo json_encode(
-    ['ok' => true, 'nit' => $nit, 'razon_social' => $razon, 'filas' => $filas, 'trm' => $trm],
+    ['ok' => true, 'nit' => $nit, 'razon_social' => $razon, 'trm' => $trm, 'meses' => $meses, 'filas' => $filas],
     JSON_UNESCAPED_UNICODE
 );
