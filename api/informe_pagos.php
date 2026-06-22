@@ -38,9 +38,9 @@ SET NOCOUNT ON;
         RTRIM(f208_id) AS ID,
         RTRIM(f208_descripcion) AS DESCRIPCION_PAGO,
         f208_dias_vcto AS DIAS
-    FROM stanton.dbo.t208_mm_condiciones_pago
-    LEFT JOIN stanton.dbo.t202_mm_proveedores ON f202_id_cond_pago = f208_id AND f202_id_cia = f208_id_cia
-    LEFT JOIN stanton.dbo.t200_mm_terceros ON f200_rowid = f202_rowid_tercero
+    FROM stanton.dbo.t208_mm_condiciones_pago WITH (NOLOCK)
+    LEFT JOIN stanton.dbo.t202_mm_proveedores WITH (NOLOCK) ON f202_id_cond_pago = f208_id AND f202_id_cia = f208_id_cia
+    LEFT JOIN stanton.dbo.t200_mm_terceros WITH (NOLOCK) ON f200_rowid = f202_rowid_tercero
     WHERE f208_id_cia = '1' AND f200_id IS NOT NULL
 ), BaseFinal AS (
     SELECT
@@ -61,7 +61,7 @@ SET NOCOUNT ON;
             WHEN B.DIAS IS NULL THEN 0
             ELSE B.DIAS
         END AS DIAS
-    FROM Integracion.dbo.Doc_Compra_PBI AS C
+    FROM Integracion.dbo.Doc_Compra_PBI AS C WITH (NOLOCK)
     LEFT JOIN Base AS B ON B.NIT = C.nit
     WHERE C.Consignacion = 'No' AND C.Estado = 'Contabilizado' AND C.CIA = 'Stanton S.A.S.'
       AND RTRIM(C.nit) = ?
@@ -70,9 +70,6 @@ SET NOCOUNT ON;
         *,
         DATEADD(DAY, DIAS, Fecha_Entrega) AS FECHA_VENCIMIENTO_REAL
     FROM BaseFinal
-), DiasCalculados AS (
-    SELECT *
-    FROM FechasCalculadas
 ), FechaDePago AS (
     SELECT
         *,
@@ -87,7 +84,7 @@ SET NOCOUNT ON;
                 WHEN 'Sunday'    THEN 5
             END,
             FECHA_VENCIMIENTO_REAL) AS FECHA_PAGO_CALCULADA
-    FROM DiasCalculados
+    FROM FechasCalculadas
 ), docs AS (
     SELECT
         CIA,
@@ -293,7 +290,8 @@ $params = [$nit, $nit, $nit];
 
 $stmt = sqlsrv_query($dbConnect, $sql, $params);
 if ($stmt === false) {
-    echo json_encode(['ok' => false, 'error' => 'Consulta fallida', 'detalle' => sqlsrv_errors()]);
+    error_log(json_encode(sqlsrv_errors()));
+    echo json_encode(['ok' => false, 'error' => 'Consulta fallida']);
     exit;
 }
 
@@ -301,15 +299,16 @@ $filas = [];
 $razon = '';
 while ($r = sqlsrv_fetch_array($stmt, SQLSRV_FETCH_ASSOC)) {
     $razon = $razon ?: trim((string)($r['razon_social'] ?? ''));
+    $fv = $r['fecha_venc']; $fp = $r['fecha_pago'];
     $filas[] = [
-        'fecha_venc' => $r['fecha_venc'],
+        'fecha_venc' => is_object($fv) ? $fv->format('Y-m-d') : ($fv !== null ? (string)$fv : null),
         'dias'       => (int)$r['dias'],
         'documento'  => trim((string)($r['documento'] ?? '')),
         'causado'    => trim((string)($r['causado'] ?? '')),
         'moneda'     => trim((string)($r['moneda'] ?? '')),
         'valor'      => (float)($r['valor'] ?? 0),
         'en_pesos'   => (float)($r['valor'] ?? 0), // TRM en Task 2
-        'fecha_pago' => $r['fecha_pago'],
+        'fecha_pago' => is_object($fp) ? $fp->format('Y-m-d') : ($fp !== null ? (string)$fp : null),
         'anio_pago'  => (int)$r['anio_pago'],
         'mes_pago'   => (int)$r['mes_pago'],
         'base'       => $r['base'],

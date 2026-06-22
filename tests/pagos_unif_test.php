@@ -17,6 +17,7 @@ $d = call_ep($php,$runner,$NIT_A,'',$nul);
 if (!($d['ok']??false)) { echo "FALLO: ok=0 ".json_encode($d['error']??'')."\nRESULTADO: FALLO\n"; exit(1); }
 $filas = $d['filas']??[];
 echo "NIT_A=$NIT_A filas=".count($filas)."\n";
+if (count($filas)===0){ echo "FALLO: NIT_A devolvió 0 filas\n"; $fail=1; }
 $campos = ['fecha_venc','dias','documento','causado','moneda','valor','en_pesos','fecha_pago','anio_pago','mes_pago','base'];
 foreach (array_slice($filas,0,5) as $f) foreach ($campos as $c)
   if (!array_key_exists($c,$f)) { echo "FALLO: falta campo $c\n"; $fail=1; break 2; }
@@ -25,6 +26,15 @@ foreach (array_slice($filas,0,5) as $f) foreach ($campos as $c)
 $e = call_ep($php,$runner,$NIT_B,'',$nul);
 if (($d['razon_social']??'x') === ($e['razon_social']??'y') && $NIT_A!==$NIT_B)
   { echo "FALLO: razon_social igual para NITs distintos\n"; $fail=1; }
+// Aislamiento por NIT: el campo nit de la respuesta debe corresponder al NIT solicitado.
+if (($d['nit']??null) !== $NIT_A)
+  { echo "FALLO: respuesta NIT_A devolvió nit=".json_encode($d['nit']??null)."\n"; $fail=1; }
+if (($e['nit']??null) !== $NIT_B)
+  { echo "FALLO: respuesta NIT_B devolvió nit=".json_encode($e['nit']??null)."\n"; $fail=1; }
+// Aislamiento por volumen: conteos distintos cuando los proveedores tienen volúmenes distintos.
+$cnt_a = count($d['filas']??[]); $cnt_b = count($e['filas']??[]);
+if ($cnt_a === $cnt_b && $NIT_A !== $NIT_B)
+  { echo "FALLO: conteo igual para NITs distintos ($cnt_a)\n"; $fail=1; }
 // Sin sesión de NIT -> error
 $z = call_ep($php,$runner,'','',$nul);
 if (($z['ok']??true) !== false) { echo "FALLO: sin NIT debería dar ok=false\n"; $fail=1; }
