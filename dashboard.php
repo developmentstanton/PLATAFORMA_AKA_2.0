@@ -1349,6 +1349,10 @@
         if (msgs[pageId] && !document.getElementById('agentPanel').classList.contains('active')) {
             proactive.style.display = 'block';
             proactive.innerHTML = '<button class="dismiss" onclick="event.stopPropagation();this.parentElement.style.display=\'none\'">&#10005;</button><strong style="color:var(--primary);">&#129302; AKA Asistente</strong><br>' + msgs[pageId];
+        } else {
+            // Páginas sin mensaje proactivo propio (p.ej. Análisis de Pagos): ocultar
+            // cualquier aviso que haya quedado de una página anterior.
+            proactive.style.display = 'none';
         }
     }
 
