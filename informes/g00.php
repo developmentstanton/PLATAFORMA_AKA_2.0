@@ -149,6 +149,16 @@
     .g00-caret { display: inline-block; width: 14px; color: var(--text-light); font-size: 10px; }
     table.disp-table .pos { color: var(--success); }
     table.disp-table .neg { color: var(--danger); }
+    /* Bordes divisores de sección (2px) entre bloques de información de las tablas G00 */
+    /* Grupo / Marca / Negocio / Categoría / Género (16 cols): Label | Cantidad | Valores | MB | Promedio | Tiendas */
+    :is(#g00-tabla-grupo,#g00-tabla-marca,#g00-tabla-negocio,#g00-tabla-categoria,#g00-tabla-genero)
+      :is(th,td):is(:nth-child(1),:nth-child(5),:nth-child(9),:nth-child(10),:nth-child(13)) { border-right: 2px solid var(--g00-divider); }
+    /* Mensual (14 cols): Mes | Cantidad | Valores | Promedio | Tiendas (sin MB ni %Prom) */
+    #g00-tabla-mensual :is(th,td):is(:nth-child(1),:nth-child(5),:nth-child(9),:nth-child(11)) { border-right: 2px solid var(--g00-divider); }
+    /* Tienda (12 cols): Tienda | Cantidad | Valores | MB | Promedio */
+    #g00-tabla-tienda :is(th,td):is(:nth-child(1),:nth-child(5),:nth-child(9),:nth-child(10)) { border-right: 2px solid var(--g00-divider); }
+    /* Periodos (11 cols): Periodo | Cantidad | Valores */
+    #g00-tabla-periodos :is(th,td):is(:nth-child(1),:nth-child(6)) { border-right: 2px solid var(--g00-divider); }
     /* Tabla de Negocio: scroll interno (~30 filas visibles) con cabecera fija */
     .g00-scroll-neg { max-height: 720px; overflow-y: auto; }
     .g00-scroll-neg table.disp-table thead th { position: sticky; top: 0; background: #fff; z-index: 1; box-shadow: inset 0 -1px 0 var(--border); }
@@ -165,7 +175,7 @@
     .g00-btn-export:hover { background: var(--primary); color: #fff; }
 
     /* Compactación + fuente reducida del informe G00 (acotado a #page-informes-g00, no afecta O14) */
-    #page-informes-g00 { font-size: 13px; }
+    #page-informes-g00 { font-size: 13px; --g00-divider: #adabb6; }
     #page-informes-g00 .g00-filters { padding: 8px 12px; gap: 6px; margin-bottom: 10px; }
     #page-informes-g00 .g00-filter-row { padding-bottom: 6px; }
     #page-informes-g00 .card { margin-bottom: 10px; }
