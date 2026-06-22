@@ -6,12 +6,11 @@
     background: white; color: var(--text);
   }
   #page-informes-pagos .g00-filters input[type="number"]:focus, #page-informes-pagos .g00-filters input[type="text"]:focus { border-color: var(--primary); }
-  #page-informes-pagos #pg-dias-min, #page-informes-pagos #pg-dias-max { width: 90px; }
   #page-informes-pagos table.disp-table th, #page-informes-pagos table.disp-table td { white-space:nowrap; font-size:11px; }
   #page-informes-pagos table.disp-table td.num { text-align:right; font-variant-numeric:tabular-nums; }
   #page-informes-pagos .pg-neg { color: var(--danger,#e3342f); }
   #page-informes-pagos .pg-total-col { background:#fdf3c7; font-weight:700; }
-  #page-informes-pagos #pg-tabla th:nth-child(3), #page-informes-pagos #pg-tabla td:nth-child(3) { border-right:2px solid var(--g00-divider,#adabb6); }
+  #page-informes-pagos #pg-tabla th:nth-child(2), #page-informes-pagos #pg-tabla td:nth-child(2) { border-right:2px solid var(--g00-divider,#adabb6); }
   #page-informes-pagos #pg-tabla th:last-child, #page-informes-pagos #pg-tabla td:last-child { border-left:2px solid var(--g00-divider,#adabb6); }
   /* "Resumen de Pagos Generados": paleta verde (diferenciarla de la matriz) + todo centrado */
   #page-informes-pagos #pg-gen-tabla th,
@@ -27,8 +26,6 @@
     <div class="g00-filter-row">
       <div class="filter-group"><label>Causado</label>
         <select id="pg-causado"><option value="">Todas</option><option value="SI">SI</option><option value="NO">NO</option></select></div>
-      <div class="filter-group"><label>D&iacute;as Vto (min)</label><input type="number" id="pg-dias-min"></div>
-      <div class="filter-group"><label>D&iacute;as Vto (max)</label><input type="number" id="pg-dias-max"></div>
       <div class="filter-group"><label>Desde</label><input type="date" id="pg-fdesde"></div>
       <div class="filter-group"><label>Hasta</label><input type="date" id="pg-fhasta"></div>
       <div style="margin-left:auto; align-self:flex-end;">
@@ -55,8 +52,6 @@
   function pgParams() {
     const p = new URLSearchParams();
     const c = document.getElementById('pg-causado').value; if (c) p.append('causado', c);
-    const dn = document.getElementById('pg-dias-min').value; if (dn !== '') p.append('dias_min', dn);
-    const dx = document.getElementById('pg-dias-max').value; if (dx !== '') p.append('dias_max', dx);
     const fd = document.getElementById('pg-fdesde').value; if (fd) p.append('fdesde', fd);
     const fh = document.getElementById('pg-fhasta').value; if (fh) p.append('fhasta', fh);
     return p.toString();
@@ -121,7 +116,7 @@
     }
 
     // Header
-    let h = '<thead><tr><th>Fecha vencimiento</th><th>D&iacute;as</th><th>RAZON_SOCIAL</th>';
+    let h = '<thead><tr><th>Fecha vencimiento</th><th>RAZON_SOCIAL</th>';
     anios.forEach(a => {
       meses.filter(m => m.anio === a).forEach(m => {
         h += '<th class="num">' + MESES_PG[m.mes - 1] + ' ' + a + '</th>';
@@ -136,7 +131,7 @@
     fechas.forEach(fch => {
       const g = grupos[fch];
       let rowTot = 0;
-      h += '<tr><td>' + fch + '</td><td class="num">' + g.dias + '</td><td>' + (d.razon_social || '') + '</td>';
+      h += '<tr><td>' + fch + '</td><td>' + (d.razon_social || '') + '</td>';
       anios.forEach(a => {
         let aTot = 0;
         meses.filter(m => m.anio === a).forEach(m => {
@@ -154,7 +149,7 @@
 
     // Fila total general
     let grand = 0;
-    h += '<tr class="g00-total"><td>Total</td><td></td><td></td>';
+    h += '<tr class="g00-total"><td>Total</td><td></td>';
     anios.forEach(a => {
       let aTot = 0;
       meses.filter(m => m.anio === a).forEach(m => {
@@ -179,7 +174,7 @@
     }
     const d = pgData;
     const { meses, anios, grupos } = pgBuildGroups(d);
-    const header = ['Fecha vencimiento', 'Días', 'RAZON_SOCIAL'];
+    const header = ['Fecha vencimiento', 'RAZON_SOCIAL'];
     anios.forEach(a => {
       meses.filter(m => m.anio === a).forEach(m => header.push(MESES_PG[m.mes - 1] + ' ' + a));
       header.push('Total ' + a);
@@ -189,7 +184,7 @@
     const fechas = Object.keys(grupos).sort();
     const rows = fechas.map(fch => {
       const g = grupos[fch];
-      const r = [fch, g.dias, d.razon_social || ''];
+      const r = [fch, d.razon_social || ''];
       let rt = 0;
       anios.forEach(a => {
         let at = 0;
@@ -217,7 +212,6 @@
 
   let pgGenData = null;
   const MES_PG = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-  const pgDias = (n) => Number(n||0).toLocaleString('es-CO',{minimumFractionDigits:2,maximumFractionDigits:2});
 
   function pgGenLoad() {
     fetch('api/informe_pagos_generados.php?' + pgParams(), { credentials:'same-origin' })
@@ -231,7 +225,7 @@
     const nodos = d.nodos || [];
     if (!nodos.length) { document.getElementById('pg-gen-tabla').innerHTML = '<tbody><tr><td style="text-align:center;color:var(--text-light);padding:20px;">Sin datos</td></tr></tbody>'; return; }
     const hijos = {}; nodos.forEach(n => { const k = n.pid===null?'root':n.pid; (hijos[k] ??= []).push(n); });
-    let h = '<thead><tr><th>FECHA</th><th class="num">VALOR TOTAL</th><th class="num">D&Iacute;AS VENCIDOS</th></tr></thead><tbody>';
+    let h = '<thead><tr><th>FECHA</th><th class="num">VALOR TOTAL</th></tr></thead><tbody>';
     function emit(n) {
       const tiene = !!hijos[n.id];
       const pad = 'padding-left:' + (4 + (n.nivel-1)*18) + 'px;';
@@ -241,12 +235,11 @@
       const cls = tiene ? 'g00-marca-row g00-collapsed' : '';
       h += '<tr class="' + cls + '" data-rid="' + n.id + '" data-pid="' + (n.pid===null?'':n.pid) + '" data-lvl="' + n.nivel + '" style="' + disp + '"' + onclk + '>'
          + '<td style="' + pad + '">' + caret + n.label + '</td>'
-         + '<td class="num">' + pgMoney(n.valor) + '</td>'
-         + '<td class="num">' + pgDias(n.dias) + '</td></tr>';
+         + '<td class="num">' + pgMoney(n.valor) + '</td></tr>';
       (hijos[n.id]||[]).forEach(emit);
     }
     (hijos['root']||[]).forEach(emit);
-    h += '<tr class="g00-total"><td>Total</td><td class="num">' + pgMoney(d.total.valor) + '</td><td class="num">' + pgDias(d.total.dias) + '</td></tr>';
+    h += '<tr class="g00-total"><td>Total</td><td class="num">' + pgMoney(d.total.valor) + '</td></tr>';
     h += '</tbody>';
     document.getElementById('pg-gen-tabla').innerHTML = h;
   }
@@ -269,9 +262,9 @@
   function pgGenExport() {
     if (!pgGenData) return;
     if (typeof XLSX === 'undefined') { if (window.Swal) Swal.fire('Exportar','No se pudo cargar Excel.','error'); return; }
-    const rows = (pgGenData.nodos||[]).map(n => [ ('  '.repeat(n.nivel-1)) + n.label, n.valor, n.dias ]);
-    rows.push(['Total', pgGenData.total.valor, pgGenData.total.dias]);
-    const ws = XLSX.utils.aoa_to_sheet([['FECHA','VALOR TOTAL','DÍAS VENCIDOS'], ...rows]);
+    const rows = (pgGenData.nodos||[]).map(n => [ ('  '.repeat(n.nivel-1)) + n.label, n.valor ]);
+    rows.push(['Total', pgGenData.total.valor]);
+    const ws = XLSX.utils.aoa_to_sheet([['FECHA','VALOR TOTAL'], ...rows]);
     const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Pagos Generados');
     const fecha = new Date().toISOString().slice(0,10);
     XLSX.writeFile(wb, 'Pagos_Generados_' + fecha + '.xlsx');
