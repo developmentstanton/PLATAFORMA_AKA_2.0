@@ -33,6 +33,10 @@
     <div id="pg-aviso" style="display:none; margin:6px 0; padding:6px 10px; background:#fff3cd; color:#7a5b00; border:1px solid #ffe08a; border-radius:6px; font-size:12px;"></div>
     <div style="overflow-x:auto;"><table id="pg-tabla" class="disp-table"></table></div>
   </div>
+  <div class="card">
+    <div class="card-title">Resumen de Pagos Generados<button class="g00-btn-export" onclick="pgGenExport()">&#10515; Excel</button></div>
+    <div style="overflow-x:auto;"><table id="pg-gen-tabla" class="disp-table"></table></div>
+  </div>
 </div>
 <script>
 (function(){
@@ -65,6 +69,7 @@
           av.textContent = '⚠ Tasa de cambio no disponible hoy (usando último valor del ' + (d.trm.fecha || '—') + '). Los montos en USD/EU pueden no estar actualizados.';
         } else { av.style.display = 'none'; }
         pgRender(d);
+        pgGenLoad();
       })
       .catch(e => {
         if (window.Swal) Swal.fire('Pagos', 'No se pudo cargar: ' + e.message, 'error');
@@ -187,6 +192,69 @@
   }
 
   let pgFiltrosInit = false;
+
+  let pgGenData = null;
+  const MES_PG = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const pgDias = (n) => Number(n||0).toLocaleString('es-CO',{minimumFractionDigits:2,maximumFractionDigits:2});
+
+  function pgGenLoad() {
+    fetch('api/informe_pagos_generados.php?' + pgParams(), { credentials:'same-origin' })
+      .then(r => r.json())
+      .then(d => { if (!d.ok) { if (window.Swal) Swal.fire('Pagos Generados', d.error||'Error', 'error'); return; }
+        pgGenData = d; pgGenRender(d); })
+      .catch(e => { if (window.Swal) Swal.fire('Pagos Generados', 'No se pudo cargar: ' + e.message, 'error'); });
+  }
+
+  function pgGenRender(d) {
+    const nodos = d.nodos || [];
+    if (!nodos.length) { document.getElementById('pg-gen-tabla').innerHTML = '<tbody><tr><td style="text-align:center;color:var(--text-light);padding:20px;">Sin datos</td></tr></tbody>'; return; }
+    const hijos = {}; nodos.forEach(n => { const k = n.pid===null?'root':n.pid; (hijos[k] ??= []).push(n); });
+    let h = '<thead><tr><th>FECHA</th><th class="num">VALOR TOTAL</th><th class="num">D&Iacute;AS VENCIDOS</th></tr></thead><tbody>';
+    function emit(n) {
+      const tiene = !!hijos[n.id];
+      const pad = 'padding-left:' + (4 + (n.nivel-1)*18) + 'px;';
+      const disp = n.nivel===1 ? '' : 'display:none;';
+      const caret = tiene ? '<span class="g00-caret">&#9656;</span>' : '';
+      const onclk = tiene ? ' onclick="pgGenToggle(' + n.id + ',this)"' : '';
+      const cls = tiene ? 'g00-marca-row g00-collapsed' : '';
+      h += '<tr class="' + cls + '" data-rid="' + n.id + '" data-pid="' + (n.pid===null?'':n.pid) + '" data-lvl="' + n.nivel + '" style="' + disp + '"' + onclk + '>'
+         + '<td style="' + pad + '">' + caret + n.label + '</td>'
+         + '<td class="num">' + pgMoney(n.valor) + '</td>'
+         + '<td class="num">' + pgDias(n.dias) + '</td></tr>';
+      (hijos[n.id]||[]).forEach(emit);
+    }
+    (hijos['root']||[]).forEach(emit);
+    h += '<tr class="g00-total"><td>Total</td><td class="num">' + pgMoney(d.total.valor) + '</td><td class="num">' + pgDias(d.total.dias) + '</td></tr>';
+    h += '</tbody>';
+    document.getElementById('pg-gen-tabla').innerHTML = h;
+  }
+
+  window.pgGenToggle = function (id, el) {
+    const collapsed = el.classList.toggle('g00-collapsed');
+    // mostrar/ocultar descendientes recursivamente: al colapsar, ocultar todo el subárbol
+    const tabla = document.getElementById('pg-gen-tabla');
+    function setHijos(pid, show) {
+      tabla.querySelectorAll('tr[data-pid="' + pid + '"]').forEach(tr => {
+        tr.style.display = show ? '' : 'none';
+        const rid = tr.getAttribute('data-rid');
+        if (!show) { tr.classList.add('g00-collapsed'); const c = tr.querySelector('.g00-caret'); if (c) c.innerHTML = '&#9656;'; setHijos(rid, false); }
+      });
+    }
+    setHijos(id, !collapsed);
+    const caret = el.querySelector('.g00-caret'); if (caret) caret.innerHTML = collapsed ? '&#9656;' : '&#9662;';
+  };
+
+  function pgGenExport() {
+    if (!pgGenData) return;
+    if (typeof XLSX === 'undefined') { if (window.Swal) Swal.fire('Exportar','No se pudo cargar Excel.','error'); return; }
+    const rows = (pgGenData.nodos||[]).map(n => [ ('  '.repeat(n.nivel-1)) + n.label, n.valor, n.dias ]);
+    rows.push(['Total', pgGenData.total.valor, pgGenData.total.dias]);
+    const ws = XLSX.utils.aoa_to_sheet([['FECHA','VALOR TOTAL','DÍAS VENCIDOS'], ...rows]);
+    const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Pagos Generados');
+    const fecha = new Date().toISOString().slice(0,10);
+    XLSX.writeFile(wb, 'Pagos_Generados_' + fecha + '.xlsx');
+  }
+  window.pgGenLoad = pgGenLoad; window.pgGenExport = pgGenExport;
 
   window.pgLoad = pgLoad;
   window.pgRender = pgRender;
