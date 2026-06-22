@@ -7,7 +7,6 @@
   }
   #page-informes-pagos .g00-filters input[type="number"]:focus, #page-informes-pagos .g00-filters input[type="text"]:focus { border-color: var(--primary); }
   #page-informes-pagos #pg-dias-min, #page-informes-pagos #pg-dias-max { width: 90px; }
-  #page-informes-pagos #pg-prov { min-width: 180px; }
   #page-informes-pagos table.disp-table th, #page-informes-pagos table.disp-table td { white-space:nowrap; font-size:11px; }
   #page-informes-pagos table.disp-table td.num { text-align:right; font-variant-numeric:tabular-nums; }
   #page-informes-pagos .pg-neg { color: var(--danger,#e3342f); }
@@ -24,7 +23,6 @@
       <div class="filter-group"><label>D&iacute;as Vto (max)</label><input type="number" id="pg-dias-max"></div>
       <div class="filter-group"><label>Desde</label><input type="date" id="pg-fdesde"></div>
       <div class="filter-group"><label>Hasta</label><input type="date" id="pg-fhasta"></div>
-      <div class="filter-group"><label>Proveedor</label><input type="text" id="pg-prov" readonly></div>
       <div style="margin-left:auto; align-self:flex-end;">
         <button class="g00-btn-refresh" onclick="pgLoad()"><i class="fa-solid fa-filter"></i> Aplicar</button>
       </div>
@@ -61,7 +59,6 @@
           return;
         }
         pgData = d;
-        document.getElementById('pg-prov').value = d.razon_social || '';
         const av = document.getElementById('pg-aviso');
         if (d.trm && d.trm.fallback) {
           av.style.display = '';
@@ -106,7 +103,7 @@
     });
     h += '<th class="num pg-total-col">Total</th></tr></thead><tbody>';
 
-    const money = (v) => '<td class="num' + (v < 0 ? ' pg-neg' : '') + '">' + (v ? pgMoney(v) : '') + '</td>';
+    const money = (v) => '<td class="num' + (v < 0 ? ' pg-neg' : '') + '">' + pgMoney(v) + '</td>';
     const gtot = {};
 
     fechas.forEach(fch => {
@@ -122,10 +119,10 @@
           gtot[k] = (gtot[k] || 0) + v;
           h += money(v);
         });
-        h += '<td class="num pg-total-col">' + (aTot ? pgMoney(aTot) : '') + '</td>';
+        h += '<td class="num pg-total-col">' + pgMoney(aTot) + '</td>';
         rowTot += aTot;
       });
-      h += '<td class="num pg-total-col">' + (rowTot ? pgMoney(rowTot) : '') + '</td></tr>';
+      h += '<td class="num pg-total-col">' + pgMoney(rowTot) + '</td></tr>';
     });
 
     // Fila total general
@@ -137,12 +134,12 @@
         const k = m.anio + '-' + m.mes;
         const v = gtot[k] || 0;
         aTot += v;
-        h += '<td class="num">' + (v ? pgMoney(v) : '') + '</td>';
+        h += '<td class="num">' + pgMoney(v) + '</td>';
       });
-      h += '<td class="num pg-total-col">' + (aTot ? pgMoney(aTot) : '') + '</td>';
+      h += '<td class="num pg-total-col">' + pgMoney(aTot) + '</td>';
       grand += aTot;
     });
-    h += '<td class="num pg-total-col">' + (grand ? pgMoney(grand) : '') + '</td></tr>';
+    h += '<td class="num pg-total-col">' + pgMoney(grand) + '</td></tr>';
     h += '</tbody>';
     document.getElementById('pg-tabla').innerHTML = h;
   }
