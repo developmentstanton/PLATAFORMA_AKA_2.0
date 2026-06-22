@@ -52,6 +52,7 @@
   #page-informes-o45 table.o45-tabla th { background:#faf9ff; position:sticky; top:0; }
   #page-informes-o45 table.o45-tabla td.dim, #page-informes-o45 table.o45-tabla th.dim { text-align:left; }
   #page-informes-o45 table.o45-tabla tr.o45-total td { font-weight:700; background:#f3f1ff; }
+  #page-informes-o45 table.o45-tabla tr:nth-child(even):not(.o45-total) td { background:#f7f7fa; }
   #page-informes-o45 table.o45-tabla tr[data-negimg] td.dim:first-child { cursor:default; }
   #o45-img-pop { position:fixed; display:none; z-index:9999; pointer-events:none; background:#fff; border:1px solid var(--border); border-radius:8px; box-shadow:0 6px 20px rgba(45,43,78,0.25); padding:4px; }
   #o45-img-pop img { max-width:260px; max-height:320px; width:auto; height:auto; display:block; border-radius:4px; }
