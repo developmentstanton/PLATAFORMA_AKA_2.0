@@ -1,0 +1,324 @@
+<?php
+/**
+ * API Informe Análisis de Pagos — Task 1: endpoint base con filas unificadas por NIT.
+ * Devuelve {ok, nit, razon_social, filas:[...]} filtrado por $_SESSION['nit'].
+ * Cada fila: fecha_venc, dias, documento, causado, moneda, valor, en_pesos,
+ *            fecha_pago, anio_pago, mes_pago, base.
+ * Fuentes: Doc_Compra_PBI (docs), FLUJO_OC_PBI (flujo), Anticipos_PBI (antic).
+ * Task 2 añadirá TRM; por ahora en_pesos = valor.
+ */
+
+session_start();
+header('Content-Type: application/json; charset=utf-8');
+if (!isset($_SESSION['usuario'])) {
+    http_response_code(401);
+    echo json_encode(['ok' => false, 'error' => 'No autenticado']);
+    exit;
+}
+$nit = trim($_SESSION['nit'] ?? '');
+if ($nit === '') {
+    echo json_encode(['ok' => false, 'error' => 'No se pudo resolver el NIT del proveedor']);
+    exit;
+}
+
+require __DIR__ . '/../conexion/conexion_integracion.php';
+if ($dbConnect === false) {
+    echo json_encode(['ok' => false, 'error' => 'Conexión DB fallida']);
+    exit;
+}
+
+// --- SQL unificado: 3 sub-CTEs filtradas por NIT, normalizadas a esquema común, UNION ALL ---
+// Parámetros: 1 NIT por sub-CTE (docs=?, flujo=?, antic=?), en orden de aparición.
+$sql = "
+SET NOCOUNT ON;
+;WITH Base AS (
+    SELECT
+        RTRIM(f200_id) AS NIT,
+        RTRIM(f202_descripcion_sucursal) AS Razon_Social,
+        RTRIM(f208_id) AS ID,
+        RTRIM(f208_descripcion) AS DESCRIPCION_PAGO,
+        f208_dias_vcto AS DIAS
+    FROM stanton.dbo.t208_mm_condiciones_pago
+    LEFT JOIN stanton.dbo.t202_mm_proveedores ON f202_id_cond_pago = f208_id AND f202_id_cia = f208_id_cia
+    LEFT JOIN stanton.dbo.t200_mm_terceros ON f200_rowid = f202_rowid_tercero
+    WHERE f208_id_cia = '1' AND f200_id IS NOT NULL
+), BaseFinal AS (
+    SELECT
+        RTRIM(C.CIA) AS CIA,
+        RTRIM(C.Nro_Docto) AS DOCUMENTO,
+        RTRIM(C.nit) AS NIT,
+        RTRIM(C.Proveedor) AS PROVEEDOR,
+        'SEMANA' AS CLASE_PROVEEDOR,
+        RTRIM(C.Tipo_Proveedor) AS TIPO_PROVEEDOR,
+        'NO' AS CAUSADO,
+        RTRIM(C.Moneda) AS MONEDA,
+        C.Valor_Neto AS VALOR,
+        CASE
+            WHEN C.Fecha_Entrega IS NULL THEN CONVERT(DATE, GETDATE())
+            ELSE CONVERT(DATE, C.Fecha_Entrega)
+        END AS Fecha_Entrega,
+        CASE
+            WHEN B.DIAS IS NULL THEN 0
+            ELSE B.DIAS
+        END AS DIAS
+    FROM Integracion.dbo.Doc_Compra_PBI AS C
+    LEFT JOIN Base AS B ON B.NIT = C.nit
+    WHERE C.Consignacion = 'No' AND C.Estado = 'Contabilizado' AND C.CIA = 'Stanton S.A.S.'
+      AND RTRIM(C.nit) = ?
+), FechasCalculadas AS (
+    SELECT
+        *,
+        DATEADD(DAY, DIAS, Fecha_Entrega) AS FECHA_VENCIMIENTO_REAL
+    FROM BaseFinal
+), DiasCalculados AS (
+    SELECT *
+    FROM FechasCalculadas
+), FechaDePago AS (
+    SELECT
+        *,
+        DATEADD(day,
+            CASE DATENAME(dw, FECHA_VENCIMIENTO_REAL)
+                WHEN 'Monday'    THEN 4
+                WHEN 'Tuesday'   THEN 3
+                WHEN 'Wednesday' THEN 2
+                WHEN 'Thursday'  THEN 1
+                WHEN 'Friday'    THEN 0
+                WHEN 'Saturday'  THEN 6
+                WHEN 'Sunday'    THEN 5
+            END,
+            FECHA_VENCIMIENTO_REAL) AS FECHA_PAGO_CALCULADA
+    FROM DiasCalculados
+), docs AS (
+    SELECT
+        CIA,
+        CONVERT(date, FECHA_VENCIMIENTO_REAL) AS FECHA_VENCIMIENTO,
+        DOCUMENTO,
+        NIT,
+        PROVEEDOR,
+        CLASE_PROVEEDOR,
+        TIPO_PROVEEDOR,
+        CAUSADO,
+        'ENTRADA POR CAUSAR' AS DESCRIPCION,
+        MONEDA,
+        VALOR,
+        CONVERT(date,
+            CASE
+                WHEN FECHA_PAGO_CALCULADA < GETDATE() THEN
+                    DATEADD(day,
+                        CASE DATENAME(dw, GETDATE())
+                            WHEN 'Monday'    THEN 4
+                            WHEN 'Tuesday'   THEN 3
+                            WHEN 'Wednesday' THEN 2
+                            WHEN 'Thursday'  THEN 1
+                            WHEN 'Friday'    THEN 0
+                            WHEN 'Saturday'  THEN 6
+                            WHEN 'Sunday'    THEN 5
+                        END,
+                        GETDATE())
+                ELSE FECHA_PAGO_CALCULADA
+            END
+        ) AS FECHA_PAGO
+    FROM FechaDePago
+), flujo AS (
+    SELECT
+        CIA,
+        CONVERT(date, FECHA) AS FECHA_VENCIMIENTO,
+        DOCUMENTO,
+        NIT,
+        PROVEEDOR,
+        CLASE_PROVEEDOR,
+        TIPO_PROVEEDOR,
+        CAUSADO,
+        DESCRIPCION,
+        MONEDA,
+        VALOR,
+        CONVERT(date,
+            CASE
+                WHEN FECHA_PAGO_CALCULADA < GETDATE() THEN
+                    DATEADD(day,
+                        CASE DATENAME(dw, GETDATE())
+                            WHEN 'Monday'    THEN 4
+                            WHEN 'Tuesday'   THEN 3
+                            WHEN 'Wednesday' THEN 2
+                            WHEN 'Thursday'  THEN 1
+                            WHEN 'Friday'    THEN 0
+                            WHEN 'Saturday'  THEN 6
+                            WHEN 'Sunday'    THEN 5
+                        END,
+                        GETDATE())
+                ELSE FECHA_PAGO_CALCULADA
+            END
+        ) AS FECHA_PAGO
+    FROM (
+        SELECT
+            CIA2.CIA, CIA2.FECHA, CIA2.DOCUMENTO, CIA2.NIT, CIA2.PROVEEDOR,
+            CIA2.CLASE_PROVEEDOR, CIA2.TIPO_PROVEEDOR, CIA2.CAUSADO, CIA2.DESCRIPCION,
+            CIA2.MONEDA, CIA2.VALOR,
+            CASE
+                WHEN CIA2.CLASE_PROVEEDOR = 'QUINCENA' AND DATENAME(dw, CIA2.FECHA_CORTE_REAL) IN ('Thursday', 'Friday') THEN
+                    CASE
+                        WHEN (DATENAME(dw, CIA2.FECHA_CORTE_REAL) = 'Friday' AND DAY(CIA2.FECHA_CORTE_REAL) = 15)
+                          OR (DATENAME(dw, CIA2.FECHA_CORTE_REAL) = 'Thursday' AND DAY(CIA2.FECHA_CORTE_REAL) = 1)
+                        THEN DATEADD(day, 7, CIA2.FECHA_CORTE_REAL)
+                        WHEN (DATENAME(dw, CIA2.FECHA_CORTE_REAL) = 'Friday' AND DAY(CIA2.FECHA_CORTE_REAL) = 1)
+                        THEN DATEADD(day, 6, CIA2.FECHA_CORTE_REAL)
+                        ELSE DATEADD(day, 8, CIA2.FECHA_CORTE_REAL)
+                    END
+                ELSE
+                    DATEADD(day,
+                        CASE DATENAME(dw, CIA2.FECHA_CORTE_REAL)
+                            WHEN 'Monday'    THEN 4
+                            WHEN 'Tuesday'   THEN 3
+                            WHEN 'Wednesday' THEN 2
+                            WHEN 'Thursday'  THEN 1
+                            WHEN 'Friday'    THEN 0
+                            WHEN 'Saturday'  THEN 6
+                            WHEN 'Sunday'    THEN 5
+                        END,
+                        CIA2.FECHA_CORTE_REAL)
+            END AS FECHA_PAGO_CALCULADA
+        FROM (
+            SELECT
+                RTRIM(CIA) AS CIA,
+                DIA AS FECHA,
+                RTRIM(DOCUMENTO) AS DOCUMENTO,
+                RTRIM(NIT) AS NIT,
+                RTRIM(PROVEEDOR) AS PROVEEDOR,
+                CASE
+                    WHEN CLASE_PROVEEDOR = '' THEN 'SEMANA'
+                    WHEN CLASE_PROVEEDOR LIKE 'PROV.%' THEN 'SEMANA'
+                    ELSE RTRIM(CLASE_PROVEEDOR)
+                END AS CLASE_PROVEEDOR,
+                RTRIM(TIPO_PROVEEDOR) AS TIPO_PROVEEDOR,
+                RTRIM(CAUSADO) AS CAUSADO,
+                RTRIM(ITEM) AS DESCRIPCION,
+                RTRIM(MONEDA) AS MONEDA,
+                VALOR,
+                CASE
+                    WHEN (CASE WHEN CLASE_PROVEEDOR = '' THEN 'SEMANA'
+                               WHEN CLASE_PROVEEDOR LIKE 'PROV.%' THEN 'SEMANA'
+                               ELSE RTRIM(CLASE_PROVEEDOR) END) = 'QUINCENA' AND DAY(DIA) <= 15
+                    THEN CONVERT(DATE, CONVERT(VARCHAR(10), DATEFROMPARTS(YEAR(DIA), MONTH(DIA), 15)))
+                    WHEN (CASE WHEN CLASE_PROVEEDOR = '' THEN 'SEMANA'
+                               WHEN CLASE_PROVEEDOR LIKE 'PROV.%' THEN 'SEMANA'
+                               ELSE RTRIM(CLASE_PROVEEDOR) END) IN ('PUNTUAL', 'SEMANA')
+                    THEN DATEADD(DAY,
+                            CASE DATENAME(dw, DIA)
+                                WHEN 'Monday'    THEN 4
+                                WHEN 'Tuesday'   THEN 3
+                                WHEN 'Wednesday' THEN 2
+                                WHEN 'Thursday'  THEN 1
+                                WHEN 'Friday'    THEN 0
+                                WHEN 'Saturday'  THEN 6
+                                WHEN 'Sunday'    THEN 5
+                            END, DIA)
+                    ELSE
+                        DATEFROMPARTS(
+                            CASE WHEN MONTH(DIA) = 12 THEN YEAR(DIA) + 1 ELSE YEAR(DIA) END,
+                            CASE
+                                WHEN MONTH(DIA) = 1  THEN 2  WHEN MONTH(DIA) = 2  THEN 3
+                                WHEN MONTH(DIA) = 3  THEN 4  WHEN MONTH(DIA) = 4  THEN 5
+                                WHEN MONTH(DIA) = 5  THEN 6  WHEN MONTH(DIA) = 6  THEN 7
+                                WHEN MONTH(DIA) = 7  THEN 8  WHEN MONTH(DIA) = 8  THEN 9
+                                WHEN MONTH(DIA) = 9  THEN 10 WHEN MONTH(DIA) = 10 THEN 11
+                                WHEN MONTH(DIA) = 11 THEN 12 WHEN MONTH(DIA) = 12 THEN 1
+                            END,
+                            1
+                        )
+                END AS FECHA_CORTE_REAL
+            FROM INTEGRACION.DBO.FLUJO_OC_PBI WITH (NOLOCK)
+            WHERE RTRIM(NIT) = ?
+        ) CIA2
+    ) CIA3
+), antic AS (
+    SELECT
+        RTRIM(CIA) AS CIA,
+        CONVERT(date, FECHA) AS FECHA_VENCIMIENTO,
+        RTRIM(DOCTO) AS DOCUMENTO,
+        RTRIM(NIT) AS NIT,
+        RTRIM(RAZON_SOCIAL) AS PROVEEDOR,
+        'PUNTUAL' AS CLASE_PROVEEDOR,
+        RTRIM(TIPO_PROVEEDOR) AS TIPO_PROVEEDOR,
+        'SI' AS CAUSADO,
+        'ANTICIPO' AS DESCRIPCION,
+        'COP' AS MONEDA,
+        ANTICIPO AS VALOR,
+        /* próximo viernes desde hoy (mismo mapeo Lun=4..Vie=0,Sáb=6,Dom=5) */
+        CONVERT(date, DATEADD(day,
+            CASE DATENAME(dw, CONVERT(date, GETDATE()))
+                WHEN 'Monday'    THEN 4
+                WHEN 'Tuesday'   THEN 3
+                WHEN 'Wednesday' THEN 2
+                WHEN 'Thursday'  THEN 1
+                WHEN 'Friday'    THEN 0
+                WHEN 'Saturday'  THEN 6
+                WHEN 'Sunday'    THEN 5
+            END,
+            CONVERT(date, GETDATE())
+        )) AS FECHA_PAGO
+    FROM Integracion.dbo.Anticipos_PBI WITH (NOLOCK)
+    WHERE RTRIM(NIT) = ?
+), u AS (
+    SELECT CIA, FECHA_VENCIMIENTO, DOCUMENTO, NIT, PROVEEDOR, CLASE_PROVEEDOR, TIPO_PROVEEDOR,
+           CAUSADO, DESCRIPCION, MONEDA, VALOR, FECHA_PAGO, 'Documentos Compra' AS Base FROM docs
+    UNION ALL
+    SELECT CIA, FECHA_VENCIMIENTO, DOCUMENTO, NIT, PROVEEDOR, CLASE_PROVEEDOR, TIPO_PROVEEDOR,
+           CAUSADO, DESCRIPCION, MONEDA, VALOR, FECHA_PAGO, 'Flujo Proyectado' AS Base FROM flujo
+    UNION ALL
+    SELECT CIA, FECHA_VENCIMIENTO, DOCUMENTO, NIT, PROVEEDOR, CLASE_PROVEEDOR, TIPO_PROVEEDOR,
+           CAUSADO, DESCRIPCION, MONEDA, VALOR, FECHA_PAGO, 'Anticipos' AS Base FROM antic
+)
+SELECT
+    CONVERT(varchar(10), FECHA_VENCIMIENTO, 23) AS fecha_venc,
+    DATEDIFF(day, FECHA_VENCIMIENTO, CONVERT(date, GETDATE())) AS dias,
+    DOCUMENTO AS documento,
+    NIT AS nit,
+    PROVEEDOR AS razon_social,
+    CAUSADO AS causado,
+    MONEDA AS moneda,
+    VALOR AS valor,
+    YEAR(FECHA_PAGO) AS anio_pago,
+    MONTH(FECHA_PAGO) AS mes_pago,
+    CONVERT(varchar(10), FECHA_PAGO, 23) AS fecha_pago,
+    Base AS base
+FROM u
+ORDER BY FECHA_VENCIMIENTO ASC;
+";
+
+// Parámetros en orden de aparición de ? en el SQL:
+// 1. docs CTE (BaseFinal WHERE): RTRIM(C.nit) = ?
+// 2. flujo CTE (CalculosIntermedios WHERE): RTRIM(NIT) = ?
+// 3. antic CTE (WHERE): RTRIM(NIT) = ?
+$params = [$nit, $nit, $nit];
+
+$stmt = sqlsrv_query($dbConnect, $sql, $params);
+if ($stmt === false) {
+    echo json_encode(['ok' => false, 'error' => 'Consulta fallida', 'detalle' => sqlsrv_errors()]);
+    exit;
+}
+
+$filas = [];
+$razon = '';
+while ($r = sqlsrv_fetch_array($stmt, SQLSRV_FETCH_ASSOC)) {
+    $razon = $razon ?: trim((string)($r['razon_social'] ?? ''));
+    $filas[] = [
+        'fecha_venc' => $r['fecha_venc'],
+        'dias'       => (int)$r['dias'],
+        'documento'  => trim((string)($r['documento'] ?? '')),
+        'causado'    => trim((string)($r['causado'] ?? '')),
+        'moneda'     => trim((string)($r['moneda'] ?? '')),
+        'valor'      => (float)($r['valor'] ?? 0),
+        'en_pesos'   => (float)($r['valor'] ?? 0), // TRM en Task 2
+        'fecha_pago' => $r['fecha_pago'],
+        'anio_pago'  => (int)$r['anio_pago'],
+        'mes_pago'   => (int)$r['mes_pago'],
+        'base'       => $r['base'],
+    ];
+}
+sqlsrv_free_stmt($stmt);
+sqlsrv_close($dbConnect);
+
+echo json_encode(
+    ['ok' => true, 'nit' => $nit, 'razon_social' => $razon, 'filas' => $filas],
+    JSON_UNESCAPED_UNICODE
+);

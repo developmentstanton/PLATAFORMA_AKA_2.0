@@ -1,0 +1,32 @@
+<?php
+//   php tests/pagos_unif_test.php
+$php = PHP_BINARY; $runner = __DIR__ . '/_endpoint_run_pagos.php';
+$nul = (stripos(PHP_OS,'WIN')===0) ? 'NUL' : '/dev/null';
+// NIT_A: STANTON S.A.S. (860009034) — 15260 filas en FLUJO_OC_PBI
+// NIT_B: CAUCHOSOL S.A.S. (860029964) — 13622 filas en FLUJO_OC_PBI (diferente razon_social)
+$NIT_A = getenv('PAGOS_NIT_A') ?: '860009034';
+$NIT_B = getenv('PAGOS_NIT_B') ?: '860029964';
+function call_ep($php,$runner,$nit,$qs,$nul){
+  $cmd = escapeshellarg($php).' '.escapeshellarg($runner).' '.escapeshellarg($nit).' '.escapeshellarg($qs).' 2>'.$nul;
+  $raw = (string)shell_exec($cmd);
+  $a=strpos($raw,'{'); $b=strrpos($raw,'}');
+  return json_decode(($a!==false&&$b!==false)?substr($raw,$a,$b-$a+1):$raw,true);
+}
+$fail=0;
+$d = call_ep($php,$runner,$NIT_A,'',$nul);
+if (!($d['ok']??false)) { echo "FALLO: ok=0 ".json_encode($d['error']??'')."\nRESULTADO: FALLO\n"; exit(1); }
+$filas = $d['filas']??[];
+echo "NIT_A=$NIT_A filas=".count($filas)."\n";
+$campos = ['fecha_venc','dias','documento','causado','moneda','valor','en_pesos','fecha_pago','anio_pago','mes_pago','base'];
+foreach (array_slice($filas,0,5) as $f) foreach ($campos as $c)
+  if (!array_key_exists($c,$f)) { echo "FALLO: falta campo $c\n"; $fail=1; break 2; }
+// Aislamiento: ninguna fila debe ser de otro NIT (el endpoint no expone nit por fila,
+// pero comparamos que A y B difieran en conteo/razon_social).
+$e = call_ep($php,$runner,$NIT_B,'',$nul);
+if (($d['razon_social']??'x') === ($e['razon_social']??'y') && $NIT_A!==$NIT_B)
+  { echo "FALLO: razon_social igual para NITs distintos\n"; $fail=1; }
+// Sin sesión de NIT -> error
+$z = call_ep($php,$runner,'','',$nul);
+if (($z['ok']??true) !== false) { echo "FALLO: sin NIT debería dar ok=false\n"; $fail=1; }
+echo $fail?"RESULTADO: FALLO\n":"RESULTADO: OK (filas con campos + aislamiento + guard NIT)\n";
+exit($fail);
