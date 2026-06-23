@@ -117,3 +117,30 @@ function cod_registrar_envio($conn, string $nombre, string $fecha, ?string $nit)
     }
     return $cons;
 }
+
+/**
+ * Lista las solicitudes (envíos) de un aliado, de la más reciente a la más antigua.
+ * @return array filas ['consecutivo'=>int,'fecha'=>string('Y-m-d'|''),'nit'=>?string,'nombre'=>string,'estado'=>string]
+ */
+function cod_listar_solicitudes($conn, string $nombre): array {
+    $sql = "SELECT consecutivo, fecha, nit, nombre_cliente, estado
+            FROM consecutivo_planillas_aka WITH (NOLOCK)
+            WHERE nombre_cliente = ?
+            ORDER BY consecutivo DESC";
+    $stmt = sqlsrv_query($conn, $sql, [$nombre]);
+    if ($stmt === false) {
+        throw new RuntimeException('Listado de solicitudes falló: '.print_r(sqlsrv_errors(), true));
+    }
+    $rows = [];
+    while ($r = sqlsrv_fetch_array($stmt, SQLSRV_FETCH_ASSOC)) {
+        $fecha = $r['fecha'];
+        $rows[] = [
+            'consecutivo' => (int)$r['consecutivo'],
+            'fecha'       => ($fecha instanceof DateTime) ? $fecha->format('Y-m-d') : (string)$fecha,
+            'nit'         => $r['nit'] !== null ? trim((string)$r['nit']) : null,
+            'nombre'      => trim((string)$r['nombre_cliente']),
+            'estado'      => trim((string)$r['estado']),
+        ];
+    }
+    return $rows;
+}
