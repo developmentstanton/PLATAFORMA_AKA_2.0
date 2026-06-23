@@ -66,7 +66,7 @@ function cod_correo_html(array $d): string {
 <!DOCTYPE html><html><head><meta charset='UTF-8'></head>
 <body style='margin:0;padding:20px;font-family:Helvetica,Arial,sans-serif;background:#f4f4f7;'>
   <div style='max-width:600px;margin:0 auto;background:#fff;border-radius:10px;overflow:hidden;border:1px solid #eaeaea;'>
-    <div style='background:#ffffff;padding:22px;text-align:center;border-bottom:3px solid {$primary};'>
+    <div style='background:#e4e4ea;padding:22px;text-align:center;border-bottom:3px solid {$primary};'>
       <img src='{$logo}' alt='AKA' style='max-height:48px;'>
     </div>
     <div style='padding:32px 28px;'>
