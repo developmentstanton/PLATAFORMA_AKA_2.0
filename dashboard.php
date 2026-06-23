@@ -806,7 +806,9 @@
                         <div class="tab active" onclick="showCodTab('masiva')">Archivos</div>
                         <div class="tab" onclick="showCodTab('solicitudes')">Mis solicitudes</div>
                     </div>
+                    <!-- Boton "Nueva solicitud" oculto a peticion; se conserva por si se reactiva el formulario individual a futuro.
                     <button class="btn btn-primary" onclick="document.getElementById('modalCodificacion').classList.add('active')">+ NUEVA SOLICITUD</button>
+                    -->
                 </div>
 
                 <!-- ARCHIVOS: DESCARGA DE PLANTILLAS + CARGA MASIVA -->
@@ -838,13 +840,13 @@
                 <div class="card">
                     <div class="card-title">CARGA MASIVA DE CODIFICACI&Oacute;N</div>
                     <p style="font-size:13px;color:var(--text-light);margin-bottom:20px;">
-                        Sube un archivo Excel con la Plantilla 270 para codificar m&uacute;ltiples referencias de una sola vez.
+                        Sube un archivo Excel con la Plantilla para codificar m&uacute;ltiples referencias de una sola vez.
                     </p>
                     <div class="upload-excel" id="codDrop">
                         <div class="icon" style="color:var(--primary);"><i class="fa-solid fa-file-excel"></i></div>
                         <p><strong>Arrastra tus archivos Excel aqu&iacute;</strong></p>
                         <p>o haz clic para seleccionar</p>
-                        <p style="margin-top:8px;font-size:11px;color:var(--text-light);">.xlsx &mdash; Plantilla 270 (puedes subir varios)</p>
+                        <p style="margin-top:8px;font-size:11px;color:var(--text-light);">.xlsx &mdash; Plantilla (puedes subir varios)</p>
                     </div>
                     <input type="file" id="codFile" accept=".xlsx,.xls" multiple style="display:none;">
                     <div class="upload-steps">
@@ -1240,7 +1242,7 @@
         'general': {
             '\u00bfC\u00f3mo va mi inventario?': 'Tu inventario total es <strong>12,847 unidades</strong>. Tengo 2 alertas cr\u00edticas:<br><br>&#128308; <strong>06-160650-3 Negro/Blanco:</strong> tallas 8.5, 9 y 9.5 con stock insuficiente vs demanda. Necesitas reposici\u00f3n urgente.<br><br>&#128308; <strong>06-160676-3 Caf\u00e9:</strong> solo recibi\u00f3 31 uds (5 menos que el promedio). Tallas 10 y 10.5 casi agotadas.<br><br>\u00bfQuieres que prepare una solicitud de reposici\u00f3n?',
             '\u00bfTengo facturas vencidas?': 'S\u00ed, tienes <strong>3 facturas vencidas</strong> por un total de <strong style="color:var(--accent);">$18.7M</strong>:<br><br>1. FV-83950 &mdash; $6.2M (venci\u00f3 17/03)<br>2. FV-83871 &mdash; $3.75M (venci\u00f3 12/03)<br>3. FV-83720 &mdash; $8.75M (venci\u00f3 05/03)<br><br>Te recomiendo contactar a tu ejecutivo de cuenta. Las facturas vencidas pueden afectar la aprobaci\u00f3n de nuevas codificaciones.',
-            'Ayuda con codificaci\u00f3n': 'Para codificar productos tienes 2 opciones:<br><br><strong>1. Formulario individual:</strong> Clic en "+ NUEVA SOLICITUD". Completa los 5 pasos (referencia, clasificaci\u00f3n, detalle SKU, dispersi\u00f3n a tiendas y foto).<br><br><strong>2. Carga masiva:</strong> Ve a la pesta\u00f1a "Carga masiva" y sube un Excel con formato Plantilla 270.<br><br>Recuerda que la <strong>foto es obligatoria</strong> y que la solicitud pasa por <strong>Cuidadur\u00eda</strong> (an\u00e1lisis de competencia) antes de la aprobaci\u00f3n final.<br><br>\u00bfQu\u00e9 m\u00e9todo prefieres?',
+            'Ayuda con codificaci\u00f3n': 'Para codificar productos tienes 2 opciones:<br><br><strong>1. Formulario individual:</strong> Clic en "+ NUEVA SOLICITUD". Completa los 5 pasos (referencia, clasificaci\u00f3n, detalle SKU, dispersi\u00f3n a tiendas y foto).<br><br><strong>2. Carga masiva:</strong> Ve a la pesta\u00f1a "Carga masiva" y sube un Excel con formato Plantilla.<br><br>Recuerda que la <strong>foto es obligatoria</strong> y que la solicitud pasa por <strong>Cuidadur\u00eda</strong> (an\u00e1lisis de competencia) antes de la aprobaci\u00f3n final.<br><br>\u00bfQu\u00e9 m\u00e9todo prefieres?',
             '\u00bfQu\u00e9 es la cuidadur\u00eda?': 'La <strong>Cuidadur\u00eda</strong> es el Comit\u00e9 AKA que revisa cada solicitud de codificaci\u00f3n. Eval\u00faa 2 cosas:<br><br>1. <strong>Competencia/canibalizaci\u00f3n:</strong> Revisa la foto del producto para verificar que no compita con productos que ya est\u00e1n en tiendas AKA.<br><br>2. <strong>Curva de tallas:</strong> Verifica que las cantidades por talla est\u00e9n bien distribuidas (tallas centrales deben tener m\u00e1s stock).<br><br>Si aprueban, pasa al Comit\u00e9 T\u00e9cnico para aprobaci\u00f3n final.',
             '\u00bfPor qu\u00e9 rechazaron mi referencia?': 'D\u00e9jame revisar... Tu \u00faltima referencia rechazada es la <strong>06-160829-4 Blanco/Amarillo</strong>. Fue rechazada por el Comit\u00e9 AKA (Cuidadur\u00eda) porque:<br><br>&#128308; <strong>Canibalizaci\u00f3n detectada:</strong> Es muy similar a la 06-160650-3 que ya est\u00e1 en tiendas. Ambas son zapatillas casual hombre con base blanca.<br><br>Te sugiero diferenciar m\u00e1s el dise\u00f1o o proponer un color que no compita.',
         }
@@ -1282,7 +1284,7 @@
         const msgs = {
             inventarios: 'Las tallas 8.5-9.5 de la ref 06-160650-3 muestran un desbalance entre stock y ventas. \u00bfQuiero que analice la curva completa?',
             pagos: 'Tienes 3 facturas vencidas por $18.7M. Esto podr\u00eda retrasar la aprobaci\u00f3n de nuevas codificaciones.',
-            codificacion: 'Tip: Si vas a codificar m\u00e1s de 5 referencias, usa la pesta\u00f1a "Archivos" con tu Plantilla 270. Es mucho m\u00e1s r\u00e1pido.',
+            codificacion: 'Tip: Si vas a codificar m\u00e1s de 5 referencias, usa la pesta\u00f1a "Archivos" con tu Plantilla. Es mucho m\u00e1s r\u00e1pido.',
             alertas: 'Tienes 2 alertas cr\u00edticas de rotaci\u00f3n. Las tallas centrales se agotan 3x m\u00e1s r\u00e1pido que las extremas.',
         };
         // Burbuja proactiva desactivada: los mensajes por pagina eran demos hardcodeados
