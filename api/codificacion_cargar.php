@@ -65,8 +65,14 @@ try {
     $mail->Port       = MAIL_PORT;
 
     $mail->setFrom(MAIL_USER, MAIL_FROM_NAME);
-    if ($correo !== '') $mail->addAddress($correo);
-    foreach (MAIL_BCC as $bcc) $mail->addBCC($bcc);
+    if (defined('MAIL_TEST_TO') && MAIL_TEST_TO !== '') {
+        // Modo prueba (definido en config_mail.php, gitignored): el correo va SOLO a ese
+        // destinatario; no se usa el correo del aliado ni los BCC. No-op en producción.
+        $mail->addAddress(MAIL_TEST_TO);
+    } else {
+        if ($correo !== '') $mail->addAddress($correo);
+        foreach (MAIL_BCC as $bcc) $mail->addBCC($bcc);
+    }
 
     $mail->isHTML(true);
     $mail->CharSet = 'UTF-8';
