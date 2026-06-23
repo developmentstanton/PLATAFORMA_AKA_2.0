@@ -530,7 +530,6 @@
                 <div class="nav-section-title">GESTI&Oacute;N</div>
                 <div class="nav-item" onclick="showPage('codificacion', this)">
                     <span class="icon">&#9998;</span> Codificaci&oacute;n
-                    <span class="badge">3</span>
                 </div>
                 <div class="nav-item" onclick="showPage('documentos', this)">
                     <span class="icon">&#9776;</span> Documentaci&oacute;n
@@ -821,13 +820,13 @@
                     </p>
                     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;">
                         <div style="border:1px solid #e8e6f0;border-radius:10px;padding:20px;display:flex;flex-direction:column;align-items:flex-start;gap:8px;background:#fff;">
-                            <div style="font-size:30px;">&#128196;</div>
+                            <div style="font-size:30px;color:var(--primary);"><i class="fa-solid fa-file-excel"></i></div>
                             <div style="font-size:15px;font-weight:700;color:var(--primary);">Planilla de Codificaci&oacute;n</div>
                             <div style="font-size:12px;color:var(--text-light);">Formato Excel &bull; .xlsx</div>
                             <a class="btn btn-primary btn-sm" href="Archivos/codificacion.xlsx" download style="margin-top:8px;text-decoration:none;">&#11015; Descargar</a>
                         </div>
                         <div style="border:1px solid #e8e6f0;border-radius:10px;padding:20px;display:flex;flex-direction:column;align-items:flex-start;gap:8px;background:#fff;">
-                            <div style="font-size:30px;">&#128196;</div>
+                            <div style="font-size:30px;color:var(--primary);"><i class="fa-solid fa-file-excel"></i></div>
                             <div style="font-size:15px;font-weight:700;color:var(--primary);">Planilla de Aviso de Llegada</div>
                             <div style="font-size:12px;color:var(--text-light);">Formato Excel &bull; .xlsx</div>
                             <a class="btn btn-primary btn-sm" href="Archivos/aviso.xlsx" download style="margin-top:8px;text-decoration:none;">&#11015; Descargar</a>
@@ -842,7 +841,7 @@
                         Sube un archivo Excel con la Plantilla 270 para codificar m&uacute;ltiples referencias de una sola vez.
                     </p>
                     <div class="upload-excel">
-                        <div class="icon">&#128462;</div>
+                        <div class="icon" style="color:var(--primary);"><i class="fa-solid fa-file-excel"></i></div>
                         <p><strong>Arrastra tu archivo Excel aqu&iacute;</strong></p>
                         <p>o haz clic para seleccionar</p>
                         <p style="margin-top:8px;font-size:11px;color:var(--text-light);">.xlsx &mdash; Formato Plantilla 270</p>
@@ -855,7 +854,7 @@
                     <div style="margin-top:24px;padding:16px;background:#f8f7fc;border-radius:8px;">
                         <div style="display:flex;justify-content:space-between;align-items:center;">
                             <div>
-                                <div style="font-size:13px;font-weight:600;color:var(--primary);">&#128196; Plantilla 270 Penguin.xlsx</div>
+                                <div style="font-size:13px;font-weight:600;color:var(--primary);"><i class="fa-solid fa-file-excel" style="color:var(--primary);"></i> Plantilla 270 Penguin.xlsx</div>
                                 <div style="font-size:11px;color:var(--text-light);margin-top:2px;">12 referencias &bull; 429 unidades &bull; 13 negocios</div>
                             </div>
                             <span class="status status-aprobado">Validado</span>
