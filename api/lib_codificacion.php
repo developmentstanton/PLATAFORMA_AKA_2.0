@@ -52,7 +52,9 @@ function cod_correo_html(array $d): string {
     $correo = htmlspecialchars((string)($d['correo'] ?? ''));
     $fecha  = htmlspecialchars((string)($d['fecha'] ?? ''));
     $cons   = (int)($d['consecutivo'] ?? 0);
-    $logo   = 'http://bi.stanton.com.co:81/portal/img/logo_aka2_corto.png';
+    // Imagen embebida vía CID (el endpoint hace addEmbeddedImage(..., 'akalogo')).
+    // Más fiable que una URL externa en clientes de correo.
+    $logo   = 'cid:akalogo';
 
     $items = '';
     foreach (($d['archivos'] ?? []) as $a) {

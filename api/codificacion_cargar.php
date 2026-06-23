@@ -87,6 +87,10 @@ try {
     ]);
     foreach ($val['archivos'] as $a) $mail->addAttachment($a['tmp_name'], $a['name']);
 
+    // Logo AKA embebido (CID 'akalogo') que referencia el HTML del correo.
+    $logoPath = __DIR__ . '/../img/logo_aka2_corto.png';
+    if (is_file($logoPath)) $mail->addEmbeddedImage($logoPath, 'akalogo');
+
     $mail->send();
     echo json_encode(['status'=>'success', 'consecutivo'=>$consecutivo,
         'message'=>'Recibimos tu portafolio. Consecutivo #'.$consecutivo.'. Te llegará un correo de confirmación.']);
