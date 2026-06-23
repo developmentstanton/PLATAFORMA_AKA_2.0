@@ -840,42 +840,21 @@
                     <p style="font-size:13px;color:var(--text-light);margin-bottom:20px;">
                         Sube un archivo Excel con la Plantilla 270 para codificar m&uacute;ltiples referencias de una sola vez.
                     </p>
-                    <div class="upload-excel">
+                    <div class="upload-excel" id="codDrop">
                         <div class="icon" style="color:var(--primary);"><i class="fa-solid fa-file-excel"></i></div>
-                        <p><strong>Arrastra tu archivo Excel aqu&iacute;</strong></p>
+                        <p><strong>Arrastra tus archivos Excel aqu&iacute;</strong></p>
                         <p>o haz clic para seleccionar</p>
-                        <p style="margin-top:8px;font-size:11px;color:var(--text-light);">.xlsx &mdash; Formato Plantilla 270</p>
+                        <p style="margin-top:8px;font-size:11px;color:var(--text-light);">.xlsx &mdash; Plantilla 270 (puedes subir varios)</p>
                     </div>
+                    <input type="file" id="codFile" accept=".xlsx,.xls" multiple style="display:none;">
                     <div class="upload-steps">
-                        <div class="upload-step"><div class="upload-step-num">1</div> Sube el Excel</div>
-                        <div class="upload-step"><div class="upload-step-num">2</div> Validamos datos</div>
-                        <div class="upload-step"><div class="upload-step-num">3</div> Confirmas y env&iacute;as</div>
+                        <div class="upload-step"><div class="upload-step-num">1</div> Selecciona el/los Excel</div>
+                        <div class="upload-step"><div class="upload-step-num">2</div> Revisa la lista</div>
+                        <div class="upload-step"><div class="upload-step-num">3</div> Env&iacute;a</div>
                     </div>
-                    <div style="margin-top:24px;padding:16px;background:#f8f7fc;border-radius:8px;">
-                        <div style="display:flex;justify-content:space-between;align-items:center;">
-                            <div>
-                                <div style="font-size:13px;font-weight:600;color:var(--primary);"><i class="fa-solid fa-file-excel" style="color:var(--primary);"></i> Plantilla 270 Penguin.xlsx</div>
-                                <div style="font-size:11px;color:var(--text-light);margin-top:2px;">12 referencias &bull; 429 unidades &bull; 13 negocios</div>
-                            </div>
-                            <span class="status status-aprobado">Validado</span>
-                        </div>
-                        <div style="margin-top:12px;">
-                            <table class="disp-table">
-                                <thead><tr><th>Referencia</th><th>Color</th><th>Tallas</th><th>Uds</th><th>P.V.S.P</th><th>Estado</th></tr></thead>
-                                <tbody>
-                                    <tr><td>06-160650-3</td><td>Negro/Blanco</td><td>7.5-11</td><td>36</td><td>$290,000</td><td><span style="color:var(--success);">&#10003;</span></td></tr>
-                                    <tr><td>06-160676-1</td><td>Blanco/Verde</td><td>7-11</td><td>36</td><td>$290,000</td><td><span style="color:var(--success);">&#10003;</span></td></tr>
-                                    <tr><td>06-160676-2</td><td>Negro/Blanco</td><td>7.5-11</td><td>36</td><td>$290,000</td><td><span style="color:var(--success);">&#10003;</span></td></tr>
-                                    <tr><td>06-160676-3</td><td>Caf&eacute;</td><td>7-10.5</td><td>31</td><td>$290,000</td><td><span style="color:var(--warning);">&#9888; Curva</span></td></tr>
-                                    <tr><td>06-160814-1</td><td>Beige</td><td>5-8.5</td><td>36</td><td>$250,000</td><td><span style="color:var(--success);">&#10003;</span></td></tr>
-                                </tbody>
-                            </table>
-                            <div style="text-align:center;font-size:11px;color:var(--text-light);padding:8px;">... y 8 referencias m&aacute;s</div>
-                        </div>
-                        <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:12px;">
-                            <button class="btn btn-secondary btn-sm">Corregir errores</button>
-                            <button class="btn btn-primary btn-sm">ENVIAR 13 SOLICITUDES</button>
-                        </div>
+                    <div id="codFileList" style="margin-top:16px;"></div>
+                    <div style="display:flex;justify-content:flex-end;margin-top:16px;">
+                        <button class="btn btn-primary" id="codEnviarBtn" onclick="codEnviar()" disabled>Enviar</button>
                     </div>
                 </div>
                 </div><!-- /codTab-masiva -->
@@ -1194,6 +1173,53 @@
         document.querySelectorAll('#page-codificacion .tab').forEach((t,i) => {
             t.classList.toggle('active', (tab === 'masiva' && i === 0) || (tab === 'solicitudes' && i === 1));
         });
+    }
+
+    // ===== Carga Masiva de Codificación =====
+    let codArchivos = [];
+    (function initCodCarga(){
+        const drop = document.getElementById('codDrop');
+        const input = document.getElementById('codFile');
+        if (!drop || !input) return;
+        drop.addEventListener('click', () => input.click());
+        input.addEventListener('change', () => { codAgregar(input.files); input.value=''; });
+        ['dragover','dragenter'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.style.borderColor='var(--accent)'; }));
+        ['dragleave','drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.style.borderColor=''; }));
+        drop.addEventListener('drop', e => codAgregar(e.dataTransfer.files));
+    })();
+    function codAgregar(fileList){
+        for (const f of fileList){
+            const ext = f.name.split('.').pop().toLowerCase();
+            if (ext!=='xlsx' && ext!=='xls'){ Swal.fire('Archivo no válido', f.name+' no es un Excel (.xlsx/.xls)', 'warning'); continue; }
+            codArchivos.push(f);
+        }
+        codRender();
+    }
+    function codQuitar(i){ codArchivos.splice(i,1); codRender(); }
+    function codRender(){
+        const cont = document.getElementById('codFileList');
+        const btn = document.getElementById('codEnviarBtn');
+        if (!cont || !btn) return;
+        cont.innerHTML = codArchivos.map((f,i) =>
+            `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:#f8f7fc;border-radius:6px;margin-bottom:6px;">
+               <span style="font-size:13px;color:var(--primary);"><i class="fa-solid fa-file-excel" style="color:var(--primary);"></i> ${f.name} <span style="color:var(--text-light);font-size:11px;">(${(f.size/1024).toFixed(0)} KB)</span></span>
+               <button class="btn btn-secondary btn-sm" onclick="codQuitar(${i})">Quitar</button>
+             </div>`).join('');
+        btn.disabled = codArchivos.length === 0;
+    }
+    function codEnviar(){
+        if (codArchivos.length === 0) return;
+        const fd = new FormData();
+        codArchivos.forEach(f => fd.append('adjunto[]', f));
+        Swal.fire({ title:'Enviando…', html:'Registrando tu envío y notificando al equipo.', allowOutsideClick:false, didOpen:()=>Swal.showLoading() });
+        fetch('api/codificacion_cargar.php', { method:'POST', body:fd })
+            .then(r => r.json())
+            .then(d => {
+                if (d.status === 'success'){ Swal.fire('¡Enviado!', d.message, 'success'); codArchivos=[]; codRender(); }
+                else if (d.status === 'warning'){ Swal.fire('Registrado', d.message, 'warning'); codArchivos=[]; codRender(); }
+                else { Swal.fire('Error', d.message || 'No se pudo enviar.', 'error'); }
+            })
+            .catch(() => Swal.fire('Error', 'Falló la conexión con el servidor.', 'error'));
     }
 
     // Agente AKA
