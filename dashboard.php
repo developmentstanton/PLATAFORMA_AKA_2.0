@@ -535,10 +535,6 @@
                 <div class="nav-item" onclick="showPage('documentos', this)">
                     <span class="icon">&#9776;</span> Documentaci&oacute;n
                 </div>
-                <div class="nav-item" onclick="showPage('alertas', this)">
-                    <span class="icon">&#9888;</span> Alertas
-                    <span class="badge">5</span>
-                </div>
             </div>
         </nav>
         <div class="sidebar-footer">
@@ -597,52 +593,17 @@
                         <div class="stat-value">$45.2M</div>
                         <div class="stat-label">Pagos recibidos</div>
                     </div>
-                    <div class="stat-card">
-                        <div class="stat-header">
-                            <div class="stat-icon icon-alertas">&#9888;</div>
-                        </div>
-                        <div class="stat-value">5</div>
-                        <div class="stat-label">Alertas pendientes</div>
-                    </div>
                 </div>
 
-                <div class="grid-2">
-                    <div class="card">
-                        <div class="card-title">Ventas &uacute;ltimos 6 meses <span class="view-all" onclick="showPage('ventas', document.querySelector('[onclick*=ventas]'))">Ver detalle &rarr;</span></div>
-                        <div class="chart-bars">
-                            <div class="chart-bar" style="height:55%"><span class="bar-label">Oct</span></div>
-                            <div class="chart-bar" style="height:70%"><span class="bar-label">Nov</span></div>
-                            <div class="chart-bar" style="height:45%"><span class="bar-label">Dic</span></div>
-                            <div class="chart-bar" style="height:80%"><span class="bar-label">Ene</span></div>
-                            <div class="chart-bar" style="height:65%"><span class="bar-label">Feb</span></div>
-                            <div class="chart-bar" style="height:90%"><span class="bar-label">Mar</span></div>
-                        </div>
-                    </div>
-                    <div>
-                        <div class="card">
-                            <div class="card-title">Alertas recientes <span class="view-all" onclick="showPage('alertas', document.querySelector('[onclick*=alertas]'))">Todas &rarr;</span></div>
-                            <div class="alert-item alta">
-                                <div class="alert-content" style="flex:1;">
-                                    <div class="alert-title">Rotaci&oacute;n cr&iacute;tica: 06-160650-3</div>
-                                    <div class="alert-desc">Talla 9 sin stock, alta demanda</div>
-                                </div>
-                                <div class="alert-time">2h</div>
-                            </div>
-                            <div class="alert-item media">
-                                <div class="alert-content" style="flex:1;">
-                                    <div class="alert-title">Inventario bajo: 06-160814-1</div>
-                                    <div class="alert-desc">3 uds restantes talla 8</div>
-                                </div>
-                                <div class="alert-time">5h</div>
-                            </div>
-                            <div class="alert-item baja">
-                                <div class="alert-content" style="flex:1;">
-                                    <div class="alert-title">Contrato por vencer</div>
-                                    <div class="alert-desc">Vence en 15 d&iacute;as</div>
-                                </div>
-                                <div class="alert-time">1d</div>
-                            </div>
-                        </div>
+                <div class="card">
+                    <div class="card-title">Ventas &uacute;ltimos 6 meses <span class="view-all" onclick="showPage('ventas', document.querySelector('[onclick*=ventas]'))">Ver detalle &rarr;</span></div>
+                    <div class="chart-bars">
+                        <div class="chart-bar" style="height:55%"><span class="bar-label">Oct</span></div>
+                        <div class="chart-bar" style="height:70%"><span class="bar-label">Nov</span></div>
+                        <div class="chart-bar" style="height:45%"><span class="bar-label">Dic</span></div>
+                        <div class="chart-bar" style="height:80%"><span class="bar-label">Ene</span></div>
+                        <div class="chart-bar" style="height:65%"><span class="bar-label">Feb</span></div>
+                        <div class="chart-bar" style="height:90%"><span class="bar-label">Mar</span></div>
                     </div>
                 </div>
 
@@ -995,53 +956,6 @@
             <!-- ==================== ANÁLISIS DE PAGOS ==================== -->
             <?php include __DIR__ . '/informes/pagos.php'; ?>
 
-            <!-- ==================== ALERTAS ==================== -->
-            <div class="page" id="page-alertas">
-                <div class="filters">
-                    <div class="filter-chip active">Todas</div>
-                    <div class="filter-chip">Rotaci&oacute;n</div>
-                    <div class="filter-chip">Inventario bajo</div>
-                    <div class="filter-chip">Documentos</div>
-                </div>
-                <div class="card">
-                    <div class="alert-item alta">
-                        <div style="flex:1;">
-                            <div class="alert-title">Rotaci&oacute;n cr&iacute;tica: 06-160650-3 Negro/Blanco</div>
-                            <div class="alert-desc">Tallas 8.5, 9 y 9.5 concentran el 75% de ventas pero solo tienen el 50% del stock. Curva desbalanceada, requiere reposici&oacute;n urgente en tallas centrales.</div>
-                        </div>
-                        <div class="alert-time">Hace 2h</div>
-                    </div>
-                    <div class="alert-item alta">
-                        <div style="flex:1;">
-                            <div class="alert-title">Rotaci&oacute;n cr&iacute;tica: 06-160676-3 Caf&eacute;</div>
-                            <div class="alert-desc">Solo 31 unidades recibidas vs 36 promedio. Tallas 10 y 10.5 con 1 unidad cada una, insuficiente para distribuci&oacute;n a 5 tiendas.</div>
-                        </div>
-                        <div class="alert-time">Hace 3h</div>
-                    </div>
-                    <div class="alert-item media">
-                        <div style="flex:1;">
-                            <div class="alert-title">Inventario bajo: 06-160814-1 Beige</div>
-                            <div class="alert-desc">Tienda AKA Outlet Am&eacute;ricas: 1 unidad en talla 5. Rotaci&oacute;n alta en esa tienda, riesgo de quiebre de stock.</div>
-                        </div>
-                        <div class="alert-time">Hace 5h</div>
-                    </div>
-                    <div class="alert-item media">
-                        <div style="flex:1;">
-                            <div class="alert-title">Inventario bajo: 06-160828-3 Negro</div>
-                            <div class="alert-desc">Tallas 10.5 y 11 sin stock en ninguna tienda. 0 unidades asignadas en la dispersi&oacute;n original.</div>
-                        </div>
-                        <div class="alert-time">Hace 8h</div>
-                    </div>
-                    <div class="alert-item baja">
-                        <div style="flex:1;">
-                            <div class="alert-title">Documento por vencer: C&aacute;mara de Comercio</div>
-                            <div class="alert-desc">Vence el 10/04/2026 (en 21 d&iacute;as). Suba el documento actualizado para evitar bloqueo de operaciones.</div>
-                        </div>
-                        <div class="alert-time">Hace 1d</div>
-                    </div>
-                </div>
-            </div>
-
         </div>
     </div>
 </div>
@@ -1240,9 +1154,6 @@
 <script>
     // Mostrar agente al cargar
     document.getElementById('agentFab').style.display = 'flex';
-    setTimeout(function() {
-        document.getElementById('agentProactive').style.display = 'block';
-    }, 2000);
     function showPage(pageId, navItem) {
         document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
         document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
@@ -1346,7 +1257,9 @@
             codificacion: 'Tip: Si vas a codificar m\u00e1s de 5 referencias, usa la pesta\u00f1a "Archivos" con tu Plantilla 270. Es mucho m\u00e1s r\u00e1pido.',
             alertas: 'Tienes 2 alertas cr\u00edticas de rotaci\u00f3n. Las tallas centrales se agotan 3x m\u00e1s r\u00e1pido que las extremas.',
         };
-        if (msgs[pageId] && !document.getElementById('agentPanel').classList.contains('active')) {
+        // Burbuja proactiva desactivada: los mensajes por pagina eran demos hardcodeados
+        // (facturas/refs ficticias) que no salian de datos reales. Se oculta siempre.
+        if (false) {
             proactive.style.display = 'block';
             proactive.innerHTML = '<button class="dismiss" onclick="event.stopPropagation();this.parentElement.style.display=\'none\'">&#10005;</button><strong style="color:var(--primary);">&#129302; AKA Asistente</strong><br>' + msgs[pageId];
         } else {
