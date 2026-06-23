@@ -274,6 +274,7 @@
         .status-rechazado { background: #fef2f2; color: #991b1b; }
         .status-revision { background: #ede9fe; color: var(--primary); }
         .status-cuidaduria { background: #dbeafe; color: #1e40af; }
+        .status-estudio { background: #ede9fe; color: var(--primary); }
         .status-vigente { background: #ecfdf5; color: #065f46; }
         .status-vencido { background: #fef2f2; color: #991b1b; }
         .status-pagado { background: #ecfdf5; color: #065f46; }
@@ -864,32 +865,9 @@
                 <!-- LISTA SOLICITUDES -->
                 <div class="card" id="codTab-solicitudes" style="display:none;">
                     <table>
-                        <thead><tr><th>Referencia</th><th>Descripci&oacute;n</th><th>Marca</th><th>Colores</th><th>Tallas</th><th>Recepci&oacute;n</th><th>P.V.S.P</th><th>Estado</th><th></th></tr></thead>
-                        <tbody>
-                            <tr>
-                                <td><strong>06-160650-3</strong></td><td>Zapatillas hombre</td><td>O. Penguin</td>
-                                <td>Negro/Blanco</td><td>7.5-11</td><td>Primer aviso</td><td>$290,000</td>
-                                <td><span class="status status-cuidaduria">Cuidadur&iacute;a</span></td>
-                                <td><button class="btn btn-secondary btn-sm">Ver</button></td>
-                            </tr>
-                            <tr>
-                                <td><strong>06-160814-1</strong></td><td>Zapatillas dama</td><td>O. Penguin</td>
-                                <td>Beige</td><td>5-8.5</td><td>Primer aviso</td><td>$250,000</td>
-                                <td><span class="status status-revision">Comit&eacute; T&eacute;c.</span></td>
-                                <td><button class="btn btn-secondary btn-sm">Ver</button></td>
-                            </tr>
-                            <tr>
-                                <td><strong>06-690771-2</strong></td><td>Zapatillas hombre</td><td>O. Penguin</td>
-                                <td>Blanco/Azul/Rojo</td><td>7-10</td><td>Primer aviso</td><td>$290,000</td>
-                                <td><span class="status status-aprobado">Aprobado</span></td>
-                                <td><button class="btn btn-secondary btn-sm">Ver</button></td>
-                            </tr>
-                            <tr>
-                                <td><strong>06-160829-4</strong></td><td>Zapatillas hombre</td><td>O. Penguin</td>
-                                <td>Blanco/Amarillo</td><td>7.5-11</td><td>Reposici&oacute;n</td><td>$290,000</td>
-                                <td><span class="status status-rechazado">Rechazado</span></td>
-                                <td><button class="btn btn-secondary btn-sm">Ver</button></td>
-                            </tr>
+                        <thead><tr><th># Solicitud</th><th>Fecha</th><th>NIT</th><th>Nombre del tercero</th><th>Estado</th></tr></thead>
+                        <tbody id="codSolBody">
+                            <tr><td colspan="5" style="text-align:center;color:var(--text-light);padding:16px;">Cargando&hellip;</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -1175,6 +1153,35 @@
         document.querySelectorAll('#page-codificacion .tab').forEach((t,i) => {
             t.classList.toggle('active', (tab === 'masiva' && i === 0) || (tab === 'solicitudes' && i === 1));
         });
+        if (tab === 'solicitudes') cargarSolicitudes();
+    }
+
+    // ===== Mis solicitudes (historial) =====
+    function codSolEsc(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+    function codSolBadge(estado){
+        const map = { 'Estudio':'status-estudio', 'Rechazado':'status-rechazado', 'Aprobado':'status-aprobado' };
+        const cls = map[estado] || 'status-pendiente';
+        return `<span class="status ${cls}">${codSolEsc(estado)}</span>`;
+    }
+    function codSolFecha(iso){
+        if (!iso) return '—';
+        const p = String(iso).split('-');
+        return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : codSolEsc(iso);
+    }
+    function cargarSolicitudes(){
+        const body = document.getElementById('codSolBody');
+        if (!body) return;
+        body.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-light);padding:16px;">Cargando…</td></tr>';
+        fetch('api/codificacion_solicitudes.php')
+            .then(r => r.json())
+            .then(d => {
+                if (!d.ok) { body.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--danger);padding:16px;">No se pudieron cargar las solicitudes.</td></tr>'; return; }
+                if (!d.solicitudes.length) { body.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-light);padding:16px;">No tienes solicitudes registradas.</td></tr>'; return; }
+                body.innerHTML = d.solicitudes.map(s =>
+                    `<tr><td><strong>${parseInt(s.consecutivo,10)}</strong></td><td>${codSolFecha(s.fecha)}</td><td>${s.nit ? codSolEsc(s.nit) : '—'}</td><td>${codSolEsc(s.nombre)}</td><td>${codSolBadge(s.estado)}</td></tr>`
+                ).join('');
+            })
+            .catch(() => { body.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--danger);padding:16px;">Error de conexión.</td></tr>'; });
     }
 
     // ===== Carga Masiva de Codificación =====
