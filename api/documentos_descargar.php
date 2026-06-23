@@ -6,7 +6,9 @@ if (!isset($_SESSION['usuario'])) { http_response_code(401); echo 'No autenticad
 $nombre = (string)$_SESSION['usuario'];
 $id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 
+ob_start();
 require __DIR__ . '/../conexion/conexion_integracion.php';
+ob_end_clean(); // descarta el <script> de error si la 1a conexion falla (evita corromper el binario)
 for ($i=0; $dbConnect===false && $i<4; $i++){ usleep(300000); $dbConnect=sqlsrv_connect($servidor,$infoconn); }
 if ($dbConnect===false) { http_response_code(500); echo 'Conexión DB fallida'; exit; }
 
