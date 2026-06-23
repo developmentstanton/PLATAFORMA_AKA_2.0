@@ -875,22 +875,14 @@
 
             <!-- ==================== DOCUMENTOS ==================== -->
             <div class="page" id="page-documentos">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
-                    <div class="filters" style="margin-bottom:0;">
-                        <div class="filter-chip active">Todos</div>
-                        <div class="filter-chip">Contratos</div>
-                        <div class="filter-chip">Certificados</div>
-                        <div class="filter-chip">RUT</div>
-                    </div>
-                    <button class="btn btn-primary">+ SUBIR DOCUMENTO</button>
+                <div style="display:flex;justify-content:flex-end;align-items:center;margin-bottom:20px;">
+                    <button class="btn btn-primary" onclick="docAbrirModal()">+ SUBIR DOCUMENTO</button>
                 </div>
                 <div class="card">
                     <table>
-                        <thead><tr><th>T&iacute;tulo</th><th>Tipo</th><th>Inicio</th><th>Fin</th><th>Estado</th><th></th></tr></thead>
-                        <tbody>
-                            <tr><td><strong>Contrato distribuci&oacute;n Original Penguin 2026</strong></td><td>Contrato</td><td>01/01/2026</td><td>31/12/2026</td><td><span class="status status-vigente">Vigente</span></td><td><button class="btn btn-secondary btn-sm">Descargar</button></td></tr>
-                            <tr><td><strong>RUT Intertenis S.A.S</strong></td><td>RUT</td><td>15/01/2026</td><td>&mdash;</td><td><span class="status status-vigente">Vigente</span></td><td><button class="btn btn-secondary btn-sm">Descargar</button></td></tr>
-                            <tr><td><strong>C&aacute;mara de comercio</strong></td><td>Certificado</td><td>10/01/2026</td><td>10/04/2026</td><td><span class="status status-pendiente">Por vencer</span></td><td><button class="btn btn-secondary btn-sm">Descargar</button></td></tr>
+                        <thead><tr><th>Tipo</th><th>Documento</th><th>Fecha</th><th>NIT</th><th>Nombre del tercero</th><th></th></tr></thead>
+                        <tbody id="docBody">
+                            <tr><td colspan="6" style="text-align:center;color:var(--text-light);padding:16px;">Cargando&hellip;</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -914,6 +906,37 @@
             <!-- ==================== ANÁLISIS DE PAGOS ==================== -->
             <?php include __DIR__ . '/informes/pagos.php'; ?>
 
+        </div>
+    </div>
+</div>
+
+<!-- ==================== MODAL: DOCUMENTOS ==================== -->
+<div class="modal-overlay" id="modalDocumento">
+    <div class="modal">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+            <h3>SUBIR DOCUMENTO</h3>
+            <button class="btn btn-secondary btn-sm" onclick="document.getElementById('modalDocumento').classList.remove('active')">&#10005; Cerrar</button>
+        </div>
+        <div class="form-group" style="margin-bottom:16px;">
+            <label>Tipo de documento</label>
+            <select id="docTipo">
+                <option value="">Selecciona&hellip;</option>
+                <option value="Contrato">Contrato</option>
+                <option value="RUT">RUT</option>
+                <option value="Cámara de Comercio">Cámara de Comercio</option>
+            </select>
+        </div>
+        <div class="upload-excel" id="docDrop">
+            <div class="icon" style="color:var(--primary);"><i class="fa-solid fa-upload"></i></div>
+            <p><strong>Arrastra el archivo aqu&iacute;</strong></p>
+            <p>o haz clic para seleccionar</p>
+            <p style="margin-top:8px;font-size:11px;color:var(--text-light);">PDF o imagen &mdash; m&aacute;x 10 MB</p>
+        </div>
+        <input type="file" id="docFile" accept=".pdf,.jpg,.jpeg,.png" style="display:none;">
+        <div id="docFileName" style="margin-top:12px;font-size:13px;color:var(--primary);"></div>
+        <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px;">
+            <button class="btn btn-secondary" onclick="document.getElementById('modalDocumento').classList.remove('active')">Cancelar</button>
+            <button class="btn btn-primary" id="docSubirBtn" onclick="docSubir()" disabled>Subir</button>
         </div>
     </div>
 </div>
@@ -1140,6 +1163,7 @@
         if (pageId === 'evolucion-historica' && typeof evolOnEnter === 'function') evolOnEnter();
         if (pageId === 'georreferenciacion' && typeof geoOnEnter === 'function') geoOnEnter();
         if (pageId === 'informes-pagos' && typeof pgOnEnter === 'function') pgOnEnter();
+        if (pageId === 'documentos' && typeof cargarDocumentos === 'function') cargarDocumentos();
         updateAgentContext(pageId);
     }
     document.getElementById('modalCodificacion').addEventListener('click', function(e) {
@@ -1232,6 +1256,80 @@
                 else { Swal.fire('Error', d.message || 'No se pudo enviar.', 'error'); }
             })
             .catch(() => Swal.fire('Error', 'Falló la conexión con el servidor.', 'error'));
+    }
+
+    // ===== Documentación =====
+    let docArchivo = null;
+    (function initDoc(){
+        const drop = document.getElementById('docDrop');
+        const input = document.getElementById('docFile');
+        if (!drop || !input) return;
+        drop.addEventListener('click', () => input.click());
+        input.addEventListener('change', () => { docSet(input.files[0]); input.value=''; });
+        ['dragover','dragenter'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.style.borderColor='var(--accent)'; }));
+        ['dragleave','drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.style.borderColor=''; }));
+        drop.addEventListener('drop', e => { if (e.dataTransfer.files[0]) docSet(e.dataTransfer.files[0]); });
+        const ov = document.getElementById('modalDocumento');
+        if (ov) ov.addEventListener('click', function(e){ if (e.target === this) this.classList.remove('active'); });
+        const sel = document.getElementById('docTipo');
+        if (sel) sel.addEventListener('change', docToggleBtn);
+    })();
+    function docEsc(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+    function docSet(f){
+        if (!f) return;
+        const ext = f.name.split('.').pop().toLowerCase();
+        if (!['pdf','jpg','jpeg','png'].includes(ext)) { Swal.fire('Archivo no válido', 'Solo PDF o imágenes (.pdf, .jpg, .jpeg, .png).', 'warning'); return; }
+        if (f.size > 10*1024*1024) { Swal.fire('Archivo muy grande', f.name+' supera el máximo de 10 MB.', 'warning'); return; }
+        docArchivo = f;
+        document.getElementById('docFileName').innerHTML = '<i class="fa-solid fa-file" style="color:var(--primary);"></i> ' + docEsc(f.name);
+        docToggleBtn();
+    }
+    function docToggleBtn(){
+        const tipo = document.getElementById('docTipo').value;
+        document.getElementById('docSubirBtn').disabled = !(tipo && docArchivo);
+    }
+    function docAbrirModal(){
+        docArchivo = null;
+        document.getElementById('docTipo').value = '';
+        document.getElementById('docFileName').innerHTML = '';
+        document.getElementById('docSubirBtn').disabled = true;
+        document.getElementById('modalDocumento').classList.add('active');
+    }
+    function docSubir(){
+        const tipo = document.getElementById('docTipo').value;
+        if (!tipo || !docArchivo) return;
+        const fd = new FormData();
+        fd.append('tipo', tipo);
+        fd.append('documento', docArchivo);
+        Swal.fire({ title:'Subiendo…', allowOutsideClick:false, didOpen:()=>Swal.showLoading() });
+        fetch('api/documentos_subir.php', { method:'POST', body:fd })
+            .then(r => r.json())
+            .then(d => {
+                if (d.ok) { document.getElementById('modalDocumento').classList.remove('active'); Swal.fire('¡Subido!', 'El documento se guardó correctamente.', 'success'); cargarDocumentos(); }
+                else { Swal.fire('Error', d.error || 'No se pudo subir.', 'error'); }
+            })
+            .catch(() => Swal.fire('Error', 'Falló la conexión con el servidor.', 'error'));
+    }
+    function docFecha(s){
+        if (!s) return '—';
+        const parts = String(s).split(' ');
+        const p = parts[0].split('-');
+        return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` + (parts[1] ? ` ${parts[1]}` : '') : docEsc(s);
+    }
+    function cargarDocumentos(){
+        const body = document.getElementById('docBody');
+        if (!body) return;
+        body.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-light);padding:16px;">Cargando…</td></tr>';
+        fetch('api/documentos_listar.php')
+            .then(r => r.json())
+            .then(d => {
+                if (!d.ok) { body.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--danger);padding:16px;">No se pudieron cargar los documentos.</td></tr>'; return; }
+                if (!d.documentos.length) { body.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-light);padding:16px;">No tienes documentos cargados.</td></tr>'; return; }
+                body.innerHTML = d.documentos.map(x =>
+                    `<tr><td>${docEsc(x.tipo)}</td><td>${docEsc(x.nombre_archivo)}</td><td>${docFecha(x.fecha)}</td><td>${x.nit ? docEsc(x.nit) : '—'}</td><td>${docEsc(x.nombre)}</td><td><a class="btn btn-secondary btn-sm" href="api/documentos_descargar.php?id=${parseInt(x.id,10)}" style="text-decoration:none;">Descargar</a></td></tr>`
+                ).join('');
+            })
+            .catch(() => { body.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--danger);padding:16px;">Error de conexión.</td></tr>'; });
     }
 
     // Agente AKA
