@@ -41,3 +41,53 @@ function cod_validar_archivos($adjunto): array {
     }
     return ['ok'=>true, 'error'=>null, 'archivos'=>$archivos];
 }
+
+/**
+ * Construye el HTML del correo de confirmación (estilos inline, paleta del portal).
+ */
+function cod_correo_html(array $d): string {
+    $primary = '#4A4782';
+    $nombre = htmlspecialchars((string)($d['nombre'] ?? ''));
+    $nit    = htmlspecialchars((string)($d['nit'] ?? '') !== '' ? (string)$d['nit'] : '—');
+    $correo = htmlspecialchars((string)($d['correo'] ?? ''));
+    $fecha  = htmlspecialchars((string)($d['fecha'] ?? ''));
+    $cons   = (int)($d['consecutivo'] ?? 0);
+    $logo   = 'http://bi.stanton.com.co:81/portal/img/logo_aka2_corto.png';
+
+    $items = '';
+    foreach (($d['archivos'] ?? []) as $a) {
+        $items .= "<li style='margin:2px 0;color:#444;'>".htmlspecialchars((string)$a)."</li>";
+    }
+    if ($items === '') $items = "<li style='color:#999;'>(sin archivos)</li>";
+
+    return <<<HTML
+<!DOCTYPE html><html><head><meta charset='UTF-8'></head>
+<body style='margin:0;padding:20px;font-family:Helvetica,Arial,sans-serif;background:#f4f4f7;'>
+  <div style='max-width:600px;margin:0 auto;background:#fff;border-radius:10px;overflow:hidden;border:1px solid #eaeaea;'>
+    <div style='background:{$primary};padding:24px;text-align:center;'>
+      <img src='{$logo}' alt='AKA' style='max-height:46px;'>
+    </div>
+    <div style='padding:32px 28px;'>
+      <h2 style='color:{$primary};margin:0 0 4px;font-size:20px;'>Estimado aliado, {$nombre}</h2>
+      <p style='color:#555;font-size:15px;line-height:1.5;margin:12px 0;'>
+        Hemos recibido el cargue de tu portafolio. Será validado por nuestro equipo de
+        curaduría y te daremos respuesta próximamente.
+      </p>
+      <h3 style='color:{$primary};font-size:15px;margin:24px 0 10px;padding-bottom:6px;border-bottom:2px solid #e8e6f0;'>Detalle del envío</h3>
+      <table width='100%' cellpadding='0' cellspacing='0' style='font-size:14px;'>
+        <tr><td style='padding:5px 0;color:#888;width:130px;'>Consecutivo:</td><td style='padding:5px 0;color:#333;font-weight:bold;'>#{$cons}</td></tr>
+        <tr><td style='padding:5px 0;color:#888;'>Aliado:</td><td style='padding:5px 0;color:#333;'>{$nombre}</td></tr>
+        <tr><td style='padding:5px 0;color:#888;'>NIT:</td><td style='padding:5px 0;color:#333;'>{$nit}</td></tr>
+        <tr><td style='padding:5px 0;color:#888;'>Correo:</td><td style='padding:5px 0;color:#333;'>{$correo}</td></tr>
+        <tr><td style='padding:5px 0;color:#888;'>Fecha:</td><td style='padding:5px 0;color:#333;'>{$fecha}</td></tr>
+        <tr><td style='padding:5px 0;color:#888;vertical-align:top;'>Archivos:</td><td style='padding:5px 0;color:#333;'><ul style='margin:0;padding-left:18px;'>{$items}</ul></td></tr>
+      </table>
+      <p style='color:#555;font-size:14px;margin:24px 0 0;'>Cordialmente,<br><strong style='color:{$primary};'>Equipo Tiendas AKA</strong></p>
+    </div>
+    <div style='background:#f1f0f6;padding:16px;text-align:center;'>
+      <p style='margin:0;color:#999;font-size:12px;'>Mensaje automático · por favor no respondas a este correo.</p>
+    </div>
+  </div>
+</body></html>
+HTML;
+}
