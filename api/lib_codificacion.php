@@ -91,3 +91,24 @@ function cod_correo_html(array $d): string {
 </body></html>
 HTML;
 }
+
+/**
+ * Inserta el envío y devuelve el consecutivo (IDENTITY) generado.
+ * consecutivo y estado ('Estudio') se autocompletan; nit puede ser NULL.
+ */
+function cod_registrar_envio($conn, string $nombre, string $fecha, ?string $nit): int {
+    $sql = "SET NOCOUNT ON;
+            INSERT INTO consecutivo_planillas_aka (nombre_cliente, fecha, nit)
+            OUTPUT INSERTED.consecutivo AS consecutivo
+            VALUES (?, ?, ?)";
+    $stmt = sqlsrv_query($conn, $sql, [$nombre, $fecha, $nit]);
+    if ($stmt === false) {
+        throw new RuntimeException('INSERT falló: '.print_r(sqlsrv_errors(), true));
+    }
+    $cons = 0;
+    do {
+        $row = sqlsrv_fetch_array($stmt, SQLSRV_FETCH_ASSOC);
+        if ($row && isset($row['consecutivo'])) { $cons = (int)$row['consecutivo']; break; }
+    } while (sqlsrv_next_result($stmt));
+    return $cons;
+}
