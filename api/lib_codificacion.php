@@ -110,5 +110,8 @@ function cod_registrar_envio($conn, string $nombre, string $fecha, ?string $nit)
         $row = sqlsrv_fetch_array($stmt, SQLSRV_FETCH_ASSOC);
         if ($row && isset($row['consecutivo'])) { $cons = (int)$row['consecutivo']; break; }
     } while (sqlsrv_next_result($stmt));
+    if ($cons === 0) {
+        throw new RuntimeException('No se recuperó el consecutivo del INSERT.');
+    }
     return $cons;
 }

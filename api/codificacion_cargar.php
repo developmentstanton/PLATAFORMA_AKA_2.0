@@ -31,6 +31,7 @@ foreach ($val['archivos'] as $a) {
 require __DIR__ . '/../conexion/conexion_integracion.php';
 for ($i = 0; $dbConnect === false && $i < 4; $i++) { usleep(300000); $dbConnect = sqlsrv_connect($servidor, $infoconn); }
 if ($dbConnect === false) {
+    http_response_code(500);
     echo json_encode(['status'=>'error', 'message'=>'Conexión DB fallida. Intenta de nuevo.']); exit;
 }
 

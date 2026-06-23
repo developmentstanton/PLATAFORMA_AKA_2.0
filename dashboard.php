@@ -1191,18 +1191,21 @@
         for (const f of fileList){
             const ext = f.name.split('.').pop().toLowerCase();
             if (ext!=='xlsx' && ext!=='xls'){ Swal.fire('Archivo no válido', f.name+' no es un Excel (.xlsx/.xls)', 'warning'); continue; }
+            if (f.size > 10*1024*1024){ Swal.fire('Archivo muy grande', f.name+' supera el máximo de 10 MB.', 'warning'); continue; }
+            if (codArchivos.length >= 10){ Swal.fire('Demasiados archivos', 'Máximo 10 archivos por envío.', 'warning'); break; }
             codArchivos.push(f);
         }
         codRender();
     }
     function codQuitar(i){ codArchivos.splice(i,1); codRender(); }
+    function codEsc(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
     function codRender(){
         const cont = document.getElementById('codFileList');
         const btn = document.getElementById('codEnviarBtn');
         if (!cont || !btn) return;
         cont.innerHTML = codArchivos.map((f,i) =>
             `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:#f8f7fc;border-radius:6px;margin-bottom:6px;">
-               <span style="font-size:13px;color:var(--primary);"><i class="fa-solid fa-file-excel" style="color:var(--primary);"></i> ${f.name} <span style="color:var(--text-light);font-size:11px;">(${(f.size/1024).toFixed(0)} KB)</span></span>
+               <span style="font-size:13px;color:var(--primary);"><i class="fa-solid fa-file-excel" style="color:var(--primary);"></i> ${codEsc(f.name)} <span style="color:var(--text-light);font-size:11px;">(${(f.size/1024).toFixed(0)} KB)</span></span>
                <button class="btn btn-secondary btn-sm" onclick="codQuitar(${i})">Quitar</button>
              </div>`).join('');
         btn.disabled = codArchivos.length === 0;
