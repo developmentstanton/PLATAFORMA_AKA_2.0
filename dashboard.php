@@ -274,6 +274,7 @@
         .status-rechazado { background: #fef2f2; color: #991b1b; }
         .status-revision { background: #ede9fe; color: var(--primary); }
         .status-cuidaduria { background: #dbeafe; color: #1e40af; }
+        .status-estudio { background: #ede9fe; color: var(--primary); }
         .status-vigente { background: #ecfdf5; color: #065f46; }
         .status-vencido { background: #fef2f2; color: #991b1b; }
         .status-pagado { background: #ecfdf5; color: #065f46; }
@@ -530,7 +531,6 @@
                 <div class="nav-section-title">GESTI&Oacute;N</div>
                 <div class="nav-item" onclick="showPage('codificacion', this)">
                     <span class="icon">&#9998;</span> Codificaci&oacute;n
-                    <span class="badge">3</span>
                 </div>
                 <div class="nav-item" onclick="showPage('documentos', this)">
                     <span class="icon">&#9776;</span> Documentaci&oacute;n
@@ -807,7 +807,9 @@
                         <div class="tab active" onclick="showCodTab('masiva')">Archivos</div>
                         <div class="tab" onclick="showCodTab('solicitudes')">Mis solicitudes</div>
                     </div>
+                    <!-- Boton "Nueva solicitud" oculto a peticion; se conserva por si se reactiva el formulario individual a futuro.
                     <button class="btn btn-primary" onclick="document.getElementById('modalCodificacion').classList.add('active')">+ NUEVA SOLICITUD</button>
+                    -->
                 </div>
 
                 <!-- ARCHIVOS: DESCARGA DE PLANTILLAS + CARGA MASIVA -->
@@ -821,13 +823,13 @@
                     </p>
                     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;">
                         <div style="border:1px solid #e8e6f0;border-radius:10px;padding:20px;display:flex;flex-direction:column;align-items:flex-start;gap:8px;background:#fff;">
-                            <div style="font-size:30px;">&#128196;</div>
+                            <div style="font-size:30px;color:var(--primary);"><i class="fa-solid fa-file-excel"></i></div>
                             <div style="font-size:15px;font-weight:700;color:var(--primary);">Planilla de Codificaci&oacute;n</div>
                             <div style="font-size:12px;color:var(--text-light);">Formato Excel &bull; .xlsx</div>
                             <a class="btn btn-primary btn-sm" href="Archivos/codificacion.xlsx" download style="margin-top:8px;text-decoration:none;">&#11015; Descargar</a>
                         </div>
                         <div style="border:1px solid #e8e6f0;border-radius:10px;padding:20px;display:flex;flex-direction:column;align-items:flex-start;gap:8px;background:#fff;">
-                            <div style="font-size:30px;">&#128196;</div>
+                            <div style="font-size:30px;color:var(--primary);"><i class="fa-solid fa-file-excel"></i></div>
                             <div style="font-size:15px;font-weight:700;color:var(--primary);">Planilla de Aviso de Llegada</div>
                             <div style="font-size:12px;color:var(--text-light);">Formato Excel &bull; .xlsx</div>
                             <a class="btn btn-primary btn-sm" href="Archivos/aviso.xlsx" download style="margin-top:8px;text-decoration:none;">&#11015; Descargar</a>
@@ -839,44 +841,23 @@
                 <div class="card">
                     <div class="card-title">CARGA MASIVA DE CODIFICACI&Oacute;N</div>
                     <p style="font-size:13px;color:var(--text-light);margin-bottom:20px;">
-                        Sube un archivo Excel con la Plantilla 270 para codificar m&uacute;ltiples referencias de una sola vez.
+                        Sube un archivo Excel con la Plantilla para codificar m&uacute;ltiples referencias de una sola vez.
                     </p>
-                    <div class="upload-excel">
-                        <div class="icon">&#128462;</div>
-                        <p><strong>Arrastra tu archivo Excel aqu&iacute;</strong></p>
+                    <div class="upload-excel" id="codDrop">
+                        <div class="icon" style="color:var(--primary);"><i class="fa-solid fa-file-excel"></i></div>
+                        <p><strong>Arrastra tus archivos Excel aqu&iacute;</strong></p>
                         <p>o haz clic para seleccionar</p>
-                        <p style="margin-top:8px;font-size:11px;color:var(--text-light);">.xlsx &mdash; Formato Plantilla 270</p>
+                        <p style="margin-top:8px;font-size:11px;color:var(--text-light);">.xlsx &mdash; Plantilla (puedes subir varios)</p>
                     </div>
+                    <input type="file" id="codFile" accept=".xlsx,.xls" multiple style="display:none;">
                     <div class="upload-steps">
-                        <div class="upload-step"><div class="upload-step-num">1</div> Sube el Excel</div>
-                        <div class="upload-step"><div class="upload-step-num">2</div> Validamos datos</div>
-                        <div class="upload-step"><div class="upload-step-num">3</div> Confirmas y env&iacute;as</div>
+                        <div class="upload-step"><div class="upload-step-num">1</div> Selecciona el/los Excel</div>
+                        <div class="upload-step"><div class="upload-step-num">2</div> Revisa la lista</div>
+                        <div class="upload-step"><div class="upload-step-num">3</div> Env&iacute;a</div>
                     </div>
-                    <div style="margin-top:24px;padding:16px;background:#f8f7fc;border-radius:8px;">
-                        <div style="display:flex;justify-content:space-between;align-items:center;">
-                            <div>
-                                <div style="font-size:13px;font-weight:600;color:var(--primary);">&#128196; Plantilla 270 Penguin.xlsx</div>
-                                <div style="font-size:11px;color:var(--text-light);margin-top:2px;">12 referencias &bull; 429 unidades &bull; 13 negocios</div>
-                            </div>
-                            <span class="status status-aprobado">Validado</span>
-                        </div>
-                        <div style="margin-top:12px;">
-                            <table class="disp-table">
-                                <thead><tr><th>Referencia</th><th>Color</th><th>Tallas</th><th>Uds</th><th>P.V.S.P</th><th>Estado</th></tr></thead>
-                                <tbody>
-                                    <tr><td>06-160650-3</td><td>Negro/Blanco</td><td>7.5-11</td><td>36</td><td>$290,000</td><td><span style="color:var(--success);">&#10003;</span></td></tr>
-                                    <tr><td>06-160676-1</td><td>Blanco/Verde</td><td>7-11</td><td>36</td><td>$290,000</td><td><span style="color:var(--success);">&#10003;</span></td></tr>
-                                    <tr><td>06-160676-2</td><td>Negro/Blanco</td><td>7.5-11</td><td>36</td><td>$290,000</td><td><span style="color:var(--success);">&#10003;</span></td></tr>
-                                    <tr><td>06-160676-3</td><td>Caf&eacute;</td><td>7-10.5</td><td>31</td><td>$290,000</td><td><span style="color:var(--warning);">&#9888; Curva</span></td></tr>
-                                    <tr><td>06-160814-1</td><td>Beige</td><td>5-8.5</td><td>36</td><td>$250,000</td><td><span style="color:var(--success);">&#10003;</span></td></tr>
-                                </tbody>
-                            </table>
-                            <div style="text-align:center;font-size:11px;color:var(--text-light);padding:8px;">... y 8 referencias m&aacute;s</div>
-                        </div>
-                        <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:12px;">
-                            <button class="btn btn-secondary btn-sm">Corregir errores</button>
-                            <button class="btn btn-primary btn-sm">ENVIAR 13 SOLICITUDES</button>
-                        </div>
+                    <div id="codFileList" style="margin-top:16px;"></div>
+                    <div style="display:flex;justify-content:flex-end;margin-top:16px;">
+                        <button class="btn btn-primary" id="codEnviarBtn" onclick="codEnviar()" disabled>Enviar</button>
                     </div>
                 </div>
                 </div><!-- /codTab-masiva -->
@@ -884,32 +865,9 @@
                 <!-- LISTA SOLICITUDES -->
                 <div class="card" id="codTab-solicitudes" style="display:none;">
                     <table>
-                        <thead><tr><th>Referencia</th><th>Descripci&oacute;n</th><th>Marca</th><th>Colores</th><th>Tallas</th><th>Recepci&oacute;n</th><th>P.V.S.P</th><th>Estado</th><th></th></tr></thead>
-                        <tbody>
-                            <tr>
-                                <td><strong>06-160650-3</strong></td><td>Zapatillas hombre</td><td>O. Penguin</td>
-                                <td>Negro/Blanco</td><td>7.5-11</td><td>Primer aviso</td><td>$290,000</td>
-                                <td><span class="status status-cuidaduria">Cuidadur&iacute;a</span></td>
-                                <td><button class="btn btn-secondary btn-sm">Ver</button></td>
-                            </tr>
-                            <tr>
-                                <td><strong>06-160814-1</strong></td><td>Zapatillas dama</td><td>O. Penguin</td>
-                                <td>Beige</td><td>5-8.5</td><td>Primer aviso</td><td>$250,000</td>
-                                <td><span class="status status-revision">Comit&eacute; T&eacute;c.</span></td>
-                                <td><button class="btn btn-secondary btn-sm">Ver</button></td>
-                            </tr>
-                            <tr>
-                                <td><strong>06-690771-2</strong></td><td>Zapatillas hombre</td><td>O. Penguin</td>
-                                <td>Blanco/Azul/Rojo</td><td>7-10</td><td>Primer aviso</td><td>$290,000</td>
-                                <td><span class="status status-aprobado">Aprobado</span></td>
-                                <td><button class="btn btn-secondary btn-sm">Ver</button></td>
-                            </tr>
-                            <tr>
-                                <td><strong>06-160829-4</strong></td><td>Zapatillas hombre</td><td>O. Penguin</td>
-                                <td>Blanco/Amarillo</td><td>7.5-11</td><td>Reposici&oacute;n</td><td>$290,000</td>
-                                <td><span class="status status-rechazado">Rechazado</span></td>
-                                <td><button class="btn btn-secondary btn-sm">Ver</button></td>
-                            </tr>
+                        <thead><tr><th># Solicitud</th><th>Fecha</th><th>NIT</th><th>Nombre del tercero</th><th>Estado</th></tr></thead>
+                        <tbody id="codSolBody">
+                            <tr><td colspan="5" style="text-align:center;color:var(--text-light);padding:16px;">Cargando&hellip;</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -1195,6 +1153,85 @@
         document.querySelectorAll('#page-codificacion .tab').forEach((t,i) => {
             t.classList.toggle('active', (tab === 'masiva' && i === 0) || (tab === 'solicitudes' && i === 1));
         });
+        if (tab === 'solicitudes') cargarSolicitudes();
+    }
+
+    // ===== Mis solicitudes (historial) =====
+    function codSolEsc(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+    function codSolBadge(estado){
+        const map = { 'Estudio':'status-estudio', 'Rechazado':'status-rechazado', 'Aprobado':'status-aprobado' };
+        const cls = map[estado] || 'status-pendiente';
+        return `<span class="status ${cls}">${codSolEsc(estado)}</span>`;
+    }
+    function codSolFecha(iso){
+        if (!iso) return '—';
+        const p = String(iso).split('-');
+        return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : codSolEsc(iso);
+    }
+    function cargarSolicitudes(){
+        const body = document.getElementById('codSolBody');
+        if (!body) return;
+        body.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-light);padding:16px;">Cargando…</td></tr>';
+        fetch('api/codificacion_solicitudes.php')
+            .then(r => r.json())
+            .then(d => {
+                if (!d.ok) { body.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--danger);padding:16px;">No se pudieron cargar las solicitudes.</td></tr>'; return; }
+                if (!d.solicitudes.length) { body.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-light);padding:16px;">No tienes solicitudes registradas.</td></tr>'; return; }
+                body.innerHTML = d.solicitudes.map(s =>
+                    `<tr><td><strong>${parseInt(s.consecutivo,10)}</strong></td><td>${codSolFecha(s.fecha)}</td><td>${s.nit ? codSolEsc(s.nit) : '—'}</td><td>${codSolEsc(s.nombre)}</td><td>${codSolBadge(s.estado)}</td></tr>`
+                ).join('');
+            })
+            .catch(() => { body.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--danger);padding:16px;">Error de conexión.</td></tr>'; });
+    }
+
+    // ===== Carga Masiva de Codificación =====
+    let codArchivos = [];
+    (function initCodCarga(){
+        const drop = document.getElementById('codDrop');
+        const input = document.getElementById('codFile');
+        if (!drop || !input) return;
+        drop.addEventListener('click', () => input.click());
+        input.addEventListener('change', () => { codAgregar(input.files); input.value=''; });
+        ['dragover','dragenter'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.style.borderColor='var(--accent)'; }));
+        ['dragleave','drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.style.borderColor=''; }));
+        drop.addEventListener('drop', e => codAgregar(e.dataTransfer.files));
+    })();
+    function codAgregar(fileList){
+        for (const f of fileList){
+            const ext = f.name.split('.').pop().toLowerCase();
+            if (ext!=='xlsx' && ext!=='xls'){ Swal.fire('Archivo no válido', f.name+' no es un Excel (.xlsx/.xls)', 'warning'); continue; }
+            if (f.size > 10*1024*1024){ Swal.fire('Archivo muy grande', f.name+' supera el máximo de 10 MB.', 'warning'); continue; }
+            if (codArchivos.length >= 10){ Swal.fire('Demasiados archivos', 'Máximo 10 archivos por envío.', 'warning'); break; }
+            codArchivos.push(f);
+        }
+        codRender();
+    }
+    function codQuitar(i){ codArchivos.splice(i,1); codRender(); }
+    function codEsc(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+    function codRender(){
+        const cont = document.getElementById('codFileList');
+        const btn = document.getElementById('codEnviarBtn');
+        if (!cont || !btn) return;
+        cont.innerHTML = codArchivos.map((f,i) =>
+            `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:#f8f7fc;border-radius:6px;margin-bottom:6px;">
+               <span style="font-size:13px;color:var(--primary);"><i class="fa-solid fa-file-excel" style="color:var(--primary);"></i> ${codEsc(f.name)} <span style="color:var(--text-light);font-size:11px;">(${(f.size/1024).toFixed(0)} KB)</span></span>
+               <button class="btn btn-secondary btn-sm" onclick="codQuitar(${i})">Quitar</button>
+             </div>`).join('');
+        btn.disabled = codArchivos.length === 0;
+    }
+    function codEnviar(){
+        if (codArchivos.length === 0) return;
+        const fd = new FormData();
+        codArchivos.forEach(f => fd.append('adjunto[]', f));
+        Swal.fire({ title:'Enviando…', html:'Registrando tu envío y notificando al equipo.', allowOutsideClick:false, didOpen:()=>Swal.showLoading() });
+        fetch('api/codificacion_cargar.php', { method:'POST', body:fd })
+            .then(r => r.json())
+            .then(d => {
+                if (d.status === 'success'){ Swal.fire('¡Enviado!', d.message, 'success'); codArchivos=[]; codRender(); }
+                else if (d.status === 'warning'){ Swal.fire('Registrado', d.message, 'warning'); codArchivos=[]; codRender(); }
+                else { Swal.fire('Error', d.message || 'No se pudo enviar.', 'error'); }
+            })
+            .catch(() => Swal.fire('Error', 'Falló la conexión con el servidor.', 'error'));
     }
 
     // Agente AKA
@@ -1212,7 +1249,7 @@
         'general': {
             '\u00bfC\u00f3mo va mi inventario?': 'Tu inventario total es <strong>12,847 unidades</strong>. Tengo 2 alertas cr\u00edticas:<br><br>&#128308; <strong>06-160650-3 Negro/Blanco:</strong> tallas 8.5, 9 y 9.5 con stock insuficiente vs demanda. Necesitas reposici\u00f3n urgente.<br><br>&#128308; <strong>06-160676-3 Caf\u00e9:</strong> solo recibi\u00f3 31 uds (5 menos que el promedio). Tallas 10 y 10.5 casi agotadas.<br><br>\u00bfQuieres que prepare una solicitud de reposici\u00f3n?',
             '\u00bfTengo facturas vencidas?': 'S\u00ed, tienes <strong>3 facturas vencidas</strong> por un total de <strong style="color:var(--accent);">$18.7M</strong>:<br><br>1. FV-83950 &mdash; $6.2M (venci\u00f3 17/03)<br>2. FV-83871 &mdash; $3.75M (venci\u00f3 12/03)<br>3. FV-83720 &mdash; $8.75M (venci\u00f3 05/03)<br><br>Te recomiendo contactar a tu ejecutivo de cuenta. Las facturas vencidas pueden afectar la aprobaci\u00f3n de nuevas codificaciones.',
-            'Ayuda con codificaci\u00f3n': 'Para codificar productos tienes 2 opciones:<br><br><strong>1. Formulario individual:</strong> Clic en "+ NUEVA SOLICITUD". Completa los 5 pasos (referencia, clasificaci\u00f3n, detalle SKU, dispersi\u00f3n a tiendas y foto).<br><br><strong>2. Carga masiva:</strong> Ve a la pesta\u00f1a "Carga masiva" y sube un Excel con formato Plantilla 270.<br><br>Recuerda que la <strong>foto es obligatoria</strong> y que la solicitud pasa por <strong>Cuidadur\u00eda</strong> (an\u00e1lisis de competencia) antes de la aprobaci\u00f3n final.<br><br>\u00bfQu\u00e9 m\u00e9todo prefieres?',
+            'Ayuda con codificaci\u00f3n': 'Para codificar productos tienes 2 opciones:<br><br><strong>1. Formulario individual:</strong> Clic en "+ NUEVA SOLICITUD". Completa los 5 pasos (referencia, clasificaci\u00f3n, detalle SKU, dispersi\u00f3n a tiendas y foto).<br><br><strong>2. Carga masiva:</strong> Ve a la pesta\u00f1a "Carga masiva" y sube un Excel con formato Plantilla.<br><br>Recuerda que la <strong>foto es obligatoria</strong> y que la solicitud pasa por <strong>Cuidadur\u00eda</strong> (an\u00e1lisis de competencia) antes de la aprobaci\u00f3n final.<br><br>\u00bfQu\u00e9 m\u00e9todo prefieres?',
             '\u00bfQu\u00e9 es la cuidadur\u00eda?': 'La <strong>Cuidadur\u00eda</strong> es el Comit\u00e9 AKA que revisa cada solicitud de codificaci\u00f3n. Eval\u00faa 2 cosas:<br><br>1. <strong>Competencia/canibalizaci\u00f3n:</strong> Revisa la foto del producto para verificar que no compita con productos que ya est\u00e1n en tiendas AKA.<br><br>2. <strong>Curva de tallas:</strong> Verifica que las cantidades por talla est\u00e9n bien distribuidas (tallas centrales deben tener m\u00e1s stock).<br><br>Si aprueban, pasa al Comit\u00e9 T\u00e9cnico para aprobaci\u00f3n final.',
             '\u00bfPor qu\u00e9 rechazaron mi referencia?': 'D\u00e9jame revisar... Tu \u00faltima referencia rechazada es la <strong>06-160829-4 Blanco/Amarillo</strong>. Fue rechazada por el Comit\u00e9 AKA (Cuidadur\u00eda) porque:<br><br>&#128308; <strong>Canibalizaci\u00f3n detectada:</strong> Es muy similar a la 06-160650-3 que ya est\u00e1 en tiendas. Ambas son zapatillas casual hombre con base blanca.<br><br>Te sugiero diferenciar m\u00e1s el dise\u00f1o o proponer un color que no compita.',
         }
@@ -1254,7 +1291,7 @@
         const msgs = {
             inventarios: 'Las tallas 8.5-9.5 de la ref 06-160650-3 muestran un desbalance entre stock y ventas. \u00bfQuiero que analice la curva completa?',
             pagos: 'Tienes 3 facturas vencidas por $18.7M. Esto podr\u00eda retrasar la aprobaci\u00f3n de nuevas codificaciones.',
-            codificacion: 'Tip: Si vas a codificar m\u00e1s de 5 referencias, usa la pesta\u00f1a "Archivos" con tu Plantilla 270. Es mucho m\u00e1s r\u00e1pido.',
+            codificacion: 'Tip: Si vas a codificar m\u00e1s de 5 referencias, usa la pesta\u00f1a "Archivos" con tu Plantilla. Es mucho m\u00e1s r\u00e1pido.',
             alertas: 'Tienes 2 alertas cr\u00edticas de rotaci\u00f3n. Las tallas centrales se agotan 3x m\u00e1s r\u00e1pido que las extremas.',
         };
         // Burbuja proactiva desactivada: los mensajes por pagina eran demos hardcodeados

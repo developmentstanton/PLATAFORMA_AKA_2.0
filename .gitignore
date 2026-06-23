@@ -4,6 +4,7 @@
 # ==========================================
 conexion/conexion_integracion.php
 conexion/conexion_stanton.php
+conexion/config_mail.php
 
 # Cache regenerable (refs/catálogos). Se mantiene la carpeta, se ignora el contenido.
 cache/*
