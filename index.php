@@ -43,7 +43,7 @@
 
 		require('conexion/conexion_integracion.php');
 
-		$sqlLogin = "SELECT nombre_usuario, correo, imagen, link1
+		$sqlLogin = "SELECT nombre_usuario, correo, imagen, link1, link2
 					 FROM usuarios_portal_aka
 					 WHERE nombre_usuario = ?
 					 AND contrasena_usuario COLLATE Latin1_General_BIN = ?";
@@ -65,23 +65,19 @@
 				$_SESSION['link1'] = $user['link1'];
 				$_SESSION['ultima_actividad'] = time();
 
-				// Resolver nombre del proveedor cruzando con stanton.dbo.t202_mm_proveedores
-				// (los nombre_usuario no son idénticos al f202_descripcion_sucursal, por eso LIKE).
-				$sqlProv = "SELECT TOP 1 RTRIM(p.f202_descripcion_sucursal) AS razon, RTRIM(t.f200_nit) AS nit
-							FROM stanton.dbo.t202_mm_proveedores p
-							JOIN stanton.dbo.t200_mm_terceros t ON t.f200_rowid = p.f202_rowid_tercero
-							WHERE p.f202_id_cia = '7'
-							  AND p.f202_descripcion_sucursal LIKE '%' + REPLACE(?, '_', ' ') + '%'
-							ORDER BY LEN(p.f202_descripcion_sucursal) ASC";
-				$stmtProv = sqlsrv_query($dbConnect, $sqlProv, array($user['nombre_usuario']));
-				if ($stmtProv !== false) {
-					$rowProv = sqlsrv_fetch_array($stmtProv, SQLSRV_FETCH_ASSOC);
-					if ($rowProv) {
-						if (!empty($rowProv['razon'])) $_SESSION['proveedor'] = trim($rowProv['razon']);
-						if (!empty($rowProv['nit']))   $_SESSION['nit'] = trim($rowProv['nit']);
-					}
-					sqlsrv_free_stmt($stmtProv);
-				}
+				// Resolver el proveedor del aliado: maestro SIESA t202 (razón + NIT) con
+				// FALLBACK a ITEMS.PROVEEDOR si el aliado vende pero no figura en el maestro
+				// (p.ej. INTERTENIS). Lógica testeable en api/lib_login.php.
+				require_once('api/lib_login.php');
+				$prov = login_resolver_proveedor($dbConnect, $user['nombre_usuario']);
+				if (!empty($prov['proveedor'])) $_SESSION['proveedor'] = $prov['proveedor'];
+				// NIT para Análisis de Pagos: priorizar el NIT curado manualmente en
+				// usuarios_portal_aka.link2 (más confiable que el cruce por nombre con el
+				// maestro; p.ej. "Intertenis" = SOCIEDAD INTERNACIONAL DE TENIS, NIT 900633781,
+				// que NO se encuentra por nombre). Si link2 está vacío, cae al NIT del maestro.
+				$nitManual = trim((string)($user['link2'] ?? ''));
+				if ($nitManual !== '')          $_SESSION['nit'] = $nitManual;
+				elseif (!empty($prov['nit']))   $_SESSION['nit'] = $prov['nit'];
 
 				$consultaLog = "INSERT INTO log_usuarios_portal_aka VALUES (?, GETDATE(), 'INGRESO')";
 				$paramsLog = array($user['nombre_usuario']);
