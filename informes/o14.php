@@ -372,11 +372,20 @@
       tallas.forEach(t=>{ const v=o[t]||0; rt+=v; h+='<td>'+(v?nf(v):'')+'</td>'; }); h+='<td class="blocktot">'+nf(rt)+'</td></tr>'; });
     h+='</tbody></table></div>'; cont.innerHTML=h;
   }
+  // Si hay un negocio elegido en la barra, acota las recomendaciones a ese (ref+color); si no, todas (general).
+  function recoFiltered(data){
+    if(data && negocioSel && negocioSel.ref){
+      const filas=(data.filas||[]).filter(f=> f.referencia===negocioSel.ref && f.color===negocioSel.color);
+      return Object.assign({}, data, {filas});
+    }
+    return data;
+  }
   function renderRecoMatrices(data){
     lastReco=data;
-    renderRecoMatriz('o14-reco-sobrante', data, 'sobrante', 0);
-    renderRecoMatriz('o14-reco-faltante', data, 'faltante', 1);
-    renderRecoMatriz('o14-reco-proveedor', data, 'proveedor', 2);
+    const d=recoFiltered(data);
+    renderRecoMatriz('o14-reco-sobrante', d, 'sobrante', 0);
+    renderRecoMatriz('o14-reco-faltante', d, 'faltante', 1);
+    renderRecoMatriz('o14-reco-proveedor', d, 'proveedor', 2);
   }
   window.o14RecoExp=function(i){
     const med=RECO_MED[i]; const tbl=document.getElementById('o14-reco-tbl-'+med);
@@ -427,7 +436,7 @@
     showLoading('Cargando O14C');
     fetch('api/informe_o14.php?'+buildParams('c'),{credentials:'same-origin'})
       .then(r=>r.json()).then(d=>{ if(!d.ok) throw 0;
-        lastData.c=d; arbolState=null;
+        lastData.c=d; arbolState=null; populateNegociosArbol(d);
         if(negocioSel.ref){ shownC=filterArbol(d, negocioSel.ref, negocioSel.color); renderArbol('o14-matriz-c', shownC, true); renderKpis(kpisFromArbol(shownC)); }
         else { shownC=d; renderArbol('o14-matriz-c', d, false); renderKpis(d.kpis||{}); }
         tabState.c=true; })
@@ -441,16 +450,24 @@
 
   function loadCurrentTab(){ if(currentTab==='c') loadC(); else if(currentTab==='reco') loadReco(); else loadB(); }
 
-  // Llena el selector "Negocio" de la barra de filtros con los negocios de O14B (distinct ref+color).
-  function populateNegocios(d){
+  // Llena el selector "Negocio" (distinct ref+color) desde una lista de {ref,color,negocio}.
+  function setNegocioOptions(pairs){
     const sel = document.getElementById('o14-negocio'); if(!sel) return;
     const prev = sel.value, seen = {}, opts = [];
-    (d.filas||[]).forEach(f=>{ const k=f.key, key=k.referencia+'|'+k.color;
-      if(seen[key]) return; seen[key]=1; opts.push({v:key, t:(k.negocio||(k.referencia+'-'+k.color))}); });
+    pairs.forEach(p=>{ if(!p.ref) return; const key=p.ref+'|'+p.color;
+      if(seen[key]) return; seen[key]=1; opts.push({v:key, t:(p.negocio||(p.ref+'-'+p.color))}); });
     opts.sort((a,b)=>a.t.localeCompare(b.t));
     sel.innerHTML = '<option value="">— Todos —</option>' + opts.map(o=>'<option value="'+esc(o.v)+'">'+esc(o.t)+'</option>').join('');
     if(prev && seen[prev]) sel.value = prev;
     else if(negocioSel.ref && seen[negocioSel.ref+'|'+negocioSel.color]) sel.value = negocioSel.ref+'|'+negocioSel.color;
+  }
+  // O14B: negocios desde las filas (f.key). O14C: desde el árbol grupos→almacenes→negocios.
+  // (Ambas vistas tienen TODOS los negocios; se llena con la que cargue, para que el selector nunca quede vacío.)
+  function populateNegocios(d){ setNegocioOptions((d.filas||[]).map(f=>({ref:f.key.referencia,color:f.key.color,negocio:f.key.negocio}))); }
+  function populateNegociosArbol(d){
+    const pairs=[]; (d.grupos||[]).forEach(g=>(g.almacenes||[]).forEach(a=>(a.negocios||[]).forEach(n=>
+      pairs.push({ref:n.referencia,color:n.color,negocio:n.negocio}))));
+    setNegocioOptions(pairs);
   }
 
   // Poda el árbol a un solo negocio (ref+color), descartando almacenes/grupos vacíos.
@@ -478,6 +495,14 @@
   // Selector de la barra: elegir un negocio filtra el árbol de O14C; "— Todos —" muestra todo.
   window.o14PickNegocio = function(value){
     const cTab = document.querySelector('#page-informes-o14 .o14-tabs .tab:nth-child(1)');
+    // En Recomendaciones el selector filtra la reco EN SITIO (no salta a C): vacío = general; un negocio = solo ese.
+    if(currentTab === 'reco'){
+      if(!value){ negocioSel = { ref:'', color:'' }; document.getElementById('o14-c-sel').textContent=''; }
+      else { const j=value.indexOf('|'); negocioSel = { ref:value.slice(0,j), color:value.slice(j+1) };
+             document.getElementById('o14-c-sel').textContent = 'Negocio: '+negocioSel.ref+'-'+negocioSel.color; }
+      if(lastReco) renderRecoMatrices(lastReco); else loadReco();
+      return;
+    }
     if(!value){ negocioSel = { ref:'', color:'' }; document.getElementById('o14-c-sel').textContent='';
       o14ShowTab('c', cTab);
       if(tabState.c && lastData.c){ shownC=lastData.c; arbolState=null; renderArbol('o14-matriz-c', lastData.c, false); renderKpis(lastData.c.kpis||{}); }
@@ -534,13 +559,46 @@
     });
     return aoa;
   }
-  // Exporta a .xlsx real la tabla de la pestaña actual (incluye todas las filas, incluso grupos colapsados).
+  // Exporta a .xlsx en formato tabular (datos planos, no la vista pivote por talla):
+  // una fila por (dimensiones, medida, talla, valor). B = por negocio; C = grupo/almacén/negocio.
   window.o14Export = function(){
-    const tbl = document.querySelector('#o14-panel-'+currentTab+' table');
-    if(!tbl){ Swal.fire('Exportar','Nada que exportar en esta pestaña.','info'); return; }
+    const data = lastData[currentTab];
+    if(currentTab !== 'b' && currentTab !== 'c'){
+      // Reco u otras: conserva el volcado de la tabla visible.
+      const tbl = document.querySelector('#o14-panel-'+currentTab+' table');
+      if(!tbl){ Swal.fire('Exportar','Nada que exportar en esta pestaña.','info'); return; }
+      if(typeof XLSX === 'undefined'){ Swal.fire('Exportar','No se cargó el componente de Excel.','error'); return; }
+      const wb0 = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb0, XLSX.utils.aoa_to_sheet(tableToAOA(tbl)), 'O14');
+      XLSX.writeFile(wb0, 'O14_'+currentTab+'_'+new Date().toISOString().slice(0,10)+'.xlsx');
+      return;
+    }
+    if(!data){ Swal.fire('Exportar','Carga la pestaña primero.','info'); return; }
     if(typeof XLSX === 'undefined'){ Swal.fire('Exportar','No se cargó el componente de Excel.','error'); return; }
+    const tallas = data.tallas||[], medidas = data.medidas||[];
+    const mlabel = m => (MED_LABEL[m]||m);
+    let aoa;
+    if(currentTab === 'c'){
+      aoa = [['Grupo','Almacen','Negocio','Medida','Talla','Valor']];
+      (data.grupos||[]).forEach(gr=>{
+        (gr.almacenes||[]).forEach(a=>{
+          const alm = (a.bodega||'') + (a.nombre ? (' · '+a.nombre) : '');
+          (a.negocios||[]).forEach(n=>{
+            medidas.forEach(m=>{ const o=(n.valores||{})[m]||{};
+              tallas.forEach(t=>{ const v=o[t]||0; if(v) aoa.push([gr.grupo, alm, n.negocio, mlabel(m), t, v]); }); });
+          });
+        });
+      });
+    } else {
+      aoa = [['Negocio','Medida','Talla','Valor']];
+      (data.filas||[]).forEach(fila=>{
+        const neg = (fila.key && fila.key.negocio) || '';
+        medidas.forEach(m=>{ const o=(fila.valores||{})[m]||{};
+          tallas.forEach(t=>{ const v=o[t]||0; if(v) aoa.push([neg, mlabel(m), t, v]); }); });
+      });
+    }
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(tableToAOA(tbl)), 'O14');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), 'O14');
     XLSX.writeFile(wb, 'O14_'+currentTab+'_'+new Date().toISOString().slice(0,10)+'.xlsx');
   };
 })();

@@ -212,8 +212,9 @@ if ($tab === 'b' || $tab === 'c' || $tab === 'reco') {
         if ($d === false) jsonFail(['error'=>sqlsrv_errors()], $dbConnect); else sqlsrv_free_stmt($d);
     }
 }
-// Filtros de bodega (vía Bodegas, conservando CEDI): SOLO B/C — reco usa la red completa para la cascada.
-if ($tab === 'b' || $tab === 'c') {
+// Filtros de bodega (vía Bodegas, conservando CEDI): aplican a B/C y a reco. Las recomendaciones se
+// acotan a las tiendas seleccionadas; el CEDI se conserva siempre (b.bodega <> 'CEDI') para la cascada.
+if ($tab === 'b' || $tab === 'c' || $tab === 'reco') {
     foreach ($FILTROS_BOD as $key => $col) {
         $vals = getMulti($key); if (!$vals) continue;
         $ph = implode(',', array_fill(0, count($vals), '?'));
@@ -338,7 +339,7 @@ if ($tab === 'c') {
 // ====================================================================
 if ($tab === 'reco') {
     require __DIR__ . '/o14_recomendador.php';
-    // Reco GENERAL: corre el motor por (cia, negocio) sobre #base filtrado (producto/SKU; bodega NO).
+    // Reco GENERAL: corre el motor por (cia, negocio) sobre #base filtrado (producto/SKU y bodega).
     $rows = run($dbConnect, "
         SELECT cia, bodega, negocio, referencia, color, talla,
                SUM(siembra) siembra, SUM(disponible) disponible, SUM(hold) hold

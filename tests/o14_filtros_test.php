@@ -63,13 +63,16 @@ if ($marcaTest !== '') {
     if ($nFm > $nBase) { echo "FALLO: filtro marca no reduce ($nFm > $nBase)\n"; $fail = 1; }
 }
 
-// 3) reco IGNORA los filtros de dimensión (CEDI/tiendas siempre completos para el negocio):
-//    aun pasando grupo[]/talla[] el endpoint responde ok (los filtros solo aplican a B/C).
+// 3) reco HONRA los filtros (producto/SKU y bodega); el CEDI se conserva (b.bodega <> 'CEDI') para la cascada.
+//    Filtrar por un grupo inexistente acota la red → no debe AUMENTAR las filas vs sin filtro de bodega.
 $ref = $sku[0]['referencia'] ?? ''; $col = $sku[0]['color'] ?? '';
 if ($ref !== '') {
-    $r = ep($php, $runner, $prov, 'tab=reco&ref=' . rawurlencode($ref) . '&color=' . rawurlencode($col) . '&grupo[]=NOEXISTE&talla[]=99', $nul);
-    echo "tab=reco con grupo[]/talla[] inexistentes: ok=" . (($r['ok']??false)?'1':'0') . " planes=" . count($r['planes'] ?? []) . "\n";
-    if (!($r['ok'] ?? false)) { echo "FALLO: reco rompe / aplica filtros de dimension\n"; $fail = 1; }
+    $base = ep($php, $runner, $prov, 'tab=reco&ref=' . rawurlencode($ref) . '&color=' . rawurlencode($col), $nul);
+    $filt = ep($php, $runner, $prov, 'tab=reco&ref=' . rawurlencode($ref) . '&color=' . rawurlencode($col) . '&grupo[]=NOEXISTE', $nul);
+    $nB = count($base['filas'] ?? []); $nF = count($filt['filas'] ?? []);
+    echo "tab=reco filas sin filtro=$nB, con grupo[]=NOEXISTE=$nF\n";
+    if (!($base['ok'] ?? false) || !($filt['ok'] ?? false)) { echo "FALLO: reco rompe con/sin filtro de bodega\n"; $fail = 1; }
+    if ($nF > $nB) { echo "FALLO: el filtro de bodega no acota reco ($nF > $nB)\n"; $fail = 1; }
 }
 
 echo $fail ? "RESULTADO: FALLO\n" : "RESULTADO: OK (catálogo + filtros sobre #base + invariante + reco/CEDI)\n";
