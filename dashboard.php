@@ -374,101 +374,6 @@
             .criteria-grid { grid-template-columns: 1fr; }
         }
 
-        /* ============ AGENTE AKA (Clippy) ============ */
-        .agent-fab {
-            position: fixed; bottom: 24px; right: 24px; z-index: 1500;
-            width: 56px; height: 56px; border-radius: 50%;
-            background: var(--primary); color: white; border: none;
-            cursor: pointer; font-size: 24px; box-shadow: 0 4px 20px rgba(74,71,130,0.4);
-            transition: all 0.3s; display: flex; align-items: center; justify-content: center;
-        }
-        .agent-fab:hover { background: var(--accent); transform: scale(1.1); }
-        .agent-fab .pulse {
-            position: absolute; width: 100%; height: 100%; border-radius: 50%;
-            border: 2px solid var(--primary); animation: pulse 2s infinite;
-        }
-        @keyframes pulse {
-            0% { transform: scale(1); opacity: 0.7; }
-            100% { transform: scale(1.6); opacity: 0; }
-        }
-        .agent-panel {
-            display: none; position: fixed; bottom: 92px; right: 24px; z-index: 1500;
-            width: 380px; height: 520px; background: white; border-radius: 16px;
-            box-shadow: 0 8px 40px rgba(0,0,0,0.2); flex-direction: column; overflow: hidden;
-        }
-        .agent-panel.active { display: flex; }
-        .agent-header {
-            background: var(--primary); color: white; padding: 16px 20px;
-            display: flex; align-items: center; gap: 12px;
-        }
-        .agent-avatar {
-            width: 40px; height: 40px; border-radius: 50%; background: var(--accent);
-            display: flex; align-items: center; justify-content: center; font-size: 20px;
-        }
-        .agent-header-info h4 { font-size: 14px; font-weight: 700; }
-        .agent-header-info p { font-size: 11px; opacity: 0.7; }
-        .agent-close {
-            margin-left: auto; background: none; border: none; color: white;
-            font-size: 20px; cursor: pointer; opacity: 0.7;
-        }
-        .agent-close:hover { opacity: 1; }
-        .agent-messages {
-            flex: 1; overflow-y: auto; padding: 16px; display: flex;
-            flex-direction: column; gap: 12px;
-        }
-        .agent-msg {
-            max-width: 85%; padding: 10px 14px; border-radius: 12px;
-            font-size: 13px; line-height: 1.5;
-        }
-        .agent-msg.bot {
-            background: #f0eff5; color: var(--text); align-self: flex-start;
-            border-bottom-left-radius: 4px;
-        }
-        .agent-msg.user {
-            background: var(--primary); color: white; align-self: flex-end;
-            border-bottom-right-radius: 4px;
-        }
-        .agent-msg .suggestion {
-            display: inline-block; margin: 4px 4px 0 0; padding: 4px 10px;
-            background: white; border: 1px solid var(--border); border-radius: 12px;
-            font-size: 11px; cursor: pointer; transition: all 0.15s;
-        }
-        .agent-msg .suggestion:hover { background: var(--primary); color: white; border-color: var(--primary); }
-        .agent-input {
-            display: flex; padding: 12px; border-top: 1px solid var(--border); gap: 8px;
-        }
-        .agent-input input {
-            flex: 1; border: 1px solid var(--border); border-radius: 8px;
-            padding: 10px 14px; font-size: 13px; outline: none;
-            font-family: 'Space Grotesk', sans-serif;
-        }
-        .agent-input input:focus { border-color: var(--primary); }
-        .agent-input button {
-            background: var(--accent); color: white; border: none; border-radius: 8px;
-            padding: 0 16px; cursor: pointer; font-size: 14px; transition: background 0.2s;
-        }
-        .agent-input button:hover { background: var(--accent-hover); }
-        .agent-proactive {
-            position: fixed; bottom: 88px; right: 24px; z-index: 299;
-            background: white; border-radius: 12px; padding: 12px 16px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.15); max-width: 280px;
-            font-size: 12px; line-height: 1.5; color: var(--text);
-            border-left: 3px solid var(--accent); cursor: pointer;
-            animation: slideUp 0.3s ease-out;
-        }
-        .agent-proactive::after {
-            content: ''; position: absolute; bottom: -6px; right: 30px;
-            width: 12px; height: 12px; background: white; transform: rotate(45deg);
-            box-shadow: 2px 2px 4px rgba(0,0,0,0.1);
-        }
-        .agent-proactive .dismiss {
-            position: absolute; top: 4px; right: 8px; background: none; border: none;
-            font-size: 14px; cursor: pointer; color: var(--text-light);
-        }
-        @keyframes slideUp {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
 
         /* ============ CARGA MASIVA ============ */
         .upload-excel {
@@ -509,7 +414,7 @@
                     <span class="icon"><i class="fa-solid fa-chart-column"></i></span> Ventas
                 </div>
                 <div class="nav-item" onclick="showPage('informes-o14', this)">
-                    <span class="icon"><i class="fa-solid fa-shoe-prints"></i></span> Siembra/Stock
+                    <span class="icon"><i class="fa-solid fa-shoe-prints"></i></span> Siembra/Stock/Ventas
                 </div>
                 <div class="nav-item" onclick="showPage('informes-o45', this)">
                     <span class="icon"><i class="fa-solid fa-arrow-trend-up"></i></span> &Iacute;ndice de Ventas
@@ -547,6 +452,9 @@
                 <div class="user-name"><?php echo htmlspecialchars($nombreUsuario); ?></div>
                 <div class="user-role">Aliado</div>
             </div>
+            <a href="logout.php" title="Cerrar sesión" style="margin-left:auto;color:rgba(255,255,255,0.75);text-decoration:none;font-size:16px;line-height:1;padding:6px;border-radius:6px;transition:background .15s;" onmouseover="this.style.background='rgba(255,255,255,0.12)';this.style.color='#fff';" onmouseout="this.style.background='none';this.style.color='rgba(255,255,255,0.75)';">
+                <i class="fa-solid fa-right-from-bracket"></i>
+            </a>
         </div>
     </aside>
 
@@ -557,11 +465,7 @@
                 <h2 id="pageTitle">DASHBOARD</h2>
                 <div id="pageSubtitle" class="topbar-subtitle" style="display:none;"></div>
             </div>
-            <div class="topbar-actions">
-                <a href="logout.php" class="notification-btn" title="Cerrar sesión" style="text-decoration:none;color:var(--text);">
-                    <i class="fa-solid fa-right-from-bracket"></i>
-                </a>
-            </div>
+            <div class="topbar-actions"></div>
         </div>
 
         <div class="content">
@@ -824,15 +728,9 @@
                     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;">
                         <div style="border:1px solid #e8e6f0;border-radius:10px;padding:20px;display:flex;flex-direction:column;align-items:flex-start;gap:8px;background:#fff;">
                             <div style="font-size:30px;color:var(--primary);"><i class="fa-solid fa-file-excel"></i></div>
-                            <div style="font-size:15px;font-weight:700;color:var(--primary);">Planilla de Codificaci&oacute;n</div>
+                            <div style="font-size:15px;font-weight:700;color:var(--primary);">Plantilla de Codificaci&oacute;n</div>
                             <div style="font-size:12px;color:var(--text-light);">Formato Excel &bull; .xlsx</div>
                             <a class="btn btn-primary btn-sm" href="Archivos/codificacion.xlsx" download style="margin-top:8px;text-decoration:none;">&#11015; Descargar</a>
-                        </div>
-                        <div style="border:1px solid #e8e6f0;border-radius:10px;padding:20px;display:flex;flex-direction:column;align-items:flex-start;gap:8px;background:#fff;">
-                            <div style="font-size:30px;color:var(--primary);"><i class="fa-solid fa-file-excel"></i></div>
-                            <div style="font-size:15px;font-weight:700;color:var(--primary);">Planilla de Aviso de Llegada</div>
-                            <div style="font-size:12px;color:var(--text-light);">Formato Excel &bull; .xlsx</div>
-                            <a class="btn btn-primary btn-sm" href="Archivos/aviso.xlsx" download style="margin-top:8px;text-decoration:none;">&#11015; Descargar</a>
                         </div>
                     </div>
                 </div>
@@ -1095,46 +993,9 @@
     </div>
 </div>
 
-<!-- ==================== AGENTE AKA (Clippy) ==================== -->
-<div class="agent-proactive" id="agentProactive" onclick="toggleAgent()" style="display:none;">
-    <button class="dismiss" onclick="event.stopPropagation();document.getElementById('agentProactive').style.display='none'">&#10005;</button>
-    <strong style="color:var(--primary);">&#129302; AKA Asistente</strong><br>
-    Hola! Vi que la talla 9 de tu ref 06-160650-3 se agot&oacute; en 3 d&iacute;as en AKA Outlet Am&eacute;ricas. &iquest;Quieres que te ayude a preparar una reposici&oacute;n?
-</div>
-
-<button class="agent-fab" onclick="toggleAgent()" id="agentFab" style="display:none;">
-    <span class="pulse"></span>
-    <img src="img/aka.ico" style="width:30px;height:30px;border-radius:50%;">
-</button>
-
-<div class="agent-panel" id="agentPanel">
-    <div class="agent-header">
-        <div class="agent-avatar">&#129302;</div>
-        <div class="agent-header-info">
-            <h4>AKA Asistente</h4>
-            <p>Powered by Claude AI</p>
-        </div>
-        <button class="agent-close" onclick="toggleAgent()">&#10005;</button>
-    </div>
-    <div class="agent-messages" id="agentMessages">
-        <div class="agent-msg bot">
-            &#128075; Hola! Soy tu asistente AKA. Puedo ayudarte con:
-            <br><br>
-            <span class="suggestion" onclick="agentSend('Expl\u00edcame las cifras del dashboard')">Explicar cifras</span>
-            <span class="suggestion" onclick="agentSend('\u00bfC\u00f3mo va mi inventario?')">Estado inventario</span>
-            <span class="suggestion" onclick="agentSend('\u00bfTengo facturas vencidas?')">Facturas pendientes</span>
-            <span class="suggestion" onclick="agentSend('Ayuda con codificaci\u00f3n')">Ayuda codificaci&oacute;n</span>
-        </div>
-    </div>
-    <div class="agent-input">
-        <input type="text" placeholder="Escribe tu pregunta..." id="agentInput" onkeydown="if(event.key==='Enter')agentSend()">
-        <button onclick="agentSend()">&#10148;</button>
-    </div>
-</div>
+<!-- Chatbot AKA retirado (2026-06-24): no se usa por ahora. -->
 
 <script>
-    // Mostrar agente al cargar
-    document.getElementById('agentFab').style.display = 'flex';
     function showPage(pageId, navItem) {
         document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
         document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
@@ -1145,7 +1006,7 @@
             pagos:'PAGOS Y FACTURAS', codificacion:'CODIFICACI\u00d3N',
             documentos:'DOCUMENTACI\u00d3N', alertas:'ALERTAS',
             'informes-g00':'DASHBOARD DE VENTAS',
-            'informes-o14':'SIEMBRA / STOCK',
+            'informes-o14':'SIEMBRA / STOCK / VENTAS',
             'informes-o45':'ÍNDICE DE VENTAS',
             'evolucion-historica':'EVOLUCIÓN HISTÓRICA',
             'georreferenciacion':'GEOREFERENCIACIÓN',
@@ -1164,7 +1025,6 @@
         if (pageId === 'georreferenciacion' && typeof geoOnEnter === 'function') geoOnEnter();
         if (pageId === 'informes-pagos' && typeof pgOnEnter === 'function') pgOnEnter();
         if (pageId === 'documentos' && typeof cargarDocumentos === 'function') cargarDocumentos();
-        updateAgentContext(pageId);
     }
     document.getElementById('modalCodificacion').addEventListener('click', function(e) {
         if (e.target === this) this.classList.remove('active');
@@ -1332,77 +1192,6 @@
             .catch(() => { body.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--danger);padding:16px;">Error de conexión.</td></tr>'; });
     }
 
-    // Agente AKA
-    function toggleAgent() {
-        const panel = document.getElementById('agentPanel');
-        const proactive = document.getElementById('agentProactive');
-        panel.classList.toggle('active');
-        if (proactive) proactive.style.display = 'none';
-    }
-
-    const agentResponses = {
-        'dashboard': {
-            'Expl\u00edcame las cifras del dashboard': '<strong>Tus cifras de marzo 2026:</strong><br><br>&#9650; <strong>Ventas $284.5M:</strong> Llevas un +12.5% vs febrero. Tu mejor referencia es la 06-160650-3 con 342 pares vendidos.<br><br>&#128230; <strong>12,847 unidades</strong> en inventario, bajando 3.2% porque las tallas centrales rotan r\u00e1pido.<br><br>&#128179; <strong>$45.2M pagados</strong> este mes, pero tienes <strong style="color:var(--accent);">$18.7M pendientes</strong> con 3 facturas vencidas. Te recomiendo revisar tu cartera.',
-        },
-        'general': {
-            '\u00bfC\u00f3mo va mi inventario?': 'Tu inventario total es <strong>12,847 unidades</strong>. Tengo 2 alertas cr\u00edticas:<br><br>&#128308; <strong>06-160650-3 Negro/Blanco:</strong> tallas 8.5, 9 y 9.5 con stock insuficiente vs demanda. Necesitas reposici\u00f3n urgente.<br><br>&#128308; <strong>06-160676-3 Caf\u00e9:</strong> solo recibi\u00f3 31 uds (5 menos que el promedio). Tallas 10 y 10.5 casi agotadas.<br><br>\u00bfQuieres que prepare una solicitud de reposici\u00f3n?',
-            '\u00bfTengo facturas vencidas?': 'S\u00ed, tienes <strong>3 facturas vencidas</strong> por un total de <strong style="color:var(--accent);">$18.7M</strong>:<br><br>1. FV-83950 &mdash; $6.2M (venci\u00f3 17/03)<br>2. FV-83871 &mdash; $3.75M (venci\u00f3 12/03)<br>3. FV-83720 &mdash; $8.75M (venci\u00f3 05/03)<br><br>Te recomiendo contactar a tu ejecutivo de cuenta. Las facturas vencidas pueden afectar la aprobaci\u00f3n de nuevas codificaciones.',
-            'Ayuda con codificaci\u00f3n': 'Para codificar productos tienes 2 opciones:<br><br><strong>1. Formulario individual:</strong> Clic en "+ NUEVA SOLICITUD". Completa los 5 pasos (referencia, clasificaci\u00f3n, detalle SKU, dispersi\u00f3n a tiendas y foto).<br><br><strong>2. Carga masiva:</strong> Ve a la pesta\u00f1a "Carga masiva" y sube un Excel con formato Plantilla.<br><br>Recuerda que la <strong>foto es obligatoria</strong> y que la solicitud pasa por <strong>Cuidadur\u00eda</strong> (an\u00e1lisis de competencia) antes de la aprobaci\u00f3n final.<br><br>\u00bfQu\u00e9 m\u00e9todo prefieres?',
-            '\u00bfQu\u00e9 es la cuidadur\u00eda?': 'La <strong>Cuidadur\u00eda</strong> es el Comit\u00e9 AKA que revisa cada solicitud de codificaci\u00f3n. Eval\u00faa 2 cosas:<br><br>1. <strong>Competencia/canibalizaci\u00f3n:</strong> Revisa la foto del producto para verificar que no compita con productos que ya est\u00e1n en tiendas AKA.<br><br>2. <strong>Curva de tallas:</strong> Verifica que las cantidades por talla est\u00e9n bien distribuidas (tallas centrales deben tener m\u00e1s stock).<br><br>Si aprueban, pasa al Comit\u00e9 T\u00e9cnico para aprobaci\u00f3n final.',
-            '\u00bfPor qu\u00e9 rechazaron mi referencia?': 'D\u00e9jame revisar... Tu \u00faltima referencia rechazada es la <strong>06-160829-4 Blanco/Amarillo</strong>. Fue rechazada por el Comit\u00e9 AKA (Cuidadur\u00eda) porque:<br><br>&#128308; <strong>Canibalizaci\u00f3n detectada:</strong> Es muy similar a la 06-160650-3 que ya est\u00e1 en tiendas. Ambas son zapatillas casual hombre con base blanca.<br><br>Te sugiero diferenciar m\u00e1s el dise\u00f1o o proponer un color que no compita.',
-        }
-    };
-
-    function agentSend(text) {
-        const input = document.getElementById('agentInput');
-        const msg = text || input.value.trim();
-        if (!msg) return;
-        input.value = '';
-
-        const panel = document.getElementById('agentPanel');
-        if (!panel.classList.contains('active')) toggleAgent();
-
-        const messages = document.getElementById('agentMessages');
-        messages.innerHTML += '<div class="agent-msg user">' + msg + '</div>';
-
-        // Simulate typing
-        const typingDiv = document.createElement('div');
-        typingDiv.className = 'agent-msg bot';
-        typingDiv.innerHTML = '<em style="color:var(--text-light);">Analizando tus datos...</em>';
-        messages.appendChild(typingDiv);
-        messages.scrollTop = messages.scrollHeight;
-
-        setTimeout(() => {
-            let response = agentResponses.general[msg] || agentResponses.dashboard[msg];
-            if (!response) {
-                response = 'Entiendo tu pregunta. D\u00e9jame analizar los datos de tu cuenta con SIESA...<br><br>Basado en tus datos de Original Penguin, te puedo decir que tus ventas van bien este mes (+12.5%). Sin embargo, tienes 5 alertas pendientes que requieren atenci\u00f3n.<br><br>\u00bfQuieres que profundice en algo espec\u00edfico?<br><br><span class="suggestion" onclick="agentSend(\'\u00bfC\u00f3mo va mi inventario?\')">Inventario</span> <span class="suggestion" onclick="agentSend(\'\u00bfTengo facturas vencidas?\')">Facturas</span> <span class="suggestion" onclick="agentSend(\'\u00bfQu\u00e9 es la cuidadur\u00eda?\')">Cuidadur\u00eda</span>';
-            }
-            typingDiv.innerHTML = response;
-            messages.scrollTop = messages.scrollHeight;
-        }, 1200);
-    }
-
-    function updateAgentContext(pageId) {
-        // Proactive messages per page
-        const proactive = document.getElementById('agentProactive');
-        if (!proactive) return;
-        const msgs = {
-            inventarios: 'Las tallas 8.5-9.5 de la ref 06-160650-3 muestran un desbalance entre stock y ventas. \u00bfQuiero que analice la curva completa?',
-            pagos: 'Tienes 3 facturas vencidas por $18.7M. Esto podr\u00eda retrasar la aprobaci\u00f3n de nuevas codificaciones.',
-            codificacion: 'Tip: Si vas a codificar m\u00e1s de 5 referencias, usa la pesta\u00f1a "Archivos" con tu Plantilla. Es mucho m\u00e1s r\u00e1pido.',
-            alertas: 'Tienes 2 alertas cr\u00edticas de rotaci\u00f3n. Las tallas centrales se agotan 3x m\u00e1s r\u00e1pido que las extremas.',
-        };
-        // Burbuja proactiva desactivada: los mensajes por pagina eran demos hardcodeados
-        // (facturas/refs ficticias) que no salian de datos reales. Se oculta siempre.
-        if (false) {
-            proactive.style.display = 'block';
-            proactive.innerHTML = '<button class="dismiss" onclick="event.stopPropagation();this.parentElement.style.display=\'none\'">&#10005;</button><strong style="color:var(--primary);">&#129302; AKA Asistente</strong><br>' + msgs[pageId];
-        } else {
-            // Páginas sin mensaje proactivo propio (p.ej. Análisis de Pagos): ocultar
-            // cualquier aviso que haya quedado de una página anterior.
-            proactive.style.display = 'none';
-        }
-    }
 
     // ===== Zebra por filas VISIBLES en tablas disp-table (G00 + pagos) =====
     // nth-child cuenta filas ocultas de los desplegables; por eso se raya con JS sobre las visibles.

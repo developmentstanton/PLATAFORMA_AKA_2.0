@@ -160,25 +160,20 @@
     }).catch(()=>{ cont.innerHTML='<p style="padding:16px;color:var(--accent)">Error de red.</p>'; }).finally(hideLoading);
   };
 
-  // Excel: DOM->AOA expandiendo rowspan, enteros es-CO -> número real (mismo criterio que O14/O45).
+  // Excel en formato tabular (datos planos, no la vista pivote): una fila por (negocio, concepto, mes).
   window.evolExport = function(){
-    const tbl=document.getElementById('evol-tbl');
-    if(!tbl || typeof XLSX==='undefined'){ if(window.Swal) Swal.fire('Exportar','Carga el informe primero.','info'); return; }
-    const rows=[...tbl.querySelectorAll('tr')]; const aoa=[]; const carry={};
-    rows.forEach((tr,ri)=>{
-      const out=[]; let ci=0;
-      Object.keys(carry).forEach(c=>{ if(carry[c].left>0){ out[c]=carry[c].text; carry[c].left--; } });
-      [...tr.children].forEach(td=>{
-        while(out[ci]!==undefined) ci++;
-        const txt=td.textContent.trim();
-        const num=Number(txt.replace(/\./g,'').replace(',','.'));
-        const v=(txt!=='' && !isNaN(num) && /[0-9]/.test(txt)) ? num : txt;
-        out[ci]=v;
-        const rs=parseInt(td.getAttribute('rowspan')||'1',10);
-        if(rs>1) carry[ci]={text:txt,left:rs-1};
-        ci++;
+    const d=window.__evollast;
+    if(!d || typeof XLSX==='undefined'){ if(window.Swal) Swal.fire('Exportar','Carga el informe primero.','info'); return; }
+    const meses=d.meses||[], negs=d.negocios||[];
+    const aoa=[['Negocio','Concepto','Mes','Valor']];
+    negs.forEach(n=>{
+      MEDIDAS.forEach(med=>{
+        const serie=(n.valores||{})[med.k]||{};
+        meses.forEach(m=>{
+          const v=serie[m];
+          if(v!==undefined && v!==null && v!=='') aoa.push([n.negocio, med.t, fmtMesHdr(m), v]);
+        });
       });
-      aoa.push(out.map(x=>x===undefined?'':x));
     });
     const wb=XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), 'Evolucion');

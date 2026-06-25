@@ -187,6 +187,26 @@
     #page-informes-g00 .card-title { font-size: 13px; }
     #page-informes-g00 table.disp-table th,
     #page-informes-g00 table.disp-table td { font-size: 11px; }
+
+    /* ===== Congelar cabecera + 1ª columna en tablas anchas (G00, Pagos, O45, Evol, O14) ===== */
+    /* El contenedor necesita alto máximo + overflow para que la cabecera fija (sticky top) actúe al
+       hacer scroll vertical; el primer <td>/<th> de cada fila se fija a la izquierda al scrollear en horizontal. */
+    div:has(> table.disp-table),
+    div:has(> table.o45-tabla),
+    div:has(> table.evol-tabla),
+    div:has(> table.o14-matriz) { max-height: 78vh; overflow: auto; }
+
+    /* Cabecera fija */
+    :is(table.disp-table, table.o45-tabla, table.evol-tabla) thead th { position: sticky; top: 0; z-index: 3; }
+    /* Primera columna fija (primer td/th de cada fila) */
+    :is(table.disp-table, table.o45-tabla, table.evol-tabla) thead th:first-child,
+    :is(table.disp-table, table.o45-tabla, table.evol-tabla) tbody td:first-child { position: sticky; left: 0; }
+    :is(table.disp-table, table.o45-tabla, table.evol-tabla) thead th:first-child { z-index: 4; }
+    :is(table.disp-table, table.o45-tabla, table.evol-tabla) tbody td:first-child { z-index: 2; }
+    /* Fondos opacos por defecto (las filas zebra/total/.neg ya traen su propio fondo y ganan por especificidad) */
+    table.disp-table thead th { background: #fff; box-shadow: inset 0 -1px 0 var(--border); }
+    table.disp-table td:first-child { background: #fff; }
+    table.o45-tabla td:first-child { background: #fff; }
 </style>
 
 <div class="page" id="page-informes-g00">
