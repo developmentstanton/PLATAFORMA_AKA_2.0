@@ -32,7 +32,7 @@
     </div>
   </div>
   <div class="card">
-    <div class="card-title">Resumen Mensual Flujo de Egresos<button class="g00-btn-export" onclick="pgExport()">&#10515; Excel</button></div>
+    <div class="card-title">Resumen Proyectado de Pagos<button class="g00-btn-export" onclick="pgExport()">&#10515; Excel</button></div>
     <div id="pg-aviso" style="display:none; margin:6px 0; padding:6px 10px; background:#fff3cd; color:#7a5b00; border:1px solid #ffe08a; border-radius:6px; font-size:12px;"></div>
     <div style="overflow-x:auto;"><table id="pg-tabla" class="disp-table"></table></div>
   </div>
