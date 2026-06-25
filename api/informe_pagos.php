@@ -17,7 +17,9 @@ if (!isset($_SESSION['usuario'])) {
 }
 $nit = trim($_SESSION['nit'] ?? '');
 if ($nit === '') {
-    echo json_encode(['ok' => false, 'error' => 'No se pudo resolver el NIT del proveedor']);
+    // Proveedor sin NIT en el maestro (p.ej. resuelto por fallback a ITEMS, como INTERTENIS):
+    // no figura en cuentas por pagar → no hay datos que mostrar. Estado vacío, NO error.
+    echo json_encode(['ok' => true, 'sin_nit' => true, 'razon_social' => trim($_SESSION['proveedor'] ?? ''), 'filas' => [], 'meses' => []]);
     exit;
 }
 

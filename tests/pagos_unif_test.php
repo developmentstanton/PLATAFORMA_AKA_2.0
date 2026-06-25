@@ -42,9 +42,11 @@ if (($e['nit']??null) !== $NIT_B)
 $cnt_a = count($d['filas']??[]); $cnt_b = count($e['filas']??[]);
 if ($cnt_a === $cnt_b && $NIT_A !== $NIT_B)
   { echo "FALLO: conteo igual para NITs distintos ($cnt_a)\n"; $fail=1; }
-// Sin sesión de NIT -> error
+// Sin sesión de NIT -> estado vacío con sin_nit (NO error): el proveedor no figura en CxP.
 $z = call_ep($php,$runner,'','',$nul);
-if (($z['ok']??true) !== false) { echo "FALLO: sin NIT debería dar ok=false\n"; $fail=1; }
+if (($z['ok']??false) !== true)        { echo "FALLO: sin NIT debería dar ok=true (estado vacío)\n"; $fail=1; }
+if (($z['sin_nit']??false) !== true)   { echo "FALLO: sin NIT debería marcar sin_nit=true\n"; $fail=1; }
+if (count($z['filas']??[null]) !== 0)  { echo "FALLO: sin NIT debería devolver filas vacías\n"; $fail=1; }
 // Task 2: TRM — En Pesos debe convertir divisas; COP debe quedar igual a valor
 foreach ($filas as $f) {
   if ($f['moneda']==='COP' && abs($f['en_pesos']-$f['valor'])>0.5) { echo "FALLO: COP en_pesos!=valor\n"; $fail=1; break; }

@@ -24,8 +24,6 @@
 <div class="page" id="page-informes-pagos">
   <div class="g00-filters">
     <div class="g00-filter-row">
-      <div class="filter-group"><label>Causado</label>
-        <select id="pg-causado"><option value="">Todas</option><option value="SI">SI</option><option value="NO">NO</option></select></div>
       <div class="filter-group"><label>Desde</label><input type="date" id="pg-fdesde"></div>
       <div class="filter-group"><label>Hasta</label><input type="date" id="pg-fhasta"></div>
       <div style="margin-left:auto; align-self:flex-end;">
@@ -51,7 +49,6 @@
 
   function pgParams() {
     const p = new URLSearchParams();
-    const c = document.getElementById('pg-causado').value; if (c) p.append('causado', c);
     const fd = document.getElementById('pg-fdesde').value; if (fd) p.append('fdesde', fd);
     const fh = document.getElementById('pg-fhasta').value; if (fh) p.append('fhasta', fh);
     return p.toString();
@@ -80,6 +77,15 @@
         }
         pgData = d;
         const av = document.getElementById('pg-aviso');
+        if (d.sin_nit) {
+          pgHideLoading();
+          av.style.display = '';
+          av.textContent = 'Este proveedor no tiene NIT asociado en el maestro de proveedores, por lo que no hay información de pagos disponible.';
+          const vacio = '<tbody><tr><td style="text-align:center;color:var(--text-light);padding:20px;">Sin información de pagos</td></tr></tbody>';
+          document.getElementById('pg-tabla').innerHTML = vacio;
+          document.getElementById('pg-gen-tabla').innerHTML = vacio;
+          return;
+        }
         if (d.trm && d.trm.fallback) {
           av.style.display = '';
           av.textContent = '⚠ Tasa de cambio no disponible hoy (usando último valor del ' + (d.trm.fecha || '—') + '). Los montos en USD/EU pueden no estar actualizados.';
@@ -173,34 +179,18 @@
       return;
     }
     const d = pgData;
-    const { meses, anios, grupos } = pgBuildGroups(d);
-    const header = ['Fecha vencimiento', 'RAZON_SOCIAL'];
-    anios.forEach(a => {
-      meses.filter(m => m.anio === a).forEach(m => header.push(MESES_PG[m.mes - 1] + ' ' + a));
-      header.push('Total ' + a);
-    });
-    header.push('Total');
-
-    const fechas = Object.keys(grupos).sort();
-    const rows = fechas.map(fch => {
+    const { meses, grupos } = pgBuildGroups(d);
+    // Formato tabular (datos planos, no la vista pivote): una fila por (fecha venc, año, mes) con valor.
+    const aoa = [['RAZON_SOCIAL', 'Fecha vencimiento', 'Anio', 'Mes', 'En Pesos']];
+    Object.keys(grupos).sort().forEach(fch => {
       const g = grupos[fch];
-      const r = [fch, d.razon_social || ''];
-      let rt = 0;
-      anios.forEach(a => {
-        let at = 0;
-        meses.filter(m => m.anio === a).forEach(m => {
-          const v = g.cells[m.anio + '-' + m.mes] || 0;
-          at += v;
-          r.push(v);
-        });
-        r.push(at);
-        rt += at;
+      meses.forEach(m => {
+        const v = g.cells[m.anio + '-' + m.mes] || 0;
+        if (v) aoa.push([d.razon_social || '', fch, m.anio, MESES_PG[m.mes - 1], v]);
       });
-      r.push(rt);
-      return r;
     });
 
-    const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Pagos');
     const fecha = new Date().toISOString().slice(0, 10);
@@ -262,9 +252,12 @@
   function pgGenExport() {
     if (!pgGenData) return;
     if (typeof XLSX === 'undefined') { if (window.Swal) Swal.fire('Exportar','No se pudo cargar Excel.','error'); return; }
-    const rows = (pgGenData.nodos||[]).map(n => [ ('  '.repeat(n.nivel-1)) + n.label, n.valor ]);
-    rows.push(['Total', pgGenData.total.valor]);
-    const ws = XLSX.utils.aoa_to_sheet([['FECHA','VALOR TOTAL'], ...rows]);
+    // Formato tabular: una fila por día (hoja del árbol) con Año/Mes/Día desglosados.
+    const aoa = [['Anio','Mes','Dia','Valor Total','Dias Vencidos']];
+    (pgGenData.nodos||[]).filter(n => n.nivel === 3).forEach(n => {
+      aoa.push([n.anio, MES_PG[(n.mes||1)-1] || n.mes, n.dia, n.valor, n.dias]);
+    });
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
     const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Pagos Generados');
     const fecha = new Date().toISOString().slice(0,10);
     XLSX.writeFile(wb, 'Pagos_Generados_' + fecha + '.xlsx');

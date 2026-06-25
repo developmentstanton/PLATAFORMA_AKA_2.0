@@ -3,7 +3,7 @@ session_start();
 header('Content-Type: application/json; charset=utf-8');
 if (!isset($_SESSION['usuario'])) { http_response_code(401); echo json_encode(['ok'=>false,'error'=>'No autenticado']); exit; }
 $nit = trim($_SESSION['nit'] ?? '');
-if ($nit === '') { echo json_encode(['ok'=>false,'error'=>'No se pudo resolver el NIT del proveedor']); exit; }
+if ($nit === '') { echo json_encode(['ok'=>true,'sin_nit'=>true,'nodos'=>[],'total'=>['valor'=>0]]); exit; }
 
 $fdesde = trim($_GET['fdesde'] ?? '');
 $fhasta = trim($_GET['fhasta'] ?? '');

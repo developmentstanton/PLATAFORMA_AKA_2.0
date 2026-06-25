@@ -28,8 +28,10 @@ foreach(array_filter($nodos,fn($x)=>$x['nivel']===1) as $anio){
 // total = suma de años
 $sa=0; foreach(array_filter($nodos,fn($x)=>$x['nivel']===1) as $a)$sa+=$a['valor'];
 if(abs($sa-($d['total']['valor']??0))>1){echo "FALLO: total != suma años\n";$fail=1;}
-// aislamiento: NIT inexistente -> sin nodos; sin NIT -> ok:false
+// aislamiento: NIT inexistente -> sin nodos; sin NIT -> estado vacío con sin_nit (NO error)
 $z=call_ep($php,$runner,'',' ',$nul);
-if(($z['ok']??true)!==false){echo "FALLO: sin NIT debería ser ok:false\n";$fail=1;}
+if(($z['ok']??false)!==true){echo "FALLO: sin NIT debería ser ok:true (estado vacío)\n";$fail=1;}
+if(($z['sin_nit']??false)!==true){echo "FALLO: sin NIT debería marcar sin_nit=true\n";$fail=1;}
+if(count($z['nodos']??[null])!==0){echo "FALLO: sin NIT debería devolver nodos vacíos\n";$fail=1;}
 echo $fail?"RESULTADO: FALLO\n":"RESULTADO: OK (árbol coherente + roll-up + total + guard NIT)\n";
 exit($fail);
