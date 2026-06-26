@@ -1252,30 +1252,35 @@
     }
     function periodosAOA(dias, anio) {
         const a = anio, b = a - 1;
-        const header = ['Periodo', 'Cant ' + b, '%' + b, 'Cant ' + a, '%' + a, 'Var% Q', '$ ' + b, '%' + b, '$ ' + a, '%' + a, 'Var% $'];
-        const arbol = buildArbolPeriodos(dias);   // {sems, tot}
+        const MESAB = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+        const header = ['Semestre','Trimestre','Bimestre','Mes','Día',
+            b, 'Part Q '+b, a, 'Part Q '+a, '% Q',
+            '$ '+b, 'Part $ '+b, '$ '+a, 'Part $ '+a, '% $'];
+        const arbol = buildArbolPeriodos(dias);
         const T = arbol.tot;
-        const row = (label, m, ind) => ['   '.repeat(ind) + label,
+        const metr = (dims, m) => dims.concat([
             m.ub, ePart(m.ub, T.ub), m.ua, ePart(m.ua, T.ua), ePct(m.ua, m.ub),
-            m.vb, ePart(m.vb, T.vb), m.va, ePart(m.va, T.va), ePct(m.va, m.vb)];
-        const body = [];
+            m.vb, ePart(m.vb, T.vb), m.va, ePart(m.va, T.va), ePct(m.va, m.vb)]);
+        const filas = [];
         Object.keys(arbol.sems).map(Number).sort((x, y) => x - y).forEach(s => {
-            const S = arbol.sems[s];
-            body.push(row('Semestre ' + s, S.m, 0));
+            const S = arbol.sems[s]; const semL = 'Semestre ' + s;
+            filas.push(metr([semL, '', '', '', ''], S.m));
             Object.keys(S.tris).map(Number).sort((x, y) => x - y).forEach(t => {
-                const Tr = S.tris[t];
-                body.push(row('Trimestre ' + t, Tr.m, 1));
+                const Tr = S.tris[t]; const triL = 'Trim-' + t;
+                filas.push(metr([semL, triL, '', '', ''], Tr.m));
                 Object.keys(Tr.meses).map(Number).sort((x, y) => x - y).forEach(mn => {
                     const M = Tr.meses[mn];
-                    body.push(row(MESES_ES[mn - 1], M.m, 2));
+                    filas.push(metr([semL, triL, '', MESES_ES[mn - 1], ''], M.m));
                     Object.keys(M.dias).map(Number).sort((x, y) => x - y).forEach(d => {
-                        body.push(row(MESES_ES[mn - 1] + '-' + String(d).padStart(2, '0'), M.dias[d].m, 3));
+                        const bim = 'Bim ' + Math.ceil(mn / 2);
+                        const diaL = MESAB[mn - 1] + '-' + String(d).padStart(2, '0');
+                        filas.push(metr([semL, triL, bim, MESES_ES[mn - 1], diaL], M.dias[d].m));
                     });
                 });
             });
         });
-        body.push(row('Total', T, 0));
-        return { header, body };
+        filas.push(metr(['Total', '', '', '', ''], T));
+        return { header, filas };
     }
     window.g00ExpMensual = function () {
         if (!lastDetal) { Swal.fire('Exportar', 'Carga el dashboard primero.', 'info'); return; }
@@ -1283,9 +1288,9 @@
         exportAOA(expFilename('Mensual'), 'Mensual', r.header, r.body);
     };
     window.g00ExpPeriodos = function () {
-        if (!lastPeriodos) { Swal.fire('Exportar', 'Carga la pestaña Periodos primero.', 'info'); return; }
+        if (!lastPeriodos) { window.expDataset('Ventas por Periodos', 'Periodos', [], []); return; }
         const r = periodosAOA(lastPeriodos.dias, lastPeriodos.anio);
-        exportAOA(expFilename('Periodos'), 'Periodos', r.header, r.body);
+        window.expDataset('Ventas por Periodos', 'Periodos', r.header, r.filas, proveedorActual);
     };
     // ============ DISPATCHER ============
     function loadCurrentTab() {
