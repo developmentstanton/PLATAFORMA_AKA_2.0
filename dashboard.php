@@ -54,7 +54,7 @@
       }
       const ws = XLSX.utils.aoa_to_sheet([header, ...filas]);
       const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, String(hoja).slice(0, 31));
+      XLSX.utils.book_append_sheet(wb, ws, String(hoja).replace(/[:\\\/?*\[\]]/g, ' ').slice(0, 31));
       XLSX.writeFile(wb, window.expFile(cuadro, proveedor));
       return true;
     };

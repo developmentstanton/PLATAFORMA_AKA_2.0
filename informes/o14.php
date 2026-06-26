@@ -392,7 +392,7 @@
     const filas0 = (data.filas || []).filter(f => { const o = (f.valores||{})[medida]||{}; for (const t in o) if (o[t]) return true; return false; });
     const header = ['Negocio'].concat(tallas, ['Tot']);
     const tot = {}; tallas.forEach(t => tot[t] = 0);
-    const filas = filas0.map(f => { const o = f.valores[medida]||{}; let rt = 0;
+    const filas = filas0.map(f => { const o = (f.valores||{})[medida]||{}; let rt = 0;
       const row = [f.negocio]; tallas.forEach(t => { const v = o[t]||0; rt += v; tot[t] += v; row.push(v || ''); }); row.push(rt); return row; });
     let gtot = 0; tallas.forEach(t => gtot += tot[t]);
     filas.push(['TOTAL'].concat(tallas.map(t => tot[t] || ''), [gtot]));

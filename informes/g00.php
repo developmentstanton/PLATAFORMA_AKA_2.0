@@ -1144,7 +1144,6 @@
             if (td && td.cellIndex === 0 && (!e.relatedTarget || !td.contains(e.relatedTarget))) hide();
         });
     })();
-    // ===== Exportar a Excel (.xlsx) con SheetJS =====
     const eDif  = (a, b) => (a || 0) - (b || 0);
     const ePct  = (a, b) => b ? ((a - b) / b) * 100 : '';
     const eProm = (v, u) => (u > 0 ? v / u : 0);

@@ -37,7 +37,7 @@ function comparativaAOA(dim, rows, opts) {
 }
 let fail = 0;
 const assert = (cond, msg) => { if (!cond) { console.error('FALLO: ' + msg); fail = 1; } };
-// Caso padre/hijo (full:false → 12 cols métrica + 2 dim = 14).
+// Caso padre/hijo (full:false → 11 cols métrica + 2 dim = 13).
 const rPC = comparativaAOA('Tienda / Negocio',
   [{label:'Tienda A', val_act:100, val_ant:80, ups_act:10, ups_ant:8, margen:30, tiendas_act:1, tiendas_ant:1,
     children:[{label:'Neg1', val_act:60, val_ant:50, ups_act:6, ups_ant:5, margen:0}]}],
