@@ -33,6 +33,32 @@
     <link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+    <script>
+    // ===== Helpers de descarga compartidos por todos los informes =====
+    // XLSX y SweetAlert2 ya se cargan arriba. Centralizan nombre + guard + escritura.
+    window.expFile = function (cuadro, proveedor) {
+      const prov = (proveedor || window.PROVEEDOR_ACTUAL || '').trim();
+      const fecha = new Date().toISOString().slice(0, 10);
+      const limpio = s => String(s == null ? '' : s).replace(/[\/\\:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim();
+      const c = limpio(cuadro), p = limpio(prov);
+      return c + (p ? ' - ' + p : '') + ' - ' + fecha + '.xlsx';
+    };
+    window.expDataset = function (cuadro, hoja, header, filas, proveedor) {
+      if (typeof XLSX === 'undefined') {
+        if (window.Swal) Swal.fire('Exportar', 'No se pudo cargar la librería de Excel.', 'error');
+        return false;
+      }
+      if (!Array.isArray(filas) || !filas.length) {
+        if (window.Swal) Swal.fire('Exportar', 'Aún no hay datos cargados. Carga el informe primero.', 'info');
+        return false;
+      }
+      const ws = XLSX.utils.aoa_to_sheet([header, ...filas]);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, String(hoja).slice(0, 31));
+      XLSX.writeFile(wb, window.expFile(cuadro, proveedor));
+      return true;
+    };
+    </script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
     <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>window.PROVEEDOR_ACTUAL = <?= json_encode($_SESSION['proveedor'] ?? '') ?>;</script>
