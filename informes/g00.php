@@ -1145,18 +1145,6 @@
         });
     })();
     // ===== Exportar a Excel (.xlsx) con SheetJS =====
-    function expFilename(tabla) {
-        const prov = (proveedorActual || window.PROVEEDOR_ACTUAL || '').replace(/[^A-Za-z0-9]+/g, '_').replace(/^_|_$/g, '');
-        const fecha = new Date().toISOString().slice(0, 10);
-        return 'G00_' + tabla + (prov ? '_' + prov : '') + '_' + fecha + '.xlsx';
-    }
-    function exportAOA(filename, sheetName, header, aoaRows) {
-        if (typeof XLSX === 'undefined') { Swal.fire('Exportar', 'No se pudo cargar la librería de Excel.', 'error'); return; }
-        const ws = XLSX.utils.aoa_to_sheet([header, ...aoaRows]);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, sheetName.slice(0, 31));
-        XLSX.writeFile(wb, filename);
-    }
     const eDif  = (a, b) => (a || 0) - (b || 0);
     const ePct  = (a, b) => b ? ((a - b) / b) * 100 : '';
     const eProm = (v, u) => (u > 0 ? v / u : 0);
@@ -1165,90 +1153,95 @@
     // opts: {anio, full (default true → 16 cols con %Prom+Tdas; false → 12 cols estilo Tienda), totalTdas:{act,ant}}.
     function comparativaAOA(dim, rows, opts) {
         const a = opts.anio, b = a - 1, full = opts.full !== false;
-        const header = full
-            ? [dim, b, a, 'Dif Q', '%Q', '$ ' + b, '$ ' + a, 'Dif $', '%$', 'MB', '$Prom ' + b, '$Prom ' + a, '%Prom', 'Tdas ' + b, 'Tdas ' + a, '≠Tdas']
-            : [dim, b, a, 'Dif Q', '%Q', '$ ' + b, '$ ' + a, 'Dif $', '%$', 'MB', '$Prom ' + b, '$Prom ' + a];
-        const line = (r, indent) => {
+        const parts = String(dim).split(' / ');
+        const hasChild = parts.length > 1;
+        const dimHdr = hasChild ? [parts[0], parts[1]] : [parts[0]];
+        const metricHdr = full
+            ? [b, a, 'Dif Q', '%Q', '$ ' + b, '$ ' + a, 'Dif $', '%$', 'MB', '$Prom ' + b, '$Prom ' + a, '%Prom', 'Tdas ' + b, 'Tdas ' + a, '≠Tdas']
+            : [b, a, 'Dif Q', '%Q', '$ ' + b, '$ ' + a, 'Dif $', '%$', 'MB', '$Prom ' + b, '$Prom ' + a];
+        const header = dimHdr.concat(metricHdr);
+        const metr = (r) => {
             const pa = eProm(r.val_act, r.ups_act), pb = eProm(r.val_ant, r.ups_ant);
-            const base = [(indent ? '   ' : '') + (r.label || ''),
-                r.ups_ant || 0, r.ups_act || 0, eDif(r.ups_act, r.ups_ant), ePct(r.ups_act, r.ups_ant),
+            const base = [r.ups_ant || 0, r.ups_act || 0, eDif(r.ups_act, r.ups_ant), ePct(r.ups_act, r.ups_ant),
                 r.val_ant || 0, r.val_act || 0, eDif(r.val_act, r.val_ant), ePct(r.val_act, r.val_ant),
                 r.margen || 0, pb, pa];
             if (full) base.push(ePct(pa, pb), r.tiendas_ant || 0, r.tiendas_act || 0, eDif(r.tiendas_act, r.tiendas_ant));
             return base;
         };
-        const body = [];
+        const dimCells = (parent, child) => hasChild ? [parent, child] : [parent];
+        const filas = [];
         let sv = 0, sb = 0, su = 0, sub = 0; const margenes = [];
         (rows || []).forEach(r => {
             sv += r.val_act || 0; sb += r.val_ant || 0; su += r.ups_act || 0; sub += r.ups_ant || 0;
             if (r.margen > 0) margenes.push(r.margen);
-            body.push(line(r, false));
-            (r.children || []).forEach(c => body.push(line(c, true)));
+            filas.push(dimCells(r.label || '', '').concat(metr(r)));
+            (r.children || []).forEach(c => filas.push(dimCells(r.label || '', c.label || '').concat(metr(c))));
         });
         const mbTot = margenes.length ? margenes.reduce((x, y) => x + y, 0) / margenes.length : 0;
         const tdas = opts.totalTdas || { act: 0, ant: 0 };
-        body.push(line({ label: 'Total', val_act: sv, val_ant: sb, ups_act: su, ups_ant: sub,
-            margen: mbTot, tiendas_act: tdas.act, tiendas_ant: tdas.ant }, false));
-        return { header, body };
+        const totRow = { label: 'Total', val_act: sv, val_ant: sb, ups_act: su, ups_ant: sub,
+            margen: mbTot, tiendas_act: tdas.act, tiendas_ant: tdas.ant };
+        filas.push(dimCells('Total', '').concat(metr(totRow)));
+        return { header, filas };
     }
     window.g00ExpGrupo = function () {
-        if (!lastDetal) { Swal.fire('Exportar', 'Carga el dashboard primero.', 'info'); return; }
+        if (!lastDetal) { window.expDataset('Ventas por Grupo de Tiendas', 'Por Grupo', [], []); return; }
         const r = comparativaAOA('Grupo', lastDetal.por_grupo, { anio: lastDetal.anio, full: true,
             totalTdas: { act: lastDetal.kpis.tiendas_actual, ant: lastDetal.kpis.tiendas_anterior } });
-        exportAOA(expFilename('PorGrupo'), 'Por Grupo', r.header, r.body);
+        window.expDataset('Ventas por Grupo de Tiendas', 'Por Grupo', r.header, r.filas, proveedorActual);
     };
     window.g00ExpMarca = function () {
-        if (!lastDetal) { Swal.fire('Exportar', 'Carga el dashboard primero.', 'info'); return; }
+        if (!lastDetal) { window.expDataset('Ventas por Marca y Tipo', 'Por Marca-Tipo', [], []); return; }
         const r = comparativaAOA('Marca / Tipo', lastDetal.por_marca, { anio: lastDetal.anio, full: true,
             totalTdas: { act: lastDetal.kpis.tiendas_actual, ant: lastDetal.kpis.tiendas_anterior } });
-        exportAOA(expFilename('PorMarcaTipo'), 'Por Marca-Tipo', r.header, r.body);
+        window.expDataset('Ventas por Marca y Tipo', 'Por Marca-Tipo', r.header, r.filas, proveedorActual);
     };
     window.g00ExpTienda = function () {
-        if (!lastTiendas) { Swal.fire('Exportar', 'Carga la pestaña Tiendas primero.', 'info'); return; }
+        if (!lastTiendas) { window.expDataset('Ventas por Tienda', 'Por Tienda', [], []); return; }
         const rows = (lastTiendas.tiendas || []).map(t => ({
             label: t.nombre || t.cod || '', val_act: t.val_act, val_ant: t.val_ant, ups_act: t.ups_act, ups_ant: t.ups_ant, margen: t.margen,
             children: (t.children || []).map(c => ({ label: c.negocio || '', val_act: c.val_act, val_ant: c.val_ant, ups_act: c.ups_act, ups_ant: c.ups_ant, margen: c.margen }))
         }));
         const r = comparativaAOA('Tienda / Negocio', rows, { anio: lastTiendas.anio, full: false });
-        exportAOA(expFilename('PorTienda'), 'Por Tienda', r.header, r.body);
+        window.expDataset('Ventas por Tienda', 'Por Tienda', r.header, r.filas, proveedorActual);
     };
     window.g00ExpNegocio = function () {
-        if (!lastProductos) { Swal.fire('Exportar', 'Carga la pestaña Productos primero.', 'info'); return; }
+        if (!lastProductos) { window.expDataset('Ventas por Negocio', 'Por Negocio', [], []); return; }
         const n = lastProductos.negocios || { rows: [], total: {} };
         const r = comparativaAOA('Negocio / Talla', n.rows, { anio: lastProductos.anio, full: true,
             totalTdas: { act: n.total.tiendas_act, ant: n.total.tiendas_ant } });
-        exportAOA(expFilename('PorNegocio'), 'Por Negocio', r.header, r.body);
+        window.expDataset('Ventas por Negocio', 'Por Negocio', r.header, r.filas, proveedorActual);
     };
     window.g00ExpCategoria = function () {
-        if (!lastProductos) { Swal.fire('Exportar', 'Carga la pestaña Productos primero.', 'info'); return; }
+        if (!lastProductos) { window.expDataset('Ventas por Categoría', 'Por Categoria', [], []); return; }
         const c = lastProductos.categorias || { rows: [], total: {} };
         const r = comparativaAOA('Categoría / Subcategoría', c.rows, { anio: lastProductos.anio, full: true,
             totalTdas: { act: c.total.tiendas_act, ant: c.total.tiendas_ant } });
-        exportAOA(expFilename('PorCategoria'), 'Por Categoria', r.header, r.body);
+        window.expDataset('Ventas por Categoría', 'Por Categoria', r.header, r.filas, proveedorActual);
     };
     window.g00ExpGenero = function () {
-        if (!lastProductos) { Swal.fire('Exportar', 'Carga la pestaña Productos primero.', 'info'); return; }
+        if (!lastProductos) { window.expDataset('Ventas por Género', 'Por Genero', [], []); return; }
         const g = lastProductos.generos || { rows: [], total: {} };
         const r = comparativaAOA('Género / Público', g.rows, { anio: lastProductos.anio, full: true,
             totalTdas: { act: g.total.tiendas_act, ant: g.total.tiendas_ant } });
-        exportAOA(expFilename('PorGenero'), 'Por Genero', r.header, r.body);
+        window.expDataset('Ventas por Género', 'Por Genero', r.header, r.filas, proveedorActual);
     };
     function mensualAOA(rows, tdas, anio) {
         const a = anio, b = a - 1;
         const header = ['Mes', b, a, 'Dif Q', '%Q', '$ ' + b, '$ ' + a, 'Dif $', '%$', '$Prom ' + b, '$Prom ' + a, 'Tdas ' + b, 'Tdas ' + a, '≠Tdas'];
-        const body = []; let sv = 0, sb = 0, su = 0, sub = 0;
+        const filas = []; let sv = 0, sb = 0, su = 0, sub = 0;
         (rows || []).forEach(r => {
             if (!r.val_act && !r.val_ant && !r.ups_act && !r.ups_ant) return;
             sv += r.val_act || 0; sb += r.val_ant || 0; su += r.ups_act || 0; sub += r.ups_ant || 0;
             const pa = eProm(r.val_act, r.ups_act), pb = eProm(r.val_ant, r.ups_ant);
-            body.push([r.mes, r.ups_ant || 0, r.ups_act || 0, eDif(r.ups_act, r.ups_ant), ePct(r.ups_act, r.ups_ant),
+            filas.push([r.mes, r.ups_ant || 0, r.ups_act || 0, eDif(r.ups_act, r.ups_ant), ePct(r.ups_act, r.ups_ant),
                 r.val_ant || 0, r.val_act || 0, eDif(r.val_act, r.val_ant), ePct(r.val_act, r.val_ant),
                 pb, pa, r.tiendas_ant || 0, r.tiendas_act || 0, eDif(r.tiendas_act, r.tiendas_ant)]);
         });
         const pa = eProm(sv, su), pb = eProm(sb, sub);
         const tA = (tdas && tdas.act) || 0, tB = (tdas && tdas.ant) || 0;
-        body.push(['Total', sub, su, eDif(su, sub), ePct(su, sub), sb, sv, eDif(sv, sb), ePct(sv, sb), pb, pa, tB, tA, eDif(tA, tB)]);
-        return { header, body };
+        filas.push(['Total', sub, su, eDif(su, sub), ePct(su, sub), sb, sv, eDif(sv, sb), ePct(sv, sb), pb, pa, tB, tA, eDif(tA, tB)]);
+        return { header, filas };
     }
     function periodosAOA(dias, anio) {
         const a = anio, b = a - 1;
@@ -1283,9 +1276,9 @@
         return { header, filas };
     }
     window.g00ExpMensual = function () {
-        if (!lastDetal) { Swal.fire('Exportar', 'Carga el dashboard primero.', 'info'); return; }
+        if (!lastDetal) { window.expDataset('Ventas Mensuales', 'Mensual', [], []); return; }
         const r = mensualAOA(lastDetal.mensual, lastDetal.mensual_tdas, lastDetal.anio);
-        exportAOA(expFilename('Mensual'), 'Mensual', r.header, r.body);
+        window.expDataset('Ventas Mensuales', 'Mensual', r.header, r.filas, proveedorActual);
     };
     window.g00ExpPeriodos = function () {
         if (!lastPeriodos) { window.expDataset('Ventas por Periodos', 'Periodos', [], []); return; }
@@ -1334,8 +1327,6 @@
             setTimeout(() => Object.values(charts).forEach(c => c && c.resize()), 50);
         }
     };
-
-    window.g00Export = function () { alert('Export a Excel/PDF: pendiente.'); };
 
     window.addEventListener('resize', () => Object.values(charts).forEach(c => c && c.resize()));
 })();
