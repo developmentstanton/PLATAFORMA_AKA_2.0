@@ -162,22 +162,14 @@
 
   // Excel en formato tabular (datos planos, no la vista pivote): una fila por (negocio, concepto, mes).
   window.evolExport = function(){
-    const d=window.__evollast;
-    if(!d || typeof XLSX==='undefined'){ if(window.Swal) Swal.fire('Exportar','Carga el informe primero.','info'); return; }
-    const meses=d.meses||[], negs=d.negocios||[];
-    const aoa=[['Negocio','Concepto','Mes','Valor']];
-    negs.forEach(n=>{
-      MEDIDAS.forEach(med=>{
-        const serie=(n.valores||{})[med.k]||{};
-        meses.forEach(m=>{
-          const v=serie[m];
-          if(v!==undefined && v!==null && v!=='') aoa.push([n.negocio, med.t, fmtMesHdr(m), v]);
-        });
-      });
-    });
-    const wb=XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), 'Evolucion');
-    XLSX.writeFile(wb,'Evolucion_Historica.xlsx');
+    const d = window.__evollast;
+    if(!d){ window.expDataset('Evolución Histórica', 'Evolucion', [], []); return; }
+    const meses = d.meses||[], negs = d.negocios||[];
+    const header = ['Negocio','Concepto','Mes','Valor'];
+    const filas = [];
+    negs.forEach(n=>{ MEDIDAS.forEach(med=>{ const serie=(n.valores||{})[med.k]||{};
+      meses.forEach(m=>{ const v=serie[m]; if(v!==undefined && v!==null && v!=='') filas.push([n.negocio, med.t, fmtMesHdr(m), v]); }); }); });
+    window.expDataset('Evolución Histórica', 'Evolucion', header, filas);
   };
 
   function setTitle(prov){ document.getElementById('pageTitle').textContent = 'EVOLUCIÓN HISTÓRICA' + (prov ? ' - ' + prov : ''); }

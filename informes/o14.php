@@ -129,6 +129,7 @@
   let negocioSel = { ref:'', color:'' };
   const tabState = { b:false, c:false, reco:false };
   const lastData = { b:null, c:null };
+  const MED_LABEL = {siembra:'Siembra',disponible:'Disponible',hold:'Hold',disphold:'Disp + Hold',sobrante:'Sobrante',faltante:'Faltante',ventas:'Ventas'};
   let shownC = null;     // datos actualmente renderizados en O14C (completo o filtrado)
   let arbolState = null; // { n:<#grupos>, g:[{exp:bool, a:[bool,...]}] }
 
@@ -272,7 +273,6 @@
     const cont = document.getElementById(containerId);
     if(!data || !data.filas || !data.filas.length){ cont.innerHTML = '<p style="padding:16px;color:var(--text-light)">Sin datos.</p>'; return; }
     const tallas = data.tallas, medidas = data.medidas;
-    const MED_LABEL = {siembra:'Siembra',disponible:'Disponible',hold:'Hold',disphold:'Disp + Hold',sobrante:'Sobrante',faltante:'Faltante',ventas:'Ventas'};
     const totGen = {}; medidas.forEach(m=> totGen[m] = {});
     let h = '<table class="o14-matriz"><thead><tr><th class="dim" rowspan="2">'+esc(dimLabel)+'</th>';
     medidas.forEach(m=> h += '<th colspan="'+(tallas.length+1)+'">'+esc(MED_LABEL[m]||m.toUpperCase())+'</th>');
@@ -308,7 +308,6 @@
     const cont=document.getElementById(containerId);
     const grupos=data.grupos||[], tallas=data.tallas||[], medidas=data.medidas||[];
     if(!grupos.length){ cont.innerHTML='<p style="padding:16px;color:var(--text-light)">Sin datos.</p>'; return; }
-    const MED_LABEL={siembra:'Siembra',disponible:'Disponible',hold:'Hold',disphold:'Disp + Hold',sobrante:'Sobrante',faltante:'Faltante',ventas:'Ventas'};
     if(expandAll) arbolState={ n:grupos.length, g:grupos.map(gr=>({exp:true, a:gr.almacenes.map(()=>true)})) };
     else if(!arbolState || arbolState.n!==grupos.length) arbolState={ n:grupos.length, g:grupos.map(gr=>({exp:true, a:gr.almacenes.map(()=>false)})) };
     let h='<table class="o14-matriz o14-arbol"><thead><tr><th class="dim" rowspan="2">Grupo / Almacén / Negocio</th>';
@@ -387,12 +386,24 @@
     renderRecoMatriz('o14-reco-faltante', d, 'faltante', 1);
     renderRecoMatriz('o14-reco-proveedor', d, 'proveedor', 2);
   }
-  window.o14RecoExp=function(i){
-    const med=RECO_MED[i]; const tbl=document.getElementById('o14-reco-tbl-'+med);
-    if(!tbl || typeof XLSX==='undefined'){ Swal.fire('Exportar','Nada que exportar.','info'); return; }
-    const wb=XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(tableToAOA(tbl)), 'Reco');
-    XLSX.writeFile(wb,'O14_reco_'+med+'_'+new Date().toISOString().slice(0,10)+'.xlsx');
+  // Construye la matriz negocio×talla de una medida de reco como dataset (con fila TOTAL).
+  function recoAOA(data, medida) {
+    const tallas = data.tallas || [];
+    const filas0 = (data.filas || []).filter(f => { const o = (f.valores||{})[medida]||{}; for (const t in o) if (o[t]) return true; return false; });
+    const header = ['Negocio'].concat(tallas, ['Tot']);
+    const tot = {}; tallas.forEach(t => tot[t] = 0);
+    const filas = filas0.map(f => { const o = (f.valores||{})[medida]||{}; let rt = 0;
+      const row = [f.negocio]; tallas.forEach(t => { const v = o[t]||0; rt += v; tot[t] += v; row.push(v || ''); }); row.push(rt); return row; });
+    let gtot = 0; tallas.forEach(t => gtot += tot[t]);
+    filas.push(['TOTAL'].concat(tallas.map(t => tot[t] || ''), [gtot]));
+    return { header, filas };
+  }
+  const RECO_CUADRO = { sobrante:'Recomendación - Reubicación Sobrante', faltante:'Recomendación - Faltante', proveedor:'Recomendación - Solicitud a Proveedor' };
+  window.o14RecoExp = function(i){
+    const med = RECO_MED[i];
+    if(!lastReco){ window.expDataset(RECO_CUADRO[med], 'Reco', [], []); return; }
+    const r = recoAOA(recoFiltered(lastReco), med);
+    window.expDataset(RECO_CUADRO[med], 'Reco', r.header, r.filas);
   };
   // Despliega/colapsa las filas de negocio de una matriz de reco (inician colapsadas: solo el TOTAL).
   window.o14RecoToggle=function(med){
@@ -542,64 +553,39 @@
     if(!tabState[currentTab]) loadCurrentTab();
   };
 
-  // DOM→AOA expandiendo colspan/rowspan; convierte enteros es-CO ("1.234"→1234) a números reales.
-  function tableToAOA(tbl){
-    const aoa = [], carry = {}; // carry[col] = {text, rem} para rowspans pendientes
-    [...tbl.rows].forEach(tr => {
-      const row = []; let c = 0;
-      const placeCarry = () => { while(carry[c] && carry[c].rem > 0){ row[c] = carry[c].text; carry[c].rem--; c++; } };
-      [...tr.cells].forEach(cell => {
-        placeCarry();
-        const cs = cell.colSpan||1, rs = cell.rowSpan||1, txt = cell.innerText.trim();
-        const v = /^-?\d{1,3}(\.\d{3})*$/.test(txt) ? parseInt(txt.replace(/\./g,''),10) : txt;
-        for(let k=0;k<cs;k++){ const cv = k===0 ? v : ''; row[c] = cv; if(rs>1) carry[c] = {text:cv, rem:rs-1}; c++; }
-      });
-      placeCarry();
-      aoa.push(row);
-    });
-    return aoa;
-  }
   // Exporta a .xlsx en formato tabular (datos planos, no la vista pivote por talla):
   // una fila por (dimensiones, medida, talla, valor). B = por negocio; C = grupo/almacén/negocio.
+  // Pestaña reco: exporta las 3 matrices de recomendación en 3 hojas separadas.
   window.o14Export = function(){
-    const data = lastData[currentTab];
     if(currentTab !== 'b' && currentTab !== 'c'){
-      // Reco u otras: conserva el volcado de la tabla visible.
-      const tbl = document.querySelector('#o14-panel-'+currentTab+' table');
-      if(!tbl){ Swal.fire('Exportar','Nada que exportar en esta pestaña.','info'); return; }
+      // Reco: las 3 matrices, cada una en su hoja.
+      if(!lastReco){ window.expDataset('Recomendaciones', 'Reco', [], []); return; }
       if(typeof XLSX === 'undefined'){ Swal.fire('Exportar','No se cargó el componente de Excel.','error'); return; }
-      const wb0 = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb0, XLSX.utils.aoa_to_sheet(tableToAOA(tbl)), 'O14');
-      XLSX.writeFile(wb0, 'O14_'+currentTab+'_'+new Date().toISOString().slice(0,10)+'.xlsx');
+      const dataR = recoFiltered(lastReco);
+      const wb = XLSX.utils.book_new();
+      const HOJA = { sobrante:'Sobrante', faltante:'Faltante', proveedor:'Proveedor' };
+      RECO_MED.forEach(med => { const r = recoAOA(dataR, med);
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([r.header, ...r.filas]), HOJA[med]); });
+      XLSX.writeFile(wb, window.expFile('Recomendaciones'));
       return;
     }
-    if(!data){ Swal.fire('Exportar','Carga la pestaña primero.','info'); return; }
-    if(typeof XLSX === 'undefined'){ Swal.fire('Exportar','No se cargó el componente de Excel.','error'); return; }
+    const data = lastData[currentTab];
+    if(!data){ window.expDataset('Siembra Stock Ventas', 'O14', [], []); return; }
     const tallas = data.tallas||[], medidas = data.medidas||[];
     const mlabel = m => (MED_LABEL[m]||m);
-    let aoa;
+    let header, filas = [];
     if(currentTab === 'c'){
-      aoa = [['Grupo','Almacen','Negocio','Medida','Talla','Valor']];
-      (data.grupos||[]).forEach(gr=>{
-        (gr.almacenes||[]).forEach(a=>{
-          const alm = (a.bodega||'') + (a.nombre ? (' · '+a.nombre) : '');
-          (a.negocios||[]).forEach(n=>{
-            medidas.forEach(m=>{ const o=(n.valores||{})[m]||{};
-              tallas.forEach(t=>{ const v=o[t]||0; if(v) aoa.push([gr.grupo, alm, n.negocio, mlabel(m), t, v]); }); });
-          });
-        });
-      });
+      header = ['Grupo','Almacen','Negocio','Medida','Talla','Valor'];
+      (data.grupos||[]).forEach(gr=>{ (gr.almacenes||[]).forEach(a=>{ const alm=(a.bodega||'')+(a.nombre?(' · '+a.nombre):'');
+        (a.negocios||[]).forEach(n=>{ medidas.forEach(m=>{ const o=(n.valores||{})[m]||{};
+          tallas.forEach(t=>{ const v=o[t]||0; if(v) filas.push([gr.grupo, alm, n.negocio, mlabel(m), t, v]); }); }); }); }); });
     } else {
-      aoa = [['Negocio','Medida','Talla','Valor']];
-      (data.filas||[]).forEach(fila=>{
-        const neg = (fila.key && fila.key.negocio) || '';
+      header = ['Negocio','Medida','Talla','Valor'];
+      (data.filas||[]).forEach(fila=>{ const neg=(fila.key&&fila.key.negocio)||'';
         medidas.forEach(m=>{ const o=(fila.valores||{})[m]||{};
-          tallas.forEach(t=>{ const v=o[t]||0; if(v) aoa.push([neg, mlabel(m), t, v]); }); });
-      });
+          tallas.forEach(t=>{ const v=o[t]||0; if(v) filas.push([neg, mlabel(m), t, v]); }); }); });
     }
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), 'O14');
-    XLSX.writeFile(wb, 'O14_'+currentTab+'_'+new Date().toISOString().slice(0,10)+'.xlsx');
+    window.expDataset('Siembra Stock Ventas', 'O14', header, filas);
   };
 })();
 </script>

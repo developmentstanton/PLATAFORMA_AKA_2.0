@@ -145,15 +145,23 @@
       }).catch(()=>{ cont.innerHTML='<p style="padding:16px;color:var(--accent)">Error de red.</p>'; renderKpis(); }).finally(hideLoading);
     };
 
+    function o45AOA(d) {
+      const COLS = [['negocio','Negocio'],['marca','Marca'],['ventas','Ventas (und)'],['tiendas','#tiendas'],
+        ['ind_inventario','Índice de inventario'],['stock_cedi','Stock CEDI'],['stock_tiendas','Stock Tiendas'],
+        ['total_stock','Total Stock'],['ind_ventas_mes','Índice de Ventas mes'],['tallas','Tallas'],['precio','Precio de Venta Detal']];
+      const header = COLS.map(c => c[1]);
+      const filas = (d.filas || []).map(f => COLS.map(c => { const v = f[c[0]]; return (v == null ? '' : v); }));
+      const t = d.total || {};
+      const num = k => (t[k] == null ? '' : t[k]);
+      filas.push(['TOTAL', '', num('ventas'), num('tiendas'), num('ind_inventario'), num('stock_cedi'),
+        num('stock_tiendas'), num('total_stock'), num('ind_ventas_mes'), '', '']);
+      return { header, filas };
+    }
     window.o45Export = function(){
-      const tbl=document.getElementById('o45-tbl');
-      if(!tbl || typeof XLSX==='undefined'){ if(window.Swal) Swal.fire('Exportar','Carga el informe primero.','info'); return; }
-      const aoa=[...tbl.querySelectorAll('tr')].map(tr=>[...tr.children].map(td=>{
-        const txt=td.textContent.trim(); const num=Number(txt.replace(/\./g,'').replace(',','.'));
-        return (txt!=='' && !isNaN(num) && /[0-9]/.test(txt)) ? num : txt; }));
-      const wb=XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), 'Indice');
-      XLSX.writeFile(wb,'O45_indice_ventas.xlsx');
+      const d = window.__o45last;
+      if (!d || !(d.filas||[]).length) { window.expDataset('Índice de Ventas', 'Indice', [], []); return; }
+      const r = o45AOA(d);
+      window.expDataset('Índice de Ventas', 'Indice', r.header, r.filas);
     };
 
     function setTitle(prov){ document.getElementById('pageTitle').textContent = 'ÍNDICE DE VENTAS' + (prov ? ' - ' + prov : ''); }

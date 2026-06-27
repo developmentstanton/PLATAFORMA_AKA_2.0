@@ -20,6 +20,7 @@
 
 session_start();
 header('Content-Type: application/json; charset=utf-8');
+require_once __DIR__ . '/lib_g00_rango.php';
 
 if (!isset($_SESSION['usuario'])) {
     http_response_code(401);
@@ -32,7 +33,8 @@ $proveedor = $proveedorSesion !== '' ? $proveedorSesion : '__SIN_PROVEEDOR__';
 
 $desdeIn = $_GET['desde'] ?? '';
 $hastaIn = $_GET['hasta'] ?? '';
-$sss     = strtolower(trim($_GET['sss'] ?? 'nosame')); // S.S.S: 'same' aplica same-store; default 'nosame' = todas
+$sss     = strtolower(trim($_GET['sss'] ?? 'nosame')); // S.S.S: 'same' aplica same-store; default 'nosame'
+$anioBIn = (int)($_GET['anioB'] ?? 0);
 
 if ($desdeIn && $hastaIn) {
     $desdeAct = $desdeIn;
@@ -41,17 +43,20 @@ if ($desdeIn && $hastaIn) {
     $desdeAct = date('Y-01-01');
     $hastaAct = date('Y-m-d');
 }
-// Calendario: 'diaadia' (default) → período anterior = -1 año (alineación calendario).
-//             'retail'            → período anterior = -364 días (52 semanas, preserva día de semana).
 $cal = strtolower(trim($_GET['cal'] ?? 'diaadia'));
-if ($cal === 'retail') {
-    $desdeAnt = date('Y-m-d', strtotime($desdeAct . ' -364 days'));
-    $hastaAnt = date('Y-m-d', strtotime($hastaAct . ' -364 days'));
-} else {
-    $cal = 'diaadia';
-    $desdeAnt = date('Y-m-d', strtotime($desdeAct . ' -1 year'));
-    $hastaAnt = date('Y-m-d', strtotime($hastaAct . ' -1 year'));
+if ($cal !== 'retail') $cal = 'diaadia';
+
+// Año menor a comparar: si no llega, año del periodo mayor − 1 (comportamiento por defecto).
+if ($anioBIn <= 0) $anioBIn = (int)date('Y', strtotime($hastaAct)) - 1;
+
+list($desdeAct, $hastaAct, $desdeAnt, $hastaAnt, $rangoErr) =
+    g00_rango_comparacion($desdeAct, $hastaAct, $anioBIn, $cal);
+if ($rangoErr !== null) {
+    http_response_code(400);
+    echo json_encode(['ok' => false, 'error' => 'El año a comparar debe ser menor que el año principal.']);
+    exit;
 }
+$yearAct = (int)date('Y', strtotime($hastaAct)); // año mayor, para rótulos y para Mensual
 
 // Rango global para el pushdown de fecha en el CTE.
 $gmin = ($desdeAnt < $desdeAct) ? $desdeAnt : $desdeAct;
@@ -498,21 +503,20 @@ if ($tab === 'tiendas') {
         'margen_prom'     => $kpi['margen'],
     ];
     sqlsrv_close($dbConnect);
-    echo json_encode(['ok'=>true,'kpis'=>$kpis,'anio'=>(int)date('Y',strtotime($hastaAct)),'tiendas'=>$tiendas], JSON_UNESCAPED_UNICODE);
+    echo json_encode(['ok'=>true,'kpis'=>$kpis,'anio_a'=>$yearAct, 'anio_b'=>$anioBIn,'tiendas'=>$tiendas], JSON_UNESCAPED_UNICODE);
     exit;
 }
 
 // ====================================================================
 // TAB: PERIODOS — datos a grano (mes, día) para el drill-down Semestre→Trimestre→Mes→Día.
-// act = año actual; ant = mismo periodo −1 año, alineado por CALENDARIO (no retail).
 // ====================================================================
 if ($tab === 'periodos') {
-    $pAntDesde = date('Y-m-d', strtotime($desdeAct . ' -1 year'));
-    $pAntHasta = date('Y-m-d', strtotime($hastaAct . ' -1 year'));
-    $pGmin = ($pAntDesde < $desdeAct) ? $pAntDesde : $desdeAct;
-    $pGmax = ($hastaAct   > $pAntHasta) ? $hastaAct  : $pAntHasta;
-    // S.S.S en Periodos: misma cláusula EXISTS, pero con la fecha de año-anterior CALENDARIO
-    // de esta pestaña ($pAntDesde), no la global ($desdeAnt). Vacío salvo sss=same.
+    $pAntDesde = $desdeAnt;
+    $pAntHasta = $hastaAnt;
+    $pGmin = $gmin;
+    $pGmax = $gmax;
+    // act/ant derivados del bloque global (anioB, cal: diaadia o retail). $pAntDesde = $desdeAnt.
+    // S.S.S en Periodos: misma cláusula EXISTS. Vacío salvo sss=same.
     $sameStorePeriodos = ''; $ssParamsPeriodos = [];
     if ($sss === 'same') { $sameStorePeriodos = $sameStoreClause; $ssParamsPeriodos = [$pAntDesde, $hastaAct]; }
     $sql = cteVentas() . "
@@ -551,7 +555,7 @@ if ($tab === 'periodos') {
         ];
     }
     sqlsrv_close($dbConnect);
-    echo json_encode(['ok'=>true,'anio'=>(int)date('Y',strtotime($hastaAct)),'dias'=>$dias], JSON_UNESCAPED_UNICODE);
+    echo json_encode(['ok'=>true,'anio_a'=>$yearAct, 'anio_b'=>$anioBIn,'dias'=>$dias], JSON_UNESCAPED_UNICODE);
     exit;
 }
 
@@ -644,7 +648,7 @@ if ($tab === 'productos') {
     sqlsrv_close($dbConnect);
     echo json_encode([
         'ok'   => true,
-        'anio' => (int)date('Y', strtotime($hastaAct)),
+        'anio_a' => $yearAct, 'anio_b' => $anioBIn,
         'negocios'   => $negocios,
         'categorias' => $categorias,
         'generos'    => $generos,
@@ -738,20 +742,17 @@ $deltaUps     = $upsAnt    > 0 ? (($upsAct    - $upsAnt)    / $upsAnt)    * 100 
 $deltaTiendas = $tiendasAn > 0 ? (($tiendasAc - $tiendasAn) / $tiendasAn) * 100 : 0;
 $ticketProm   = $upsAct    > 0 ?  $ventasAct / $upsAct                          : 0;
 
-// Mensual: SIEMPRE Ene→hoy (ignora el filtro de fecha). El período anterior usa
-// la alineación del Calendario: -1 año (diaadia) o -364 días (retail), de modo que
-// ambos años quedan "al corte del mismo día".
-$hoy        = date('Y-m-d');
-$mensDesA   = date('Y-01-01');
-$mensHasA   = $hoy;
+// Mensual: añoMayor Ene→Hasta vs añoMenor, honrando cal.
+$mensDesA   = "$yearAct-01-01";
+$mensHasA   = $hastaAct;
 if ($cal === 'retail') {
-    $mensDesB = date('Y-m-d', strtotime($mensDesA . ' -364 days'));
-    $mensHasB = date('Y-m-d', strtotime($mensHasA . ' -364 days'));
-    $shiftToActualDays = 364; // sumar a una fecha 'ant' para mapearla al mes 'act'
+    $shiftToActualDays = 364 * ($yearAct - $anioBIn);
+    $mensDesB = date('Y-m-d', strtotime($mensDesA . ' -' . $shiftToActualDays . ' days'));
+    $mensHasB = $hastaAnt;
 } else {
-    $mensDesB = date('Y-m-d', strtotime($mensDesA . ' -1 year'));
-    $mensHasB = date('Y-m-d', strtotime($mensHasA . ' -1 year'));
-    $shiftToActualDays = 0;   // diaadia: el mes calendario ya coincide (mismo mes, -1 año)
+    $shiftToActualDays = 0;   // diaadia: el mes calendario ya coincide
+    $mensDesB = g00_set_anio($mensDesA, $anioBIn);
+    $mensHasB = $hastaAnt;
 }
 $mensGmin = min($mensDesB, $mensDesA);
 $mensGmax = max($mensHasA, $mensHasB);
@@ -816,10 +817,8 @@ foreach ($mensual as $r) {
     $mapMT[$mi] = ['act' => (int)$r['tiendas_act'], 'ant' => (int)$r['tiendas_ant']];
 }
 $labelsMes = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-$mesActual = (int)date('n');
-// Año para los rótulos de las tablas (Grupo/Marca/KPI respetan el filtro de fecha).
-// En uso por defecto (filtro = año en curso) coincide con el año actual.
-$yearAct = (int)date('Y', strtotime($hastaAct));
+$mesActual = (int)date('n', strtotime($hastaAct));   // Ene → mes del Hasta del año mayor
+// $yearAct definido arriba (derivación de rangos) junto con $anioBIn.
 $serieMensual = [];
 for ($m = 1; $m <= $mesActual; $m++) {   // Ene → mes actual
     $serieMensual[] = [
@@ -880,7 +879,8 @@ $out = [
     'ok'        => true,
     'proveedor' => $proveedorSesion,
     'generado'  => date('c'),
-    'anio'      => $yearAct,
+    'anio_a'    => $yearAct,
+    'anio_b'    => $anioBIn,
     'rango' => [
         'desde_actual'   => $desdeAct, 'hasta_actual'   => $hastaAct,
         'desde_anterior' => $desdeAnt, 'hasta_anterior' => $hastaAnt,

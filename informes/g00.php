@@ -232,6 +232,21 @@
                 </div>
             </div>
             <div class="filter-group">
+                <label>Año</label>
+                <select id="g00-anio-a"><?php $ya=(int)date('Y'); for($y=$ya;$y>=2019;$y--) printf('<option value="%d"%s>%d</option>',$y,$y==$ya?' selected':'',$y); ?></select>
+            </div>
+            <div class="filter-group">
+                <label>Comparar vs</label>
+                <select id="g00-anio-b"><?php for($y=$ya;$y>=2019;$y--) printf('<option value="%d"%s>%d</option>',$y,$y==$ya-1?' selected':'',$y); ?></select>
+            </div>
+            <div class="filter-group">
+                <label>Rango rápido</label>
+                <div class="g00-md">
+                    <button type="button" class="g00-btn-export" onclick="g00QuickRange('ytd')">Hasta la fecha</button>
+                    <button type="button" class="g00-btn-export" onclick="g00QuickRange('full')">Año completo</button>
+                </div>
+            </div>
+            <div class="filter-group">
                 <label>Calendario</label>
                 <div class="g00-seg" id="g00-cal">
                     <button type="button" class="g00-seg-btn active" data-val="diaadia">Día a Día</button>
@@ -629,8 +644,18 @@
         const m = document.getElementById('g00-' + prefix + '-mes').value;
         const d = document.getElementById('g00-' + prefix + '-dia').value;
         if (!m || !d) return '';
-        return new Date().getFullYear() + '-' + m + '-' + d;
+        const ya = document.getElementById('g00-anio-a');
+        const year = (ya && ya.value) ? ya.value : new Date().getFullYear();
+        return year + '-' + m + '-' + d;
     }
+
+    // Presets de rango: 'ytd' = Ene-01 → hoy; 'full' = Ene-01 → Dic-31. Solo rellenan mes/día.
+    window.g00QuickRange = function (mode) {
+        const set = (id, v) => { const e = document.getElementById(id); if (e) e.value = v; };
+        set('g00-desde-mes', '01'); set('g00-desde-dia', '01');
+        if (mode === 'full') { set('g00-hasta-mes', '12'); set('g00-hasta-dia', '31'); }
+        else { const now = new Date(); set('g00-hasta-mes', String(now.getMonth() + 1).padStart(2, '0')); set('g00-hasta-dia', String(now.getDate()).padStart(2, '0')); }
+    };
 
     function buildParams(tab) {
         const p = new URLSearchParams();
@@ -643,6 +668,8 @@
         });
         p.append('cal', segValue('g00-cal') || 'diaadia');
         p.append('sss', segValue('g00-sss') || 'nosame');
+        const ab = document.getElementById('g00-anio-b');
+        if (ab && ab.value) p.append('anioB', ab.value);
         return p.toString();
     }
 
@@ -659,10 +686,10 @@
                 proveedorActual = data.proveedor || '';
                 document.getElementById('pageTitle').textContent = 'DASHBOARD DE VENTAS - ' + (data.proveedor || '—');
                 document.getElementById('topbarDates').innerHTML = renderTopbarDates(data.rango || {});
-                renderKpis(data.kpis, data.anio);
-                renderTablaGrupo(data.por_grupo, data.anio);
-                renderTablaMarcaTipo(data.por_marca, data.anio, data.kpis);
-                renderTablaMensual(data.mensual, data.anio, data.mensual_tdas);
+                renderKpis(data.kpis, data.anio_a);
+                renderTablaGrupo(data.por_grupo, data.anio_a, data.anio_b);
+                renderTablaMarcaTipo(data.por_marca, data.anio_a, data.anio_b, data.kpis);
+                renderTablaMensual(data.mensual, data.anio_a, data.anio_b, data.mensual_tdas);
                 tabState.detal = true;
                 hideLoading();
             })
@@ -677,8 +704,8 @@
             .then(data => {
                 if (!data.ok) { hideLoading(); showError(data.error || 'Error cargando tiendas'); return; }
                 lastTiendas = data;
-                renderKpis(data.kpis, data.anio, 'g00t-kpi-');
-                renderTablaTienda(data.tiendas, data.anio);
+                renderKpis(data.kpis, data.anio_a, 'g00t-kpi-');
+                renderTablaTienda(data.tiendas, data.anio_a, data.anio_b);
                 tabState.tiendas = true;
                 hideLoading();
             })
@@ -686,8 +713,8 @@
     }
 
     // Tabla "Resumen Ventas Por Tienda": fila tienda (colapsable) → negocios REF-COLOR. Columnas como "Por Marca".
-    function renderTablaTienda(tiendas, anio) {
-        const a = anio, b = anio - 1;
+    function renderTablaTienda(tiendas, anioA, anioB) {
+        const a = anioA, b = anioB;
         let h = '<thead><tr>'
             + '<th>Tienda / Negocio</th>'
             + '<th class="num">'+b+'</th><th class="num">'+a+'</th><th class="num">Dif Q</th><th class="num">%Q</th>'
@@ -753,7 +780,7 @@
             .then(data => {
                 if (!data.ok) { hideLoading(); showError(data.error || 'Error cargando periodos'); return; }
                 lastPeriodos = data;
-                renderTablaPeriodos(buildArbolPeriodos(data.dias), data.anio);
+                renderTablaPeriodos(buildArbolPeriodos(data.dias), data.anio_a, data.anio_b);
                 tabState.periodos = true;
                 hideLoading();
             })
@@ -800,8 +827,8 @@
             + pctCell(m.va, m.vb)
             + '</tr>';
     }
-    function renderTablaPeriodos(arbol, anio) {
-        const a = anio, b = anio - 1;
+    function renderTablaPeriodos(arbol, anioA, anioB) {
+        const a = anioA, b = anioB;
         let h = '<thead><tr>'
             + '<th>Periodo</th>'
             + '<th class="num">Cant '+b+'</th><th class="num">%'+b+'</th><th class="num">Cant '+a+'</th><th class="num">%'+a+'</th><th class="num">Var%</th>'
@@ -861,9 +888,9 @@
             .then(data => {
                 if (!data.ok) { hideLoading(); showError(data.error || 'Error cargando productos'); return; }
                 lastProductos = data;
-                renderTablaArbol('g00-tabla-negocio',   data.negocios,   data.anio, {col1:'Negocio / Talla',           prefix:'neg', imgHover:true});
-                renderTablaArbol('g00-tabla-categoria', data.categorias, data.anio, {col1:'Categoría / Subcategoría',  prefix:'cat'});
-                renderTablaArbol('g00-tabla-genero',    data.generos,    data.anio, {col1:'Género / Público objetivo', prefix:'gen'});
+                renderTablaArbol('g00-tabla-negocio',   data.negocios,   data.anio_a, data.anio_b, {col1:'Negocio / Talla',           prefix:'neg', imgHover:true});
+                renderTablaArbol('g00-tabla-categoria', data.categorias, data.anio_a, data.anio_b, {col1:'Categoría / Subcategoría',  prefix:'cat'});
+                renderTablaArbol('g00-tabla-genero',    data.generos,    data.anio_a, data.anio_b, {col1:'Género / Público objetivo', prefix:'gen'});
                 tabState.productos = true;
                 hideLoading();
             })
@@ -886,8 +913,8 @@
     }
     const prom = (val, ups) => (ups > 0 ? val / ups : 0);
 
-    function renderTablaGrupo(rows, anio) {
-        const a = anio, b = anio - 1;
+    function renderTablaGrupo(rows, anioA, anioB) {
+        const a = anioA, b = anioB;
         let h = '<thead><tr>'
             + '<th>Grupo</th>'
             + '<th class="num">'+b+'</th><th class="num">'+a+'</th><th class="num">Dif Q</th><th class="num">%Q</th>'
@@ -928,8 +955,8 @@
             + '</tr>';
     }
 
-    function renderTablaMarcaTipo(rows, anio, kpis) {
-        const a = anio, b = anio - 1;
+    function renderTablaMarcaTipo(rows, anioA, anioB, kpis) {
+        const a = anioA, b = anioB;
         let h = '<thead><tr>'
             + '<th>Marca / Tipo</th>'
             + '<th class="num">'+b+'</th><th class="num">'+a+'</th><th class="num">Dif Q</th><th class="num">%Q</th>'
@@ -989,8 +1016,8 @@
         if (caret) caret.textContent = collapsed ? '▸' : '▾';
     };
 
-    function renderTablaMensual(rows, anio, tdas) {
-        const a = anio, b = anio - 1;
+    function renderTablaMensual(rows, anioA, anioB, tdas) {
+        const a = anioA, b = anioB;
         let h = '<thead><tr>'
             + '<th>Mes</th>'
             + '<th class="num">'+b+'</th><th class="num">'+a+'</th><th class="num">Dif Q</th><th class="num">%Q</th>'
@@ -1026,8 +1053,8 @@
     }
     // ===== Tablas árbol de la pestaña Productos (Negocio/Categoría/Género) =====
     // data = {rows:[{label,...,children:[]}], total:{...}}; opts={col1, prefix}. 16 cols (= Por Grupo).
-    function renderTablaArbol(tbodyId, data, anio, opts) {
-        const a = anio, b = anio - 1;
+    function renderTablaArbol(tbodyId, data, anioA, anioB, opts) {
+        const a = anioA, b = anioB;
         const rows = (data && data.rows) || [];
         const total = (data && data.total) || null;
         let h = '<thead><tr>'
@@ -1144,148 +1171,145 @@
             if (td && td.cellIndex === 0 && (!e.relatedTarget || !td.contains(e.relatedTarget))) hide();
         });
     })();
-    // ===== Exportar a Excel (.xlsx) con SheetJS =====
-    function expFilename(tabla) {
-        const prov = (proveedorActual || window.PROVEEDOR_ACTUAL || '').replace(/[^A-Za-z0-9]+/g, '_').replace(/^_|_$/g, '');
-        const fecha = new Date().toISOString().slice(0, 10);
-        return 'G00_' + tabla + (prov ? '_' + prov : '') + '_' + fecha + '.xlsx';
-    }
-    function exportAOA(filename, sheetName, header, aoaRows) {
-        if (typeof XLSX === 'undefined') { Swal.fire('Exportar', 'No se pudo cargar la librería de Excel.', 'error'); return; }
-        const ws = XLSX.utils.aoa_to_sheet([header, ...aoaRows]);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, sheetName.slice(0, 31));
-        XLSX.writeFile(wb, filename);
-    }
     const eDif  = (a, b) => (a || 0) - (b || 0);
     const ePct  = (a, b) => b ? ((a - b) / b) * 100 : '';
     const eProm = (v, u) => (u > 0 ? v / u : 0);
     const ePart = (x, d) => (d > 0 ? (x / d) * 100 : '');
     // Builder de las 6 tablas comparativas. rows: [{label,val_act,val_ant,ups_act,ups_ant,margen,tiendas_act,tiendas_ant,children?}].
-    // opts: {anio, full (default true → 16 cols con %Prom+Tdas; false → 12 cols estilo Tienda), totalTdas:{act,ant}}.
+    // opts: {anioA, anioB, full (default true → 16 cols con %Prom+Tdas; false → 12 cols estilo Tienda), totalTdas:{act,ant}}.
     function comparativaAOA(dim, rows, opts) {
-        const a = opts.anio, b = a - 1, full = opts.full !== false;
-        const header = full
-            ? [dim, b, a, 'Dif Q', '%Q', '$ ' + b, '$ ' + a, 'Dif $', '%$', 'MB', '$Prom ' + b, '$Prom ' + a, '%Prom', 'Tdas ' + b, 'Tdas ' + a, '≠Tdas']
-            : [dim, b, a, 'Dif Q', '%Q', '$ ' + b, '$ ' + a, 'Dif $', '%$', 'MB', '$Prom ' + b, '$Prom ' + a];
-        const line = (r, indent) => {
+        const a = opts.anioA, b = opts.anioB, full = opts.full !== false;
+        const parts = String(dim).split(' / ');
+        const hasChild = parts.length > 1;
+        const dimHdr = hasChild ? [parts[0], parts[1]] : [parts[0]];
+        const metricHdr = full
+            ? [b, a, 'Dif Q', '%Q', '$ ' + b, '$ ' + a, 'Dif $', '%$', 'MB', '$Prom ' + b, '$Prom ' + a, '%Prom', 'Tdas ' + b, 'Tdas ' + a, '≠Tdas']
+            : [b, a, 'Dif Q', '%Q', '$ ' + b, '$ ' + a, 'Dif $', '%$', 'MB', '$Prom ' + b, '$Prom ' + a];
+        const header = dimHdr.concat(metricHdr);
+        const metr = (r) => {
             const pa = eProm(r.val_act, r.ups_act), pb = eProm(r.val_ant, r.ups_ant);
-            const base = [(indent ? '   ' : '') + (r.label || ''),
-                r.ups_ant || 0, r.ups_act || 0, eDif(r.ups_act, r.ups_ant), ePct(r.ups_act, r.ups_ant),
+            const base = [r.ups_ant || 0, r.ups_act || 0, eDif(r.ups_act, r.ups_ant), ePct(r.ups_act, r.ups_ant),
                 r.val_ant || 0, r.val_act || 0, eDif(r.val_act, r.val_ant), ePct(r.val_act, r.val_ant),
                 r.margen || 0, pb, pa];
             if (full) base.push(ePct(pa, pb), r.tiendas_ant || 0, r.tiendas_act || 0, eDif(r.tiendas_act, r.tiendas_ant));
             return base;
         };
-        const body = [];
+        const dimCells = (parent, child) => hasChild ? [parent, child] : [parent];
+        const filas = [];
         let sv = 0, sb = 0, su = 0, sub = 0; const margenes = [];
         (rows || []).forEach(r => {
             sv += r.val_act || 0; sb += r.val_ant || 0; su += r.ups_act || 0; sub += r.ups_ant || 0;
             if (r.margen > 0) margenes.push(r.margen);
-            body.push(line(r, false));
-            (r.children || []).forEach(c => body.push(line(c, true)));
+            filas.push(dimCells(r.label || '', '').concat(metr(r)));
+            (r.children || []).forEach(c => filas.push(dimCells(r.label || '', c.label || '').concat(metr(c))));
         });
         const mbTot = margenes.length ? margenes.reduce((x, y) => x + y, 0) / margenes.length : 0;
         const tdas = opts.totalTdas || { act: 0, ant: 0 };
-        body.push(line({ label: 'Total', val_act: sv, val_ant: sb, ups_act: su, ups_ant: sub,
-            margen: mbTot, tiendas_act: tdas.act, tiendas_ant: tdas.ant }, false));
-        return { header, body };
+        const totRow = { label: 'Total', val_act: sv, val_ant: sb, ups_act: su, ups_ant: sub,
+            margen: mbTot, tiendas_act: tdas.act, tiendas_ant: tdas.ant };
+        filas.push(dimCells('Total', '').concat(metr(totRow)));
+        return { header, filas };
     }
     window.g00ExpGrupo = function () {
-        if (!lastDetal) { Swal.fire('Exportar', 'Carga el dashboard primero.', 'info'); return; }
-        const r = comparativaAOA('Grupo', lastDetal.por_grupo, { anio: lastDetal.anio, full: true,
+        if (!lastDetal) { window.expDataset('Ventas por Grupo de Tiendas', 'Por Grupo', [], []); return; }
+        const r = comparativaAOA('Grupo', lastDetal.por_grupo, { anioA: lastDetal.anio_a, anioB: lastDetal.anio_b, full: true,
             totalTdas: { act: lastDetal.kpis.tiendas_actual, ant: lastDetal.kpis.tiendas_anterior } });
-        exportAOA(expFilename('PorGrupo'), 'Por Grupo', r.header, r.body);
+        window.expDataset('Ventas por Grupo de Tiendas', 'Por Grupo', r.header, r.filas, proveedorActual);
     };
     window.g00ExpMarca = function () {
-        if (!lastDetal) { Swal.fire('Exportar', 'Carga el dashboard primero.', 'info'); return; }
-        const r = comparativaAOA('Marca / Tipo', lastDetal.por_marca, { anio: lastDetal.anio, full: true,
+        if (!lastDetal) { window.expDataset('Ventas por Marca y Tipo', 'Por Marca-Tipo', [], []); return; }
+        const r = comparativaAOA('Marca / Tipo', lastDetal.por_marca, { anioA: lastDetal.anio_a, anioB: lastDetal.anio_b, full: true,
             totalTdas: { act: lastDetal.kpis.tiendas_actual, ant: lastDetal.kpis.tiendas_anterior } });
-        exportAOA(expFilename('PorMarcaTipo'), 'Por Marca-Tipo', r.header, r.body);
+        window.expDataset('Ventas por Marca y Tipo', 'Por Marca-Tipo', r.header, r.filas, proveedorActual);
     };
     window.g00ExpTienda = function () {
-        if (!lastTiendas) { Swal.fire('Exportar', 'Carga la pestaña Tiendas primero.', 'info'); return; }
+        if (!lastTiendas) { window.expDataset('Ventas por Tienda', 'Por Tienda', [], []); return; }
         const rows = (lastTiendas.tiendas || []).map(t => ({
             label: t.nombre || t.cod || '', val_act: t.val_act, val_ant: t.val_ant, ups_act: t.ups_act, ups_ant: t.ups_ant, margen: t.margen,
             children: (t.children || []).map(c => ({ label: c.negocio || '', val_act: c.val_act, val_ant: c.val_ant, ups_act: c.ups_act, ups_ant: c.ups_ant, margen: c.margen }))
         }));
-        const r = comparativaAOA('Tienda / Negocio', rows, { anio: lastTiendas.anio, full: false });
-        exportAOA(expFilename('PorTienda'), 'Por Tienda', r.header, r.body);
+        const r = comparativaAOA('Tienda / Negocio', rows, { anioA: lastTiendas.anio_a, anioB: lastTiendas.anio_b, full: false });
+        window.expDataset('Ventas por Tienda', 'Por Tienda', r.header, r.filas, proveedorActual);
     };
     window.g00ExpNegocio = function () {
-        if (!lastProductos) { Swal.fire('Exportar', 'Carga la pestaña Productos primero.', 'info'); return; }
+        if (!lastProductos) { window.expDataset('Ventas por Negocio', 'Por Negocio', [], []); return; }
         const n = lastProductos.negocios || { rows: [], total: {} };
-        const r = comparativaAOA('Negocio / Talla', n.rows, { anio: lastProductos.anio, full: true,
+        const r = comparativaAOA('Negocio / Talla', n.rows, { anioA: lastProductos.anio_a, anioB: lastProductos.anio_b, full: true,
             totalTdas: { act: n.total.tiendas_act, ant: n.total.tiendas_ant } });
-        exportAOA(expFilename('PorNegocio'), 'Por Negocio', r.header, r.body);
+        window.expDataset('Ventas por Negocio', 'Por Negocio', r.header, r.filas, proveedorActual);
     };
     window.g00ExpCategoria = function () {
-        if (!lastProductos) { Swal.fire('Exportar', 'Carga la pestaña Productos primero.', 'info'); return; }
+        if (!lastProductos) { window.expDataset('Ventas por Categoría', 'Por Categoria', [], []); return; }
         const c = lastProductos.categorias || { rows: [], total: {} };
-        const r = comparativaAOA('Categoría / Subcategoría', c.rows, { anio: lastProductos.anio, full: true,
+        const r = comparativaAOA('Categoría / Subcategoría', c.rows, { anioA: lastProductos.anio_a, anioB: lastProductos.anio_b, full: true,
             totalTdas: { act: c.total.tiendas_act, ant: c.total.tiendas_ant } });
-        exportAOA(expFilename('PorCategoria'), 'Por Categoria', r.header, r.body);
+        window.expDataset('Ventas por Categoría', 'Por Categoria', r.header, r.filas, proveedorActual);
     };
     window.g00ExpGenero = function () {
-        if (!lastProductos) { Swal.fire('Exportar', 'Carga la pestaña Productos primero.', 'info'); return; }
+        if (!lastProductos) { window.expDataset('Ventas por Género', 'Por Genero', [], []); return; }
         const g = lastProductos.generos || { rows: [], total: {} };
-        const r = comparativaAOA('Género / Público', g.rows, { anio: lastProductos.anio, full: true,
+        const r = comparativaAOA('Género / Público', g.rows, { anioA: lastProductos.anio_a, anioB: lastProductos.anio_b, full: true,
             totalTdas: { act: g.total.tiendas_act, ant: g.total.tiendas_ant } });
-        exportAOA(expFilename('PorGenero'), 'Por Genero', r.header, r.body);
+        window.expDataset('Ventas por Género', 'Por Genero', r.header, r.filas, proveedorActual);
     };
-    function mensualAOA(rows, tdas, anio) {
-        const a = anio, b = a - 1;
+    function mensualAOA(rows, tdas, anioA, anioB) {
+        const a = anioA, b = anioB;
         const header = ['Mes', b, a, 'Dif Q', '%Q', '$ ' + b, '$ ' + a, 'Dif $', '%$', '$Prom ' + b, '$Prom ' + a, 'Tdas ' + b, 'Tdas ' + a, '≠Tdas'];
-        const body = []; let sv = 0, sb = 0, su = 0, sub = 0;
+        const filas = []; let sv = 0, sb = 0, su = 0, sub = 0;
         (rows || []).forEach(r => {
             if (!r.val_act && !r.val_ant && !r.ups_act && !r.ups_ant) return;
             sv += r.val_act || 0; sb += r.val_ant || 0; su += r.ups_act || 0; sub += r.ups_ant || 0;
             const pa = eProm(r.val_act, r.ups_act), pb = eProm(r.val_ant, r.ups_ant);
-            body.push([r.mes, r.ups_ant || 0, r.ups_act || 0, eDif(r.ups_act, r.ups_ant), ePct(r.ups_act, r.ups_ant),
+            filas.push([r.mes, r.ups_ant || 0, r.ups_act || 0, eDif(r.ups_act, r.ups_ant), ePct(r.ups_act, r.ups_ant),
                 r.val_ant || 0, r.val_act || 0, eDif(r.val_act, r.val_ant), ePct(r.val_act, r.val_ant),
                 pb, pa, r.tiendas_ant || 0, r.tiendas_act || 0, eDif(r.tiendas_act, r.tiendas_ant)]);
         });
         const pa = eProm(sv, su), pb = eProm(sb, sub);
         const tA = (tdas && tdas.act) || 0, tB = (tdas && tdas.ant) || 0;
-        body.push(['Total', sub, su, eDif(su, sub), ePct(su, sub), sb, sv, eDif(sv, sb), ePct(sv, sb), pb, pa, tB, tA, eDif(tA, tB)]);
-        return { header, body };
+        filas.push(['Total', sub, su, eDif(su, sub), ePct(su, sub), sb, sv, eDif(sv, sb), ePct(sv, sb), pb, pa, tB, tA, eDif(tA, tB)]);
+        return { header, filas };
     }
-    function periodosAOA(dias, anio) {
-        const a = anio, b = a - 1;
-        const header = ['Periodo', 'Cant ' + b, '%' + b, 'Cant ' + a, '%' + a, 'Var% Q', '$ ' + b, '%' + b, '$ ' + a, '%' + a, 'Var% $'];
-        const arbol = buildArbolPeriodos(dias);   // {sems, tot}
+    function periodosAOA(dias, anioA, anioB) {
+        const a = anioA, b = anioB;
+        const MESAB = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+        const header = ['Semestre','Trimestre','Bimestre','Mes','Día',
+            b, 'Part Q '+b, a, 'Part Q '+a, '% Q',
+            '$ '+b, 'Part $ '+b, '$ '+a, 'Part $ '+a, '% $'];
+        const arbol = buildArbolPeriodos(dias);
         const T = arbol.tot;
-        const row = (label, m, ind) => ['   '.repeat(ind) + label,
+        const metr = (dims, m) => dims.concat([
             m.ub, ePart(m.ub, T.ub), m.ua, ePart(m.ua, T.ua), ePct(m.ua, m.ub),
-            m.vb, ePart(m.vb, T.vb), m.va, ePart(m.va, T.va), ePct(m.va, m.vb)];
-        const body = [];
+            m.vb, ePart(m.vb, T.vb), m.va, ePart(m.va, T.va), ePct(m.va, m.vb)]);
+        const filas = [];
         Object.keys(arbol.sems).map(Number).sort((x, y) => x - y).forEach(s => {
-            const S = arbol.sems[s];
-            body.push(row('Semestre ' + s, S.m, 0));
+            const S = arbol.sems[s]; const semL = 'Semestre ' + s;
+            filas.push(metr([semL, '', '', '', ''], S.m));
             Object.keys(S.tris).map(Number).sort((x, y) => x - y).forEach(t => {
-                const Tr = S.tris[t];
-                body.push(row('Trimestre ' + t, Tr.m, 1));
+                const Tr = S.tris[t]; const triL = 'Trim-' + t;
+                filas.push(metr([semL, triL, '', '', ''], Tr.m));
                 Object.keys(Tr.meses).map(Number).sort((x, y) => x - y).forEach(mn => {
                     const M = Tr.meses[mn];
-                    body.push(row(MESES_ES[mn - 1], M.m, 2));
+                    filas.push(metr([semL, triL, '', MESES_ES[mn - 1], ''], M.m));
                     Object.keys(M.dias).map(Number).sort((x, y) => x - y).forEach(d => {
-                        body.push(row(MESES_ES[mn - 1] + '-' + String(d).padStart(2, '0'), M.dias[d].m, 3));
+                        const bim = 'Bim ' + Math.ceil(mn / 2);
+                        const diaL = MESAB[mn - 1] + '-' + String(d).padStart(2, '0');
+                        filas.push(metr([semL, triL, bim, MESES_ES[mn - 1], diaL], M.dias[d].m));
                     });
                 });
             });
         });
-        body.push(row('Total', T, 0));
-        return { header, body };
+        filas.push(metr(['Total', '', '', '', ''], T));
+        return { header, filas };
     }
     window.g00ExpMensual = function () {
-        if (!lastDetal) { Swal.fire('Exportar', 'Carga el dashboard primero.', 'info'); return; }
-        const r = mensualAOA(lastDetal.mensual, lastDetal.mensual_tdas, lastDetal.anio);
-        exportAOA(expFilename('Mensual'), 'Mensual', r.header, r.body);
+        if (!lastDetal) { window.expDataset('Ventas Mensuales', 'Mensual', [], []); return; }
+        const r = mensualAOA(lastDetal.mensual, lastDetal.mensual_tdas, lastDetal.anio_a, lastDetal.anio_b);
+        window.expDataset('Ventas Mensuales', 'Mensual', r.header, r.filas, proveedorActual);
     };
     window.g00ExpPeriodos = function () {
-        if (!lastPeriodos) { Swal.fire('Exportar', 'Carga la pestaña Periodos primero.', 'info'); return; }
-        const r = periodosAOA(lastPeriodos.dias, lastPeriodos.anio);
-        exportAOA(expFilename('Periodos'), 'Periodos', r.header, r.body);
+        if (!lastPeriodos) { window.expDataset('Ventas por Periodos', 'Periodos', [], []); return; }
+        const r = periodosAOA(lastPeriodos.dias, lastPeriodos.anio_a, lastPeriodos.anio_b);
+        window.expDataset('Ventas por Periodos', 'Periodos', r.header, r.filas, proveedorActual);
     };
     // ============ DISPATCHER ============
     function loadCurrentTab() {
@@ -1296,6 +1320,11 @@
     }
 
     window.g00Load = function () {
+        const aEl = document.getElementById('g00-anio-a'), bEl = document.getElementById('g00-anio-b');
+        if (aEl && bEl && parseInt(bEl.value, 10) >= parseInt(aEl.value, 10)) {
+            Swal.fire('Comparación inválida', 'El año a comparar debe ser menor que el año principal.', 'warning');
+            return;
+        }
         // Filtros cambiaron: invalida todos, recarga el actual, los demás se recargarán al visitarse
         Object.keys(tabState).forEach(k => tabState[k] = false);
         loadCurrentTab();
@@ -1329,8 +1358,6 @@
             setTimeout(() => Object.values(charts).forEach(c => c && c.resize()), 50);
         }
     };
-
-    window.g00Export = function () { alert('Export a Excel/PDF: pendiente.'); };
 
     window.addEventListener('resize', () => Object.values(charts).forEach(c => c && c.resize()));
 })();

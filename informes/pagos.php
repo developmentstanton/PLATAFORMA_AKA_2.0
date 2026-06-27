@@ -173,29 +173,17 @@
   }
 
   function pgExport() {
-    if (!pgData) { return; }
-    if (typeof XLSX === 'undefined') {
-      if (window.Swal) Swal.fire('Exportar', 'No se pudo cargar Excel.', 'error');
-      return;
-    }
+    if (!pgData) { window.expDataset('Resumen Proyectado de Pagos', 'Pagos', [], []); return; }
     const d = pgData;
     const { meses, grupos } = pgBuildGroups(d);
-    // Formato tabular (datos planos, no la vista pivote): una fila por (fecha venc, año, mes) con valor.
-    const aoa = [['RAZON_SOCIAL', 'Fecha vencimiento', 'Anio', 'Mes', 'En Pesos']];
+    const header = ['RAZON_SOCIAL', 'Fecha vencimiento', 'Anio', 'Mes', 'En Pesos'];
+    const filas = [];
     Object.keys(grupos).sort().forEach(fch => {
       const g = grupos[fch];
-      meses.forEach(m => {
-        const v = g.cells[m.anio + '-' + m.mes] || 0;
-        if (v) aoa.push([d.razon_social || '', fch, m.anio, MESES_PG[m.mes - 1], v]);
-      });
+      meses.forEach(m => { const v = g.cells[m.anio + '-' + m.mes] || 0;
+        if (v) filas.push([d.razon_social || '', fch, m.anio, MESES_PG[m.mes - 1], v]); });
     });
-
-    const ws = XLSX.utils.aoa_to_sheet(aoa);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Pagos');
-    const fecha = new Date().toISOString().slice(0, 10);
-    const prov = (d.razon_social || '').replace(/[^A-Za-z0-9]+/g, '_').replace(/^_|_$/g, '');
-    XLSX.writeFile(wb, 'Analisis_Pagos' + (prov ? '_' + prov : '') + '_' + fecha + '.xlsx');
+    window.expDataset('Resumen Proyectado de Pagos', 'Pagos', header, filas, d.razon_social);
   }
 
   let pgFiltrosInit = false;
@@ -250,17 +238,11 @@
   };
 
   function pgGenExport() {
-    if (!pgGenData) return;
-    if (typeof XLSX === 'undefined') { if (window.Swal) Swal.fire('Exportar','No se pudo cargar Excel.','error'); return; }
-    // Formato tabular: una fila por día (hoja del árbol) con Año/Mes/Día desglosados.
-    const aoa = [['Anio','Mes','Dia','Valor Total','Dias Vencidos']];
-    (pgGenData.nodos||[]).filter(n => n.nivel === 3).forEach(n => {
-      aoa.push([n.anio, MES_PG[(n.mes||1)-1] || n.mes, n.dia, n.valor, n.dias]);
-    });
-    const ws = XLSX.utils.aoa_to_sheet(aoa);
-    const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Pagos Generados');
-    const fecha = new Date().toISOString().slice(0,10);
-    XLSX.writeFile(wb, 'Pagos_Generados_' + fecha + '.xlsx');
+    if (!pgGenData) { window.expDataset('Pagos Generados', 'Pagos Generados', [], []); return; }
+    const header = ['Anio','Mes','Dia','Valor Total','Dias Vencidos'];
+    const filas = (pgGenData.nodos||[]).filter(n => n.nivel === 3).map(n => [n.anio, MES_PG[(n.mes||1)-1] || n.mes, n.dia, n.valor, n.dias]);
+    const prov = (pgGenData.razon_social || (pgData && pgData.razon_social) || '');
+    window.expDataset('Pagos Generados', 'Pagos Generados', header, filas, prov);
   }
   window.pgGenLoad = pgGenLoad; window.pgGenExport = pgGenExport;
 
