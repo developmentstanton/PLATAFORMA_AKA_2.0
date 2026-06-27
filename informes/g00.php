@@ -686,10 +686,10 @@
                 proveedorActual = data.proveedor || '';
                 document.getElementById('pageTitle').textContent = 'DASHBOARD DE VENTAS - ' + (data.proveedor || '—');
                 document.getElementById('topbarDates').innerHTML = renderTopbarDates(data.rango || {});
-                renderKpis(data.kpis, data.anio);
-                renderTablaGrupo(data.por_grupo, data.anio);
-                renderTablaMarcaTipo(data.por_marca, data.anio, data.kpis);
-                renderTablaMensual(data.mensual, data.anio, data.mensual_tdas);
+                renderKpis(data.kpis, data.anio_a);
+                renderTablaGrupo(data.por_grupo, data.anio_a, data.anio_b);
+                renderTablaMarcaTipo(data.por_marca, data.anio_a, data.anio_b, data.kpis);
+                renderTablaMensual(data.mensual, data.anio_a, data.anio_b, data.mensual_tdas);
                 tabState.detal = true;
                 hideLoading();
             })
@@ -704,8 +704,8 @@
             .then(data => {
                 if (!data.ok) { hideLoading(); showError(data.error || 'Error cargando tiendas'); return; }
                 lastTiendas = data;
-                renderKpis(data.kpis, data.anio, 'g00t-kpi-');
-                renderTablaTienda(data.tiendas, data.anio);
+                renderKpis(data.kpis, data.anio_a, 'g00t-kpi-');
+                renderTablaTienda(data.tiendas, data.anio_a, data.anio_b);
                 tabState.tiendas = true;
                 hideLoading();
             })
@@ -713,8 +713,8 @@
     }
 
     // Tabla "Resumen Ventas Por Tienda": fila tienda (colapsable) → negocios REF-COLOR. Columnas como "Por Marca".
-    function renderTablaTienda(tiendas, anio) {
-        const a = anio, b = anio - 1;
+    function renderTablaTienda(tiendas, anioA, anioB) {
+        const a = anioA, b = anioB;
         let h = '<thead><tr>'
             + '<th>Tienda / Negocio</th>'
             + '<th class="num">'+b+'</th><th class="num">'+a+'</th><th class="num">Dif Q</th><th class="num">%Q</th>'
@@ -780,7 +780,7 @@
             .then(data => {
                 if (!data.ok) { hideLoading(); showError(data.error || 'Error cargando periodos'); return; }
                 lastPeriodos = data;
-                renderTablaPeriodos(buildArbolPeriodos(data.dias), data.anio);
+                renderTablaPeriodos(buildArbolPeriodos(data.dias), data.anio_a, data.anio_b);
                 tabState.periodos = true;
                 hideLoading();
             })
@@ -827,8 +827,8 @@
             + pctCell(m.va, m.vb)
             + '</tr>';
     }
-    function renderTablaPeriodos(arbol, anio) {
-        const a = anio, b = anio - 1;
+    function renderTablaPeriodos(arbol, anioA, anioB) {
+        const a = anioA, b = anioB;
         let h = '<thead><tr>'
             + '<th>Periodo</th>'
             + '<th class="num">Cant '+b+'</th><th class="num">%'+b+'</th><th class="num">Cant '+a+'</th><th class="num">%'+a+'</th><th class="num">Var%</th>'
@@ -888,9 +888,9 @@
             .then(data => {
                 if (!data.ok) { hideLoading(); showError(data.error || 'Error cargando productos'); return; }
                 lastProductos = data;
-                renderTablaArbol('g00-tabla-negocio',   data.negocios,   data.anio, {col1:'Negocio / Talla',           prefix:'neg', imgHover:true});
-                renderTablaArbol('g00-tabla-categoria', data.categorias, data.anio, {col1:'Categoría / Subcategoría',  prefix:'cat'});
-                renderTablaArbol('g00-tabla-genero',    data.generos,    data.anio, {col1:'Género / Público objetivo', prefix:'gen'});
+                renderTablaArbol('g00-tabla-negocio',   data.negocios,   data.anio_a, data.anio_b, {col1:'Negocio / Talla',           prefix:'neg', imgHover:true});
+                renderTablaArbol('g00-tabla-categoria', data.categorias, data.anio_a, data.anio_b, {col1:'Categoría / Subcategoría',  prefix:'cat'});
+                renderTablaArbol('g00-tabla-genero',    data.generos,    data.anio_a, data.anio_b, {col1:'Género / Público objetivo', prefix:'gen'});
                 tabState.productos = true;
                 hideLoading();
             })
@@ -913,8 +913,8 @@
     }
     const prom = (val, ups) => (ups > 0 ? val / ups : 0);
 
-    function renderTablaGrupo(rows, anio) {
-        const a = anio, b = anio - 1;
+    function renderTablaGrupo(rows, anioA, anioB) {
+        const a = anioA, b = anioB;
         let h = '<thead><tr>'
             + '<th>Grupo</th>'
             + '<th class="num">'+b+'</th><th class="num">'+a+'</th><th class="num">Dif Q</th><th class="num">%Q</th>'
@@ -955,8 +955,8 @@
             + '</tr>';
     }
 
-    function renderTablaMarcaTipo(rows, anio, kpis) {
-        const a = anio, b = anio - 1;
+    function renderTablaMarcaTipo(rows, anioA, anioB, kpis) {
+        const a = anioA, b = anioB;
         let h = '<thead><tr>'
             + '<th>Marca / Tipo</th>'
             + '<th class="num">'+b+'</th><th class="num">'+a+'</th><th class="num">Dif Q</th><th class="num">%Q</th>'
@@ -1016,8 +1016,8 @@
         if (caret) caret.textContent = collapsed ? '▸' : '▾';
     };
 
-    function renderTablaMensual(rows, anio, tdas) {
-        const a = anio, b = anio - 1;
+    function renderTablaMensual(rows, anioA, anioB, tdas) {
+        const a = anioA, b = anioB;
         let h = '<thead><tr>'
             + '<th>Mes</th>'
             + '<th class="num">'+b+'</th><th class="num">'+a+'</th><th class="num">Dif Q</th><th class="num">%Q</th>'
@@ -1053,8 +1053,8 @@
     }
     // ===== Tablas árbol de la pestaña Productos (Negocio/Categoría/Género) =====
     // data = {rows:[{label,...,children:[]}], total:{...}}; opts={col1, prefix}. 16 cols (= Por Grupo).
-    function renderTablaArbol(tbodyId, data, anio, opts) {
-        const a = anio, b = anio - 1;
+    function renderTablaArbol(tbodyId, data, anioA, anioB, opts) {
+        const a = anioA, b = anioB;
         const rows = (data && data.rows) || [];
         const total = (data && data.total) || null;
         let h = '<thead><tr>'
@@ -1176,9 +1176,9 @@
     const eProm = (v, u) => (u > 0 ? v / u : 0);
     const ePart = (x, d) => (d > 0 ? (x / d) * 100 : '');
     // Builder de las 6 tablas comparativas. rows: [{label,val_act,val_ant,ups_act,ups_ant,margen,tiendas_act,tiendas_ant,children?}].
-    // opts: {anio, full (default true → 16 cols con %Prom+Tdas; false → 12 cols estilo Tienda), totalTdas:{act,ant}}.
+    // opts: {anioA, anioB, full (default true → 16 cols con %Prom+Tdas; false → 12 cols estilo Tienda), totalTdas:{act,ant}}.
     function comparativaAOA(dim, rows, opts) {
-        const a = opts.anio, b = a - 1, full = opts.full !== false;
+        const a = opts.anioA, b = opts.anioB, full = opts.full !== false;
         const parts = String(dim).split(' / ');
         const hasChild = parts.length > 1;
         const dimHdr = hasChild ? [parts[0], parts[1]] : [parts[0]];
@@ -1212,13 +1212,13 @@
     }
     window.g00ExpGrupo = function () {
         if (!lastDetal) { window.expDataset('Ventas por Grupo de Tiendas', 'Por Grupo', [], []); return; }
-        const r = comparativaAOA('Grupo', lastDetal.por_grupo, { anio: lastDetal.anio, full: true,
+        const r = comparativaAOA('Grupo', lastDetal.por_grupo, { anioA: lastDetal.anio_a, anioB: lastDetal.anio_b, full: true,
             totalTdas: { act: lastDetal.kpis.tiendas_actual, ant: lastDetal.kpis.tiendas_anterior } });
         window.expDataset('Ventas por Grupo de Tiendas', 'Por Grupo', r.header, r.filas, proveedorActual);
     };
     window.g00ExpMarca = function () {
         if (!lastDetal) { window.expDataset('Ventas por Marca y Tipo', 'Por Marca-Tipo', [], []); return; }
-        const r = comparativaAOA('Marca / Tipo', lastDetal.por_marca, { anio: lastDetal.anio, full: true,
+        const r = comparativaAOA('Marca / Tipo', lastDetal.por_marca, { anioA: lastDetal.anio_a, anioB: lastDetal.anio_b, full: true,
             totalTdas: { act: lastDetal.kpis.tiendas_actual, ant: lastDetal.kpis.tiendas_anterior } });
         window.expDataset('Ventas por Marca y Tipo', 'Por Marca-Tipo', r.header, r.filas, proveedorActual);
     };
@@ -1228,32 +1228,32 @@
             label: t.nombre || t.cod || '', val_act: t.val_act, val_ant: t.val_ant, ups_act: t.ups_act, ups_ant: t.ups_ant, margen: t.margen,
             children: (t.children || []).map(c => ({ label: c.negocio || '', val_act: c.val_act, val_ant: c.val_ant, ups_act: c.ups_act, ups_ant: c.ups_ant, margen: c.margen }))
         }));
-        const r = comparativaAOA('Tienda / Negocio', rows, { anio: lastTiendas.anio, full: false });
+        const r = comparativaAOA('Tienda / Negocio', rows, { anioA: lastTiendas.anio_a, anioB: lastTiendas.anio_b, full: false });
         window.expDataset('Ventas por Tienda', 'Por Tienda', r.header, r.filas, proveedorActual);
     };
     window.g00ExpNegocio = function () {
         if (!lastProductos) { window.expDataset('Ventas por Negocio', 'Por Negocio', [], []); return; }
         const n = lastProductos.negocios || { rows: [], total: {} };
-        const r = comparativaAOA('Negocio / Talla', n.rows, { anio: lastProductos.anio, full: true,
+        const r = comparativaAOA('Negocio / Talla', n.rows, { anioA: lastProductos.anio_a, anioB: lastProductos.anio_b, full: true,
             totalTdas: { act: n.total.tiendas_act, ant: n.total.tiendas_ant } });
         window.expDataset('Ventas por Negocio', 'Por Negocio', r.header, r.filas, proveedorActual);
     };
     window.g00ExpCategoria = function () {
         if (!lastProductos) { window.expDataset('Ventas por Categoría', 'Por Categoria', [], []); return; }
         const c = lastProductos.categorias || { rows: [], total: {} };
-        const r = comparativaAOA('Categoría / Subcategoría', c.rows, { anio: lastProductos.anio, full: true,
+        const r = comparativaAOA('Categoría / Subcategoría', c.rows, { anioA: lastProductos.anio_a, anioB: lastProductos.anio_b, full: true,
             totalTdas: { act: c.total.tiendas_act, ant: c.total.tiendas_ant } });
         window.expDataset('Ventas por Categoría', 'Por Categoria', r.header, r.filas, proveedorActual);
     };
     window.g00ExpGenero = function () {
         if (!lastProductos) { window.expDataset('Ventas por Género', 'Por Genero', [], []); return; }
         const g = lastProductos.generos || { rows: [], total: {} };
-        const r = comparativaAOA('Género / Público', g.rows, { anio: lastProductos.anio, full: true,
+        const r = comparativaAOA('Género / Público', g.rows, { anioA: lastProductos.anio_a, anioB: lastProductos.anio_b, full: true,
             totalTdas: { act: g.total.tiendas_act, ant: g.total.tiendas_ant } });
         window.expDataset('Ventas por Género', 'Por Genero', r.header, r.filas, proveedorActual);
     };
-    function mensualAOA(rows, tdas, anio) {
-        const a = anio, b = a - 1;
+    function mensualAOA(rows, tdas, anioA, anioB) {
+        const a = anioA, b = anioB;
         const header = ['Mes', b, a, 'Dif Q', '%Q', '$ ' + b, '$ ' + a, 'Dif $', '%$', '$Prom ' + b, '$Prom ' + a, 'Tdas ' + b, 'Tdas ' + a, '≠Tdas'];
         const filas = []; let sv = 0, sb = 0, su = 0, sub = 0;
         (rows || []).forEach(r => {
@@ -1269,8 +1269,8 @@
         filas.push(['Total', sub, su, eDif(su, sub), ePct(su, sub), sb, sv, eDif(sv, sb), ePct(sv, sb), pb, pa, tB, tA, eDif(tA, tB)]);
         return { header, filas };
     }
-    function periodosAOA(dias, anio) {
-        const a = anio, b = a - 1;
+    function periodosAOA(dias, anioA, anioB) {
+        const a = anioA, b = anioB;
         const MESAB = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
         const header = ['Semestre','Trimestre','Bimestre','Mes','Día',
             b, 'Part Q '+b, a, 'Part Q '+a, '% Q',
@@ -1303,12 +1303,12 @@
     }
     window.g00ExpMensual = function () {
         if (!lastDetal) { window.expDataset('Ventas Mensuales', 'Mensual', [], []); return; }
-        const r = mensualAOA(lastDetal.mensual, lastDetal.mensual_tdas, lastDetal.anio);
+        const r = mensualAOA(lastDetal.mensual, lastDetal.mensual_tdas, lastDetal.anio_a, lastDetal.anio_b);
         window.expDataset('Ventas Mensuales', 'Mensual', r.header, r.filas, proveedorActual);
     };
     window.g00ExpPeriodos = function () {
         if (!lastPeriodos) { window.expDataset('Ventas por Periodos', 'Periodos', [], []); return; }
-        const r = periodosAOA(lastPeriodos.dias, lastPeriodos.anio);
+        const r = periodosAOA(lastPeriodos.dias, lastPeriodos.anio_a, lastPeriodos.anio_b);
         window.expDataset('Ventas por Periodos', 'Periodos', r.header, r.filas, proveedorActual);
     };
     // ============ DISPATCHER ============

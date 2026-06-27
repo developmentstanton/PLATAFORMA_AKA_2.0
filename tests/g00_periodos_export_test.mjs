@@ -19,8 +19,8 @@ function buildArbolPeriodos(dias) {
   });
   return {sems, tot};
 }
-function periodosAOA(dias, anio) {
-  const a = anio, b = a - 1;
+function periodosAOA(dias, anioA, anioB) {
+  const a = anioA, b = anioB;
   const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
   const MESAB = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
   const header = ['Semestre','Trimestre','Bimestre','Mes','Día',
@@ -57,10 +57,11 @@ const dias = [
   {mes:1, dia:2, val_act:13, val_ant:14, ups_act:13, ups_ant:14},
   {mes:1, dia:3, val_act:11, val_ant: 9, ups_act:11, ups_ant: 9},
 ];
-const r = periodosAOA(dias, 2026);
+const r = periodosAOA(dias, 2026, 2023);
 let fail = 0;
 const assert = (cond, msg) => { if (!cond) { console.error('FALLO: ' + msg); fail = 1; } };
 assert(r.header.length === 15, 'header 15 cols');
+assert(r.header[5]===2023, 'cant año menor = 2023');
 assert(JSON.stringify(r.header.slice(0,5)) === JSON.stringify(['Semestre','Trimestre','Bimestre','Mes','Día']), 'dims');
 // Estructura esperada de filas (en orden): Semestre, Trimestre, Mes, Día-02, Día-03, Total = 6 filas.
 assert(r.filas.length === 6, 'filas=6, got ' + r.filas.length);

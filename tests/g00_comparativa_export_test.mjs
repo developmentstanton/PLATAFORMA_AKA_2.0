@@ -4,7 +4,7 @@ const eDif  = (a, b) => (a || 0) - (b || 0);
 const ePct  = (a, b) => b ? ((a - b) / b) * 100 : '';
 const eProm = (v, u) => (u > 0 ? v / u : 0);
 function comparativaAOA(dim, rows, opts) {
-  const a = opts.anio, b = a - 1, full = opts.full !== false;
+  const a = opts.anioA, b = opts.anioB, full = opts.full !== false;
   const parts = String(dim).split(' / ');
   const hasChild = parts.length > 1;
   const dimHdr = hasChild ? [parts[0], parts[1]] : [parts[0]];
@@ -41,7 +41,7 @@ const assert = (cond, msg) => { if (!cond) { console.error('FALLO: ' + msg); fai
 const rPC = comparativaAOA('Tienda / Negocio',
   [{label:'Tienda A', val_act:100, val_ant:80, ups_act:10, ups_ant:8, margen:30, tiendas_act:1, tiendas_ant:1,
     children:[{label:'Neg1', val_act:60, val_ant:50, ups_act:6, ups_ant:5, margen:0}]}],
-  {anio:2026, full:false});
+  {anioA:2026, anioB:2023, full:false});
 assert(JSON.stringify(rPC.header.slice(0,2)) === JSON.stringify(['Tienda','Negocio']), 'header split');
 assert(rPC.header.length === 13, 'header 13 (2 dim + 11 metric, full:false)');
 assert(rPC.filas[0][0] === 'Tienda A' && rPC.filas[0][1] === '', 'fila padre col hijo vacía');
@@ -51,8 +51,10 @@ assert(rPC.filas[2][2] === 8 && rPC.filas[2][3] === 10, 'total cant ant/act');
 // Caso una sola dimensión (sin ' / ').
 const rG = comparativaAOA('Grupo',
   [{label:'AKA', val_act:5, val_ant:4, ups_act:2, ups_ant:1, margen:10, tiendas_act:3, tiendas_ant:3}],
-  {anio:2026, full:true});
-assert(rG.header[0] === 'Grupo' && rG.header[1] === 2025, 'una dim: header sin hijo');
+  {anioA:2026, anioB:2023, full:true});
+assert(rG.header[0] === 'Grupo', 'una dim: header sin hijo');
+assert(rPC.header[0]==='Tienda' && rPC.header[2]===2023, 'header usa año menor 2023');
+assert(rG.header[1]===2023, 'una dim: año menor 2023');
 assert(rG.filas[0].length === 16, 'una dim: 1 + 15 metric');
 assert(rG.filas[0][0] === 'AKA', 'una dim: fila');
 assert(rG.filas[1][0] === 'Total', 'una dim: total');
