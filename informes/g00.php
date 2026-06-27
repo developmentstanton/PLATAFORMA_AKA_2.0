@@ -232,6 +232,21 @@
                 </div>
             </div>
             <div class="filter-group">
+                <label>Año</label>
+                <select id="g00-anio-a"><?php $ya=(int)date('Y'); for($y=$ya;$y>=2019;$y--) printf('<option value="%d"%s>%d</option>',$y,$y==$ya?' selected':'',$y); ?></select>
+            </div>
+            <div class="filter-group">
+                <label>Comparar vs</label>
+                <select id="g00-anio-b"><?php for($y=$ya;$y>=2019;$y--) printf('<option value="%d"%s>%d</option>',$y,$y==$ya-1?' selected':'',$y); ?></select>
+            </div>
+            <div class="filter-group">
+                <label>Rango rápido</label>
+                <div class="g00-md">
+                    <button type="button" class="g00-btn-export" onclick="g00QuickRange('ytd')">Hasta la fecha</button>
+                    <button type="button" class="g00-btn-export" onclick="g00QuickRange('full')">Año completo</button>
+                </div>
+            </div>
+            <div class="filter-group">
                 <label>Calendario</label>
                 <div class="g00-seg" id="g00-cal">
                     <button type="button" class="g00-seg-btn active" data-val="diaadia">Día a Día</button>
@@ -629,8 +644,18 @@
         const m = document.getElementById('g00-' + prefix + '-mes').value;
         const d = document.getElementById('g00-' + prefix + '-dia').value;
         if (!m || !d) return '';
-        return new Date().getFullYear() + '-' + m + '-' + d;
+        const ya = document.getElementById('g00-anio-a');
+        const year = (ya && ya.value) ? ya.value : new Date().getFullYear();
+        return year + '-' + m + '-' + d;
     }
+
+    // Presets de rango: 'ytd' = Ene-01 → hoy; 'full' = Ene-01 → Dic-31. Solo rellenan mes/día.
+    window.g00QuickRange = function (mode) {
+        const set = (id, v) => { const e = document.getElementById(id); if (e) e.value = v; };
+        set('g00-desde-mes', '01'); set('g00-desde-dia', '01');
+        if (mode === 'full') { set('g00-hasta-mes', '12'); set('g00-hasta-dia', '31'); }
+        else { const now = new Date(); set('g00-hasta-mes', String(now.getMonth() + 1).padStart(2, '0')); set('g00-hasta-dia', String(now.getDate()).padStart(2, '0')); }
+    };
 
     function buildParams(tab) {
         const p = new URLSearchParams();
@@ -643,6 +668,8 @@
         });
         p.append('cal', segValue('g00-cal') || 'diaadia');
         p.append('sss', segValue('g00-sss') || 'nosame');
+        const ab = document.getElementById('g00-anio-b');
+        if (ab && ab.value) p.append('anioB', ab.value);
         return p.toString();
     }
 
@@ -1293,6 +1320,11 @@
     }
 
     window.g00Load = function () {
+        const aEl = document.getElementById('g00-anio-a'), bEl = document.getElementById('g00-anio-b');
+        if (aEl && bEl && parseInt(bEl.value, 10) >= parseInt(aEl.value, 10)) {
+            Swal.fire('Comparación inválida', 'El año a comparar debe ser menor que el año principal.', 'warning');
+            return;
+        }
         // Filtros cambiaron: invalida todos, recarga el actual, los demás se recargarán al visitarse
         Object.keys(tabState).forEach(k => tabState[k] = false);
         loadCurrentTab();
