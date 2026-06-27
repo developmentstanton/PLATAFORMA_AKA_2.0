@@ -33,4 +33,8 @@ chk($r[4] === 'rango_anios_invalido', "anioB=anioA inválido: ".json_encode($r))
 $r = g00_rango_comparacion('2026-01-01','2026-06-26', 2027, 'diaadia');
 chk($r[4] === 'rango_anios_invalido', "anioB>anioA inválido: ".json_encode($r));
 
+// 8) anioB <= 0 → error.
+$r = g00_rango_comparacion('2026-01-01','2026-06-26', 0, 'diaadia');
+chk($r[4] === 'rango_anios_invalido', "anioB=0 inválido: ".json_encode($r));
+
 echo $fail?"RESULTADO: FALLO\n":"RESULTADO: OK (diaadia/retail/29feb/validación)\n"; exit($fail);

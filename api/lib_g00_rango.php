@@ -3,7 +3,7 @@
 // Sin acceso a BD. Testeable con: php tests/g00_rango_comparacion_test.php
 
 /** Cambia el año de una fecha YYYY-MM-DD a $anio; 29-feb→28-feb si $anio no es bisiesto. */
-function g00_set_anio($fecha, $anio) {
+function g00_set_anio(string $fecha, int $anio): string {
     $anio = (int) $anio;
     $mmdd = substr($fecha, 5); // 'MM-DD'
     if ($mmdd === '02-29' && !date('L', mktime(0, 0, 0, 1, 1, $anio))) {
@@ -18,7 +18,7 @@ function g00_set_anio($fecha, $anio) {
  * $cal: 'retail' → anterior = -364*(añoMayor-añoMenor) días; otro → mismo mes/día en $anioB.
  * error='rango_anios_invalido' si $anioB<=0 o $anioB>=añoMayor (devuelve el mayor en ambos lados).
  */
-function g00_rango_comparacion($desde, $hasta, $anioB, $cal) {
+function g00_rango_comparacion(string $desde, string $hasta, int $anioB, string $cal): array {
     $anioA = (int) substr($hasta, 0, 4);
     $anioB = (int) $anioB;
     if ($anioB <= 0 || $anioB >= $anioA) {

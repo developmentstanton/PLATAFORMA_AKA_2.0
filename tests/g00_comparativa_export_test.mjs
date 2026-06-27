@@ -48,12 +48,12 @@ assert(rPC.filas[0][0] === 'Tienda A' && rPC.filas[0][1] === '', 'fila padre col
 assert(rPC.filas[1][0] === 'Tienda A' && rPC.filas[1][1] === 'Neg1', 'fila hijo padre repetido');
 assert(rPC.filas[2][0] === 'Total' && rPC.filas[2][1] === '', 'fila total');
 assert(rPC.filas[2][2] === 8 && rPC.filas[2][3] === 10, 'total cant ant/act');
+assert(rPC.header[0]==='Tienda' && rPC.header[2]===2023, 'header usa año menor 2023');
 // Caso una sola dimensión (sin ' / ').
 const rG = comparativaAOA('Grupo',
   [{label:'AKA', val_act:5, val_ant:4, ups_act:2, ups_ant:1, margen:10, tiendas_act:3, tiendas_ant:3}],
   {anioA:2026, anioB:2023, full:true});
 assert(rG.header[0] === 'Grupo', 'una dim: header sin hijo');
-assert(rPC.header[0]==='Tienda' && rPC.header[2]===2023, 'header usa año menor 2023');
 assert(rG.header[1]===2023, 'una dim: año menor 2023');
 assert(rG.filas[0].length === 16, 'una dim: 1 + 15 metric');
 assert(rG.filas[0][0] === 'AKA', 'una dim: fila');

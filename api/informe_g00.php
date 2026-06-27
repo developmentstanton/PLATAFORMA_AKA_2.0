@@ -509,15 +509,14 @@ if ($tab === 'tiendas') {
 
 // ====================================================================
 // TAB: PERIODOS — datos a grano (mes, día) para el drill-down Semestre→Trimestre→Mes→Día.
-// act = año actual; ant = mismo periodo −1 año, alineado por CALENDARIO (no retail).
 // ====================================================================
 if ($tab === 'periodos') {
     $pAntDesde = $desdeAnt;
     $pAntHasta = $hastaAnt;
     $pGmin = $gmin;
     $pGmax = $gmax;
-    // S.S.S en Periodos: misma cláusula EXISTS, pero con la fecha de año-anterior CALENDARIO
-    // de esta pestaña ($pAntDesde), no la global ($desdeAnt). Vacío salvo sss=same.
+    // act/ant derivados del bloque global (anioB, cal: diaadia o retail). $pAntDesde = $desdeAnt.
+    // S.S.S en Periodos: misma cláusula EXISTS. Vacío salvo sss=same.
     $sameStorePeriodos = ''; $ssParamsPeriodos = [];
     if ($sss === 'same') { $sameStorePeriodos = $sameStoreClause; $ssParamsPeriodos = [$pAntDesde, $hastaAct]; }
     $sql = cteVentas() . "
