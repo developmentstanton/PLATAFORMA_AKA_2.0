@@ -743,20 +743,17 @@ $deltaUps     = $upsAnt    > 0 ? (($upsAct    - $upsAnt)    / $upsAnt)    * 100 
 $deltaTiendas = $tiendasAn > 0 ? (($tiendasAc - $tiendasAn) / $tiendasAn) * 100 : 0;
 $ticketProm   = $upsAct    > 0 ?  $ventasAct / $upsAct                          : 0;
 
-// Mensual: SIEMPRE Ene→hoy (ignora el filtro de fecha). El período anterior usa
-// la alineación del Calendario: -1 año (diaadia) o -364 días (retail), de modo que
-// ambos años quedan "al corte del mismo día".
-$hoy        = date('Y-m-d');
-$mensDesA   = date('Y-01-01');
-$mensHasA   = $hoy;
+// Mensual: añoMayor Ene→Hasta vs añoMenor, honrando cal.
+$mensDesA   = "$yearAct-01-01";
+$mensHasA   = $hastaAct;
 if ($cal === 'retail') {
-    $mensDesB = date('Y-m-d', strtotime($mensDesA . ' -364 days'));
-    $mensHasB = date('Y-m-d', strtotime($mensHasA . ' -364 days'));
-    $shiftToActualDays = 364; // sumar a una fecha 'ant' para mapearla al mes 'act'
+    $shiftToActualDays = 364 * ($yearAct - $anioBIn);
+    $mensDesB = date('Y-m-d', strtotime($mensDesA . ' -' . $shiftToActualDays . ' days'));
+    $mensHasB = $hastaAnt;
 } else {
-    $mensDesB = date('Y-m-d', strtotime($mensDesA . ' -1 year'));
-    $mensHasB = date('Y-m-d', strtotime($mensHasA . ' -1 year'));
-    $shiftToActualDays = 0;   // diaadia: el mes calendario ya coincide (mismo mes, -1 año)
+    $shiftToActualDays = 0;   // diaadia: el mes calendario ya coincide
+    $mensDesB = g00_set_anio($mensDesA, $anioBIn);
+    $mensHasB = $hastaAnt;
 }
 $mensGmin = min($mensDesB, $mensDesA);
 $mensGmax = max($mensHasA, $mensHasB);
@@ -821,7 +818,7 @@ foreach ($mensual as $r) {
     $mapMT[$mi] = ['act' => (int)$r['tiendas_act'], 'ant' => (int)$r['tiendas_ant']];
 }
 $labelsMes = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-$mesActual = (int)date('n');
+$mesActual = (int)date('n', strtotime($hastaAct));   // Ene → mes del Hasta del año mayor
 // $yearAct definido arriba (derivación de rangos) junto con $anioBIn.
 $serieMensual = [];
 for ($m = 1; $m <= $mesActual; $m++) {   // Ene → mes actual
