@@ -13,6 +13,19 @@ function g00_set_anio(string $fecha, int $anio): string {
 }
 
 /**
+ * Recorta la fecha final al día de cierre ($ayer) por el cierre diario de ventas.
+ * Solo recorta cuando $hasta es posterior a $ayer (hoy/futuro, i.e. año en curso) y
+ * NO es 31-dic (que significa "año completo" y queda exento). Fechas pasadas ya
+ * cerradas y años anteriores se conservan tal cual. $hasta/$ayer en 'YYYY-MM-DD'.
+ */
+function g00_cap_hasta(string $hasta, string $ayer): string {
+    if (substr($hasta, 5) !== '12-31' && $hasta > $ayer) {
+        return $ayer;
+    }
+    return $hasta;
+}
+
+/**
  * Deriva [desdeAct, hastaAct, desdeAnt, hastaAnt, error] para comparar dos años.
  * Periodo MAYOR = [$desde,$hasta] (año tomado de $hasta). Periodo MENOR = año $anioB.
  * $cal: 'retail' → anterior = -364*(añoMayor-añoMenor) días; otro → mismo mes/día en $anioB.

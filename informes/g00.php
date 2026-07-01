@@ -228,8 +228,8 @@
             <div class="filter-group">
                 <label>Hasta</label>
                 <div class="g00-md">
-                    <select id="g00-hasta-mes"><?php $cm=(int)date('n'); for($m=1;$m<=12;$m++) printf('<option value="%02d"%s>%s</option>',$m,$m==$cm?' selected':'',$MESES_FILTRO[$m-1]); ?></select>
-                    <select id="g00-hasta-dia"><?php $cd=(int)date('j'); for($d=1;$d<=31;$d++) printf('<option value="%02d"%s>%02d</option>',$d,$d==$cd?' selected':'',$d); ?></select>
+                    <select id="g00-hasta-mes"><?php $cm=(int)date('n', strtotime('-1 day')); /* día de cierre = ayer */ for($m=1;$m<=12;$m++) printf('<option value="%02d"%s>%s</option>',$m,$m==$cm?' selected':'',$MESES_FILTRO[$m-1]); ?></select>
+                    <select id="g00-hasta-dia"><?php $cd=(int)date('j', strtotime('-1 day')); for($d=1;$d<=31;$d++) printf('<option value="%02d"%s>%02d</option>',$d,$d==$cd?' selected':'',$d); ?></select>
                 </div>
             </div>
             <div class="filter-group">
@@ -654,23 +654,23 @@
         return year + '-' + m + '-' + d;
     }
 
-    // Presets de rango: 'ytd' = Ene-01 → hoy; 'full' = Ene-01 → Dic-31. Solo rellenan mes/día.
+    // Presets de rango: 'ytd' = Ene-01 → ayer (día de cierre); 'full' = Ene-01 → Dic-31. Solo rellenan mes/día.
     window.g00QuickRange = function (mode) {
         const set = (id, v) => { const e = document.getElementById(id); if (e) e.value = v; };
         set('g00-desde-mes', '01'); set('g00-desde-dia', '01');
         if (mode === 'full') { set('g00-hasta-mes', '12'); set('g00-hasta-dia', '31'); }
-        else { const now = new Date(); set('g00-hasta-mes', String(now.getMonth() + 1).padStart(2, '0')); set('g00-hasta-dia', String(now.getDate()).padStart(2, '0')); }
+        else { const ayer = new Date(); ayer.setDate(ayer.getDate() - 1); set('g00-hasta-mes', String(ayer.getMonth() + 1).padStart(2, '0')); set('g00-hasta-dia', String(ayer.getDate()).padStart(2, '0')); }
         g00SyncQuickRange();
     };
 
     // Marca el botón de rango rápido cuyo preset coincide con el rango actual.
-    // ytd = 01/01 → hoy; full = 01/01 → 31/12; ninguno si el rango es personalizado.
+    // ytd = 01/01 → ayer (día de cierre); full = 01/01 → 31/12; ninguno si el rango es personalizado.
     window.g00SyncQuickRange = function () {
         const v = id => { const e = document.getElementById(id); return e ? e.value : ''; };
         const dm = v('g00-desde-mes'), dd = v('g00-desde-dia');
         const hm = v('g00-hasta-mes'), hd = v('g00-hasta-dia');
-        const now = new Date();
-        const tm = String(now.getMonth() + 1).padStart(2, '0'), td = String(now.getDate()).padStart(2, '0');
+        const ayer = new Date(); ayer.setDate(ayer.getDate() - 1);
+        const tm = String(ayer.getMonth() + 1).padStart(2, '0'), td = String(ayer.getDate()).padStart(2, '0');
         const desdeEnero = (dm === '01' && dd === '01');
         const isYtd  = desdeEnero && hm === tm && hd === td;
         const isFull = desdeEnero && hm === '12' && hd === '31';

@@ -46,6 +46,11 @@ if ($desdeIn && $hastaIn) {
 $cal = strtolower(trim($_GET['cal'] ?? 'diaadia'));
 if ($cal !== 'retail') $cal = 'diaadia';
 
+// Cierre diario de ventas: el día en curso no está cerrado. Recorta la fecha final al
+// día de cierre (ayer) salvo "año completo" (31-dic). Se aplica ANTES de derivar el año
+// menor para que ambos periodos queden espejados. Ver g00_cap_hasta().
+$hastaAct = g00_cap_hasta($hastaAct, date('Y-m-d', strtotime('-1 day')));
+
 // Año menor a comparar: si no llega, año del periodo mayor − 1 (comportamiento por defecto).
 if ($anioBIn <= 0) $anioBIn = (int)date('Y', strtotime($hastaAct)) - 1;
 

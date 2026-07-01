@@ -37,4 +37,13 @@ chk($r[4] === 'rango_anios_invalido', "anioB>anioA inválido: ".json_encode($r))
 $r = g00_rango_comparacion('2026-01-01','2026-06-26', 0, 'diaadia');
 chk($r[4] === 'rango_anios_invalido', "anioB=0 inválido: ".json_encode($r));
 
-echo $fail?"RESULTADO: FALLO\n":"RESULTADO: OK (diaadia/retail/29feb/validación)\n"; exit($fail);
+// 9) g00_cap_hasta — recorta la fecha final al día de cierre (ayer) salvo 31-dic / fechas ya cerradas.
+$ayer = '2026-06-30';
+chk(g00_cap_hasta('2026-07-01', $ayer) === '2026-06-30', "cap: hoy (año en curso) se recorta a ayer");
+chk(g00_cap_hasta('2026-06-30', $ayer) === '2026-06-30', "cap: exactamente ayer se conserva");
+chk(g00_cap_hasta('2026-06-15', $ayer) === '2026-06-15', "cap: fecha pasada ya cerrada se conserva");
+chk(g00_cap_hasta('2026-12-31', $ayer) === '2026-12-31', "cap: 31-dic (año completo) exento aunque sea futuro");
+chk(g00_cap_hasta('2025-12-31', $ayer) === '2025-12-31', "cap: año pasado se conserva");
+chk(g00_cap_hasta('2025-07-01', $ayer) === '2025-07-01', "cap: año pasado no se recorta aunque mm-dd > ayer");
+
+echo $fail?"RESULTADO: FALLO\n":"RESULTADO: OK (diaadia/retail/29feb/validación/cap)\n"; exit($fail);
