@@ -1123,7 +1123,7 @@
     };
     // ===== Preview de imagen del zapato al hover en la tabla "Resumen Ventas Por Negocio" =====
     (function initNegocioImgHover() {
-        const FOTO_BASE = 'http://bi.stanton.com.co:81/fotosPBI/';
+        const FOTO_BASE = 'http://200.91.225.226/fotospbi/fotos/';
         const tabla = document.getElementById('g00-tabla-negocio');
         if (!tabla) return;
         let pop = null, img = null, triedPng = false, curLabel = '';

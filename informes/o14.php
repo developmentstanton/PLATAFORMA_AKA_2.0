@@ -416,7 +416,7 @@
 
   // Hover de foto del zapato sobre la columna Negocio (col 0) — en Recomendaciones y en Por negocio (igual que G00).
   (function initImgHover(){
-    const FOTO_BASE='http://bi.stanton.com.co:81/fotosPBI/';
+    const FOTO_BASE='http://200.91.225.226/fotospbi/fotos/';
     const panels=['o14-panel-reco','o14-panel-b'].map(id=>document.getElementById(id)).filter(Boolean);
     if(!panels.length) return;
     let pop=null,img=null,triedPng=false,curLabel='';

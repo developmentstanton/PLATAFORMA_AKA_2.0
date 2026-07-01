@@ -186,7 +186,7 @@
 
     // Foto del zapato al pasar el mouse sobre la columna Negocio (col 0), igual que O14.
     (function initImgHover(){
-      const FOTO_BASE='http://bi.stanton.com.co:81/fotosPBI/';
+      const FOTO_BASE='http://200.91.225.226/fotospbi/fotos/';
       const panel=document.getElementById('o45-tabla'); if(!panel) return;
       let pop=null,img=null,triedPng=false,curLabel='';
       function ensurePop(){ if(pop)return; pop=document.createElement('div'); pop.id='o45-img-pop'; img=document.createElement('img'); img.alt='';
