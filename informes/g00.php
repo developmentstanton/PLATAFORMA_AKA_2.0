@@ -176,6 +176,7 @@
         border: 1px solid var(--border); background: #fff; color: var(--primary); cursor: pointer;
         border-radius: 6px; padding: 3px 9px; font-weight: 600; line-height: 1.4; }
     .g00-btn-export:hover { background: var(--primary); color: #fff; }
+    .g00-btn-export.active { background: var(--primary); color: #fff; border-color: var(--primary); font-weight: 600; }
 
     /* Compactación + fuente reducida del informe G00 (acotado a #page-informes-g00, no afecta O14) */
     #page-informes-g00 { font-size: 13px; --g00-divider: #adabb6; }
@@ -242,8 +243,8 @@
             <div class="filter-group">
                 <label>Rango rápido</label>
                 <div class="g00-md">
-                    <button type="button" class="g00-btn-export" onclick="g00QuickRange('ytd')">Hasta la fecha</button>
-                    <button type="button" class="g00-btn-export" onclick="g00QuickRange('full')">Año completo</button>
+                    <button type="button" class="g00-btn-export" id="g00-qr-ytd" onclick="g00QuickRange('ytd')">Hasta la fecha</button>
+                    <button type="button" class="g00-btn-export" id="g00-qr-full" onclick="g00QuickRange('full')">Año completo</button>
                 </div>
             </div>
             <div class="filter-group">
@@ -539,6 +540,10 @@
         });
         initSeg('g00-cal');
         initSegToggle('g00-sss');
+        ['g00-desde-mes','g00-desde-dia','g00-hasta-mes','g00-hasta-dia'].forEach(id => {
+            const e = document.getElementById(id); if (e) e.addEventListener('change', g00SyncQuickRange);
+        });
+        g00SyncQuickRange();
         fetch('api/informe_g00.php?tab=filtros', { credentials: 'same-origin' })
             .then(r => r.json())
             .then(data => {
@@ -655,6 +660,23 @@
         set('g00-desde-mes', '01'); set('g00-desde-dia', '01');
         if (mode === 'full') { set('g00-hasta-mes', '12'); set('g00-hasta-dia', '31'); }
         else { const now = new Date(); set('g00-hasta-mes', String(now.getMonth() + 1).padStart(2, '0')); set('g00-hasta-dia', String(now.getDate()).padStart(2, '0')); }
+        g00SyncQuickRange();
+    };
+
+    // Marca el botón de rango rápido cuyo preset coincide con el rango actual.
+    // ytd = 01/01 → hoy; full = 01/01 → 31/12; ninguno si el rango es personalizado.
+    window.g00SyncQuickRange = function () {
+        const v = id => { const e = document.getElementById(id); return e ? e.value : ''; };
+        const dm = v('g00-desde-mes'), dd = v('g00-desde-dia');
+        const hm = v('g00-hasta-mes'), hd = v('g00-hasta-dia');
+        const now = new Date();
+        const tm = String(now.getMonth() + 1).padStart(2, '0'), td = String(now.getDate()).padStart(2, '0');
+        const desdeEnero = (dm === '01' && dd === '01');
+        const isYtd  = desdeEnero && hm === tm && hd === td;
+        const isFull = desdeEnero && hm === '12' && hd === '31';
+        const ytd = document.getElementById('g00-qr-ytd'), full = document.getElementById('g00-qr-full');
+        if (ytd)  ytd.classList.toggle('active', isYtd);
+        if (full) full.classList.toggle('active', isFull);
     };
 
     function buildParams(tab) {
