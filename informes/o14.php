@@ -568,8 +568,9 @@
       const dataR = recoFiltered(lastReco);
       const wb = XLSX.utils.book_new();
       const HOJA = { sobrante:'Sobrante', faltante:'Faltante', proveedor:'Proveedor' };
+      const hdr = filtrosUI.excelHeaderRows(document.getElementById('page-informes-o14'));
       RECO_MED.forEach(med => { const r = recoAOA(dataR, med);
-        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([r.header, ...r.filas]), HOJA[med]); });
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([...hdr, r.header, ...r.filas]), HOJA[med]); });
       XLSX.writeFile(wb, window.expFile('Recomendaciones'));
       return;
     }

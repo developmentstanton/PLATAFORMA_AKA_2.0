@@ -52,7 +52,8 @@
         if (window.Swal) Swal.fire('Exportar', 'Aún no hay datos cargados. Carga el informe primero.', 'info');
         return false;
       }
-      const ws = XLSX.utils.aoa_to_sheet([header, ...filas]);
+      const hdr = (window.filtrosUI ? window.filtrosUI.excelHeaderRows() : []);
+      const ws = XLSX.utils.aoa_to_sheet([...hdr, header, ...filas]);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, String(hoja).replace(/[:\\\/?*\[\]]/g, ' ').slice(0, 31));
       XLSX.writeFile(wb, window.expFile(cuadro, proveedor));
@@ -94,6 +95,21 @@
       },
       estaFiltrado: function (pageEl) {
         return this.activos(pageEl).length > 0;
+      },
+      excelHeaderRows: function (pageEl) {
+        const page = this._page(pageEl);
+        const rows = [['Filtros aplicados:']];
+        const pageId = page ? page.id.replace(/^page-/, '') : '';
+        const per = this.getPeriodo(pageId);
+        if (per && per.desde && per.hasta) rows.push(['Período:', per.desde + ' a ' + per.hasta]);
+        const act = this.activos(page);
+        if (act.length) {
+          act.forEach(function (f) { rows.push([f.etiqueta + ':', f.valores.join(', ')]); });
+        } else {
+          rows.push(['(sin filtros de dimensión)']);
+        }
+        rows.push([]); // fila en blanco separadora
+        return rows;
       },
       _esc: function (s) {
         return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
