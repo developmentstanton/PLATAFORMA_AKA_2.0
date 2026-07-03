@@ -151,6 +151,9 @@
     markersLayer.clearLayers();
     const tiendas = d.tiendas||[];
     tiendasActuales = tiendas;
+    // Al recargar (filtros nuevos) la selección anterior puede ya no estar en el mapa: reset a la pista.
+    const detCont = document.getElementById('geo-detalle');
+    if(detCont) detCont.innerHTML = '<div class="geo-detalle-hint">Haz clic en una tienda para ver su foto.</div>';
     tiendas.forEach(t=>{
       if (t.lat==null || t.lng==null) return;
       const m = L.circleMarker([t.lat,t.lng], { radius:7, fillColor:colorFor(t.grupo), color:'#fff', weight:1, fillOpacity:0.92 });
