@@ -49,7 +49,7 @@
   <div class="tab-bar o14-tabs">
     <div class="tab active" onclick="o14ShowTab('c', this)">Por tienda</div>
     <div class="tab" onclick="o14ShowTab('b', this)">Por negocio</div>
-    <div class="tab" onclick="o14ShowTab('reco', this)">Recomendaciones <span id="o14-reco-dot" class="o14-reco-dot"></span></div>
+    <div class="tab" onclick="o14ShowTab('reco', this)">Alertas <span id="o14-reco-dot" class="o14-reco-dot"></span></div>
     <button class="g00-btn-export o14-export-btn" onclick="o14Export()">⤓ Excel</button>
   </div>
 
@@ -398,7 +398,7 @@
     filas.push(['TOTAL'].concat(tallas.map(t => tot[t] || ''), [gtot]));
     return { header, filas };
   }
-  const RECO_CUADRO = { sobrante:'Recomendación - Reubicación Sobrante', faltante:'Recomendación - Faltante', proveedor:'Recomendación - Solicitud a Proveedor' };
+  const RECO_CUADRO = { sobrante:'Alerta - Reubicación Sobrante', faltante:'Alerta - Faltante', proveedor:'Alerta - Solicitud a Proveedor' };
   window.o14RecoExp = function(i){
     const med = RECO_MED[i];
     if(!lastReco){ window.expDataset(RECO_CUADRO[med], 'Reco', [], []); return; }
@@ -454,7 +454,7 @@
       .catch(()=>Swal.fire('Error','No se pudo cargar O14C','error')).finally(hideLoading); }
 
   function loadReco(){
-    showLoading('Calculando recomendaciones');
+    showLoading('Calculando alertas');
     fetch('api/informe_o14.php?'+buildParams('reco'),{credentials:'same-origin'})
       .then(r=>r.json()).then(d=>{ if(!d.ok) throw 0; renderRecoMatrices(d); tabState.reco=true; })
       .catch(()=>Swal.fire('Error','No se pudo calcular','error')).finally(hideLoading); }
@@ -563,7 +563,7 @@
   window.o14Export = function(){
     if(currentTab !== 'b' && currentTab !== 'c'){
       // Reco: las 3 matrices, cada una en su hoja.
-      if(!lastReco){ window.expDataset('Recomendaciones', 'Reco', [], []); return; }
+      if(!lastReco){ window.expDataset('Alertas', 'Reco', [], []); return; }
       if(typeof XLSX === 'undefined'){ Swal.fire('Exportar','No se cargó el componente de Excel.','error'); return; }
       const dataR = recoFiltered(lastReco);
       const wb = XLSX.utils.book_new();
@@ -571,7 +571,7 @@
       const hdr = filtrosUI.excelHeaderRows(document.getElementById('page-informes-o14'));
       RECO_MED.forEach(med => { const r = recoAOA(dataR, med);
         XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([...hdr, r.header, ...r.filas]), HOJA[med]); });
-      XLSX.writeFile(wb, window.expFile('Recomendaciones'));
+      XLSX.writeFile(wb, window.expFile('Alertas'));
       return;
     }
     const data = lastData[currentTab];
