@@ -157,6 +157,8 @@
     fetch('api/informe_evol.php?'+buildParams(),{credentials:'same-origin'}).then(r=>r.json()).then(d=>{
       if(!d.ok){ cont.innerHTML='<p style="padding:16px;color:var(--accent)">Error al cargar.</p>'; return; }
       window.__evollast=d; if(d.proveedor) setTitle(d.proveedor); renderMatriz(d);
+      filtrosUI.setPeriodo('evolucion-historica', val('evol-vdesde')||defDesde(), val('evol-vhasta')||defHasta());
+      filtrosUI.render(document.getElementById('page-evolucion-historica'));
     }).catch(()=>{ cont.innerHTML='<p style="padding:16px;color:var(--accent)">Error de red.</p>'; }).finally(hideLoading);
   };
 
@@ -188,6 +190,8 @@
     const rb = document.getElementById('topbarEvolRefresh'); if(rb) rb.style.display = '';
     if (!filtrosInit) { initFiltros(); filtrosInit = true; }
     if (!window.__evollast) evolLoad();
+    filtrosUI.setPeriodo('evolucion-historica', val('evol-vdesde')||defDesde(), val('evol-vhasta')||defHasta());
+    filtrosUI.render(document.getElementById('page-evolucion-historica'));
   };
 
   // Foto del zapato al pasar el mouse sobre la columna Negocio (col 0). Igual que O45.

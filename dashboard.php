@@ -52,11 +52,142 @@
         if (window.Swal) Swal.fire('Exportar', 'Aún no hay datos cargados. Carga el informe primero.', 'info');
         return false;
       }
-      const ws = XLSX.utils.aoa_to_sheet([header, ...filas]);
+      const hdr = (window.filtrosUI ? window.filtrosUI.excelHeaderRows() : []);
+      const ws = XLSX.utils.aoa_to_sheet([...hdr, header, ...filas]);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, String(hoja).replace(/[:\\\/?*\[\]]/g, ' ').slice(0, 31));
       XLSX.writeFile(wb, window.expFile(cuadro, proveedor));
       return true;
+    };
+    // ===== Estado de filtros compartido por los informes (g00/o14/geo) =====
+    window.filtrosUI = {
+      _periodos: {},
+      _page: function (pageEl) {
+        if (pageEl && pageEl.nodeType === 1) return pageEl;
+        return document.querySelector('.page.active');
+      },
+      setPeriodo: function (pageId, desde, hasta) {
+        if (pageId) this._periodos[pageId] = { desde: desde || '', hasta: hasta || '' };
+      },
+      getPeriodo: function (pageId) {
+        return this._periodos[pageId] || null;
+      },
+      // Lee los .filter-group del informe activo y devuelve los que tienen selección.
+      activos: function (pageEl) {
+        const page = this._page(pageEl);
+        if (!page) return [];
+        const cont = page.querySelector('.g00-filters');
+        if (!cont) return [];
+        const out = [];
+        cont.querySelectorAll('.filter-group').forEach(function (grp) {
+          const sel = grp.querySelector('select');
+          const lab = grp.querySelector('label');
+          if (!sel || !lab || !sel.tomselect) return;
+          const items = sel.tomselect.items || [];
+          if (!items.length) return;
+          const opts = sel.tomselect.options || {};
+          const valores = items.map(function (v) {
+            return (opts[v] && opts[v].text != null) ? String(opts[v].text) : String(v);
+          });
+          out.push({ etiqueta: lab.textContent.trim(), valores: valores });
+        });
+        return out;
+      },
+      estaFiltrado: function (pageEl) {
+        return this.activos(pageEl).length > 0;
+      },
+      excelHeaderRows: function (pageEl) {
+        const page = this._page(pageEl);
+        const rows = [['Filtros aplicados:']];
+        const pageId = page ? page.id.replace(/^page-/, '') : '';
+        const per = this.getPeriodo(pageId);
+        if (per && per.desde && per.hasta) rows.push(['Período:', per.desde + ' a ' + per.hasta]);
+        const act = this.activos(page);
+        if (act.length) {
+          act.forEach(function (f) { rows.push([f.etiqueta + ':', f.valores.join(', ')]); });
+        } else {
+          rows.push(['(sin filtros de dimensión)']);
+        }
+        rows.push([]); // fila en blanco separadora
+        return rows;
+      },
+      _esc: function (s) {
+        return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
+          return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c];
+        });
+      },
+      ensureChrome: function (pageEl) {
+        const page = this._page(pageEl);
+        if (!page) return;
+        const cont = page.querySelector('.g00-filters');
+        if (!cont || cont.querySelector('.filtros-head')) return; // idempotente
+        const pageId = page.id.replace(/^page-/, '');
+        const head = document.createElement('div');
+        head.className = 'filtros-head';
+        head.innerHTML =
+          '<button type="button" class="filtros-toggle"><span class="chev">▾</span> Filtros</button>' +
+          '<div class="filtros-chips"></div>';
+        cont.insertBefore(head, cont.firstChild);
+        const self = this;
+        head.querySelector('.filtros-toggle').addEventListener('click', function () {
+          self._toggle(page, cont, pageId);
+        });
+        // Restaurar estado guardado
+        let saved = null;
+        try { saved = localStorage.getItem('filtros_colapsado_' + pageId); } catch (e) {}
+        if (saved === '1') cont.classList.add('filtros--colapsado');
+      },
+      _toggle: function (page, cont, pageId) {
+        cont.classList.toggle('filtros--colapsado');
+        const col = cont.classList.contains('filtros--colapsado');
+        try { localStorage.setItem('filtros_colapsado_' + pageId, col ? '1' : '0'); } catch (e) {}
+        if (col) this._renderChips(page);
+      },
+      _renderChips: function (page) {
+        const self = this;
+        const box = page.querySelector('.g00-filters .filtros-chips');
+        if (!box) return;
+        const pageId = page.id.replace(/^page-/, '');
+        const chips = [];
+        const per = this.getPeriodo(pageId);
+        if (per && per.desde && per.hasta) {
+          chips.push('<span class="filtros-chip"><b>Período:</b> ' + self._esc(per.desde) + ' a ' + self._esc(per.hasta) + '</span>');
+        }
+        const act = this.activos(page);
+        act.forEach(function (f) {
+          const N = 3;
+          let vals = f.valores.slice(0, N).map(function (v) { return self._esc(v); }).join(', ');
+          if (f.valores.length > N) vals += ' +' + (f.valores.length - N) + ' más';
+          chips.push('<span class="filtros-chip"><b>' + self._esc(f.etiqueta) + ':</b> ' + vals + '</span>');
+        });
+        if (!act.length) chips.push('<span class="filtros-chip vacio">Sin filtros</span>');
+        box.innerHTML = chips.join('');
+      },
+      _renderMarcadores: function (page) {
+        const filtrado = this.estaFiltrado(page);
+        // Badge del título (solo cuando este informe es el activo)
+        const badge = document.getElementById('pageTitleFiltrado');
+        if (badge && page.classList.contains('active')) badge.style.display = filtrado ? '' : 'none';
+        // Marcador en cada pestaña del informe
+        page.querySelectorAll('.tab-bar .tab').forEach(function (tab) {
+          let m = tab.querySelector('.tab-filtrado');
+          if (filtrado && !m) {
+            m = document.createElement('span');
+            m.className = 'tab-filtrado';
+            m.textContent = '(filtrado)';
+            tab.appendChild(m);
+          } else if (!filtrado && m) {
+            m.remove();
+          }
+        });
+      },
+      render: function (pageEl) {
+        const page = this._page(pageEl);
+        if (!page) return;
+        this.ensureChrome(page);
+        this._renderChips(page);
+        this._renderMarcadores(page);
+      }
     };
     </script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
@@ -82,6 +213,23 @@
             --gray-bg: #cacaca;
         }
         body { font-family: 'Space Grotesk', system-ui, sans-serif; background: var(--bg); color: var(--text); }
+
+        /* ============ FILTROS: cabecera colapsable + chips ============ */
+        .filtros-head { display:flex; align-items:center; gap:10px; margin-bottom:8px; flex-wrap:wrap; }
+        .filtros-toggle { cursor:pointer; user-select:none; background:none; border:none; font:inherit;
+          font-weight:600; color:var(--primary); display:inline-flex; align-items:center; gap:6px; padding:2px 4px; }
+        .filtros-toggle .chev { transition:transform .15s ease; }
+        .g00-filters.filtros--colapsado .g00-filter-row { display:none; }
+        .g00-filters.filtros--colapsado .filtros-toggle .chev { transform:rotate(-90deg); }
+        .filtros-chips { display:none; gap:6px; flex-wrap:wrap; align-items:center; }
+        .g00-filters.filtros--colapsado .filtros-chips { display:flex; }
+        .filtros-chip { background:#eef2f7; border:1px solid var(--border); border-radius:999px;
+          padding:2px 10px; font-size:11px; color:var(--text); white-space:nowrap; }
+        .filtros-chip b { color:var(--primary); font-weight:600; }
+        .filtros-chip.vacio { color:var(--text-light); background:transparent; }
+        .filtrado-badge { font-size:12px; font-weight:600; color:var(--accent, #c0392b);
+          margin-left:8px; vertical-align:middle; letter-spacing:.3px; }
+        .tab .tab-filtrado { font-size:10px; font-weight:600; color:var(--accent, #c0392b); margin-left:6px; }
 
         /* ============ LOGIN ============ */
         .login-screen {
@@ -488,7 +636,7 @@
         <div class="topbar" id="topbar">
             <div id="topbarDates" class="topbar-dates" style="display:none;"></div>
             <div class="topbar-titles">
-                <h2 id="pageTitle">DASHBOARD</h2>
+                <h2 id="pageTitle">DASHBOARD</h2><span id="pageTitleFiltrado" class="filtrado-badge" style="display:none;">(filtrado)</span>
                 <div id="pageSubtitle" class="topbar-subtitle" style="display:none;"></div>
             </div>
             <div class="topbar-actions"></div>
@@ -1041,6 +1189,7 @@
         document.getElementById('pageTitle').textContent = titles[pageId] || pageId;
         // Extras del topbar exclusivos de G00: se ocultan al cambiar de página (g00OnEnter los reactiva).
         document.getElementById('pageSubtitle').style.display = 'none';
+        var _bf = document.getElementById('pageTitleFiltrado'); if (_bf) _bf.style.display = 'none';
         document.getElementById('topbar').classList.remove('topbar--g00');
         document.getElementById('topbar').classList.remove('topbar--o14');
         document.getElementById('topbarDates').style.display = 'none';

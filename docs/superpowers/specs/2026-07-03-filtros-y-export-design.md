@@ -132,9 +132,18 @@ Alcance: **etiqueta visible + nombre del Excel**; ids internos intactos.
 
 ## Alcance y consistencia
 
-- Colapsable, chips y "(filtrado)" se aplican de forma **uniforme** a g00, o14 y geo.
+- Colapsable, chips y "(filtrado)" se aplican de forma **uniforme** a **todos los informes
+  con barra de filtros** `.g00-filters`: g00, o14, geo, o45, evol y pagos. (La exploración
+  inicial solo detectó g00/o14/geo; la revisión final de rama encontró que o45/evol/pagos
+  también tienen barra de filtros, y Rafael decidió el 2026-07-03 cubrir los seis para
+  consistencia UI↔Excel.)
+- Como el diseño es genérico (introspección del DOM), extender a un informe con barra de
+  filtros solo requiere cablear `filtrosUI.render(pageEl)` en su `*OnEnter` y su carga; no
+  hay configuración por informe.
+- El encabezado de filtros en el Excel (vía `expDataset` compartido) aplica a todos los
+  informes que exportan, en línea con lo anterior.
 - Informes sin barra de filtros no se tocan.
-- El rename aplica solo a o14.
+- El rename "Recomendaciones" → "Alertas" aplica solo a o14.
 
 ## Manejo de errores / bordes
 

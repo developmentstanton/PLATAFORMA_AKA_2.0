@@ -133,6 +133,8 @@
     fetch('api/informe_geo.php?'+buildParams(),{credentials:'same-origin'}).then(r=>r.json()).then(d=>{
       if(!d.ok){ if(window.Swal) Swal.fire('Error','No se pudo cargar el mapa.','error'); return; }
       window.__geolast=d; if(d.proveedor) setTitle(d.proveedor); renderMapa(d);
+      filtrosUI.setPeriodo('georreferenciacion', val('geo-vdesde')||defDesde(), val('geo-vhasta')||defHasta());
+      filtrosUI.render(document.getElementById('page-georreferenciacion'));
     }).catch(()=>{ if(window.Swal) Swal.fire('Error','Error de red.','error'); }).finally(hideLoading);
   };
 
@@ -154,6 +156,8 @@
     ensureMap();
     setTimeout(()=>{ if(map) map.invalidateSize(); }, 0);   // el contenedor ya es visible al entrar
     if (!window.__geolast) geoLoad();
+    filtrosUI.setPeriodo('georreferenciacion', val('geo-vdesde')||defDesde(), val('geo-vhasta')||defHasta());
+    filtrosUI.render(document.getElementById('page-georreferenciacion'));
   };
 })();
 </script>

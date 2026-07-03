@@ -92,6 +92,8 @@
         } else { av.style.display = 'none'; }
         pgRender(d);
         pgGenLoad();
+        filtrosUI.setPeriodo('informes-pagos', document.getElementById('pg-fdesde').value, document.getElementById('pg-fhasta').value);
+        filtrosUI.render(document.getElementById('page-informes-pagos'));
       })
       .catch(e => {
         pgHideLoading();
@@ -254,6 +256,8 @@
     document.getElementById('pageTitle').textContent = 'ANÁLISIS DE PAGOS' + (window.PROVEEDOR_ACTUAL ? ' - ' + window.PROVEEDOR_ACTUAL : '');
     document.getElementById('topbarDates').style.display = 'none';
     if (!pgFiltrosInit) { pgFiltrosInit = true; pgLoad(); }
+    filtrosUI.setPeriodo('informes-pagos', document.getElementById('pg-fdesde').value, document.getElementById('pg-fhasta').value);
+    filtrosUI.render(document.getElementById('page-informes-pagos'));
   };
 })();
 </script>
