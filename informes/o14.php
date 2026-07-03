@@ -530,7 +530,11 @@
     if(!tabState[name]) loadCurrentTab();
   };
 
-  window.o14Load = function(){ tabState.b=tabState.c=tabState.reco=false; loadCurrentTab(); };
+  window.o14Load = function(){
+    tabState.b=tabState.c=tabState.reco=false; loadCurrentTab();
+    filtrosUI.setPeriodo('informes-o14', val('o14-vdesde') || '2025-01-01', val('o14-vhasta') || new Date().toISOString().slice(0,10));
+    filtrosUI.render(document.getElementById('page-informes-o14'));
+  };
 
   function o14SetTitle(){ document.getElementById('pageTitle').textContent = 'SIEMBRA / STOCK' + (proveedorActual ? ' - ' + proveedorActual : ''); }
 

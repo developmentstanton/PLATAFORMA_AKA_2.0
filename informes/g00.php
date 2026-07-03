@@ -714,6 +714,8 @@
                 renderTablaMensual(data.mensual, data.anio_a, data.anio_b, data.mensual_tdas);
                 tabState.detal = true;
                 hideLoading();
+                filtrosUI.setPeriodo('informes-g00', data.rango && data.rango.desde_actual, data.rango && data.rango.hasta_actual);
+                filtrosUI.render(document.getElementById('page-informes-g00'));
             })
             .catch(err => { hideLoading(); showError('No se pudo cargar el informe: ' + err.message); });
     }

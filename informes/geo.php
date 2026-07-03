@@ -133,6 +133,7 @@
     fetch('api/informe_geo.php?'+buildParams(),{credentials:'same-origin'}).then(r=>r.json()).then(d=>{
       if(!d.ok){ if(window.Swal) Swal.fire('Error','No se pudo cargar el mapa.','error'); return; }
       window.__geolast=d; if(d.proveedor) setTitle(d.proveedor); renderMapa(d);
+      filtrosUI.render(document.getElementById('page-georreferenciacion'));
     }).catch(()=>{ if(window.Swal) Swal.fire('Error','Error de red.','error'); }).finally(hideLoading);
   };
 
