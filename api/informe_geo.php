@@ -40,7 +40,7 @@ function run($c,$sql,$p=[]) { $s=sqlsrv_query($c,$sql,$p); if($s===false) return
 function jsonFail($rows,$c){ http_response_code(500); echo json_encode(['ok'=>false,'error'=>'Consulta fallida','detalle'=>$rows['error']??$rows]); sqlsrv_close($c); exit; }
 
 // --- #refs del proveedor (cache compartida g00_refs_*) ---
-if (!buildRefsTemp($dbConnect, getRefsCached($dbConnect, $proveedor))) jsonFail(['error'=>sqlsrv_errors()], $dbConnect);
+if (!buildRefsFromMat($dbConnect, $proveedor)) jsonFail(['error'=>sqlsrv_errors()], $dbConnect);
 
 // Filtros de dimensión (podan #refs). En tab=filtros NO se podan.
 if ($tab === 'data') {

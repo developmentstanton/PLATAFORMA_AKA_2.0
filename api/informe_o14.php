@@ -104,7 +104,7 @@ function kpiCounts($c) {
 }
 
 // --- #refs del proveedor ---
-if (!buildRefsTemp($dbConnect, getRefsCached($dbConnect, $proveedor))) jsonFail(['error'=>sqlsrv_errors()], $dbConnect);
+if (!buildRefsFromMat($dbConnect, $proveedor)) jsonFail(['error'=>sqlsrv_errors()], $dbConnect);
 
 // Filtros de dimensión de referencia: podar #refs → cae en las 4 fuentes (todas la inner-joinan).
 if ($tab === 'b' || $tab === 'c' || $tab === 'reco') {   // producto/SKU acotan B/C/KPIs y reco; bodega solo B/C

@@ -339,8 +339,8 @@ function getCatalogos($conn, $proveedor) {
 // --------------------------------------------------------------------
 // Materializar refs del proveedor (cacheadas) en #refs para todos los tabs.
 // --------------------------------------------------------------------
-$refsProv = getRefsCached($dbConnect, $proveedor);
-if (!buildRefsTemp($dbConnect, $refsProv)) {
+require_once __DIR__ . '/lib_refs.php';
+if (!buildRefsFromMat($dbConnect, $proveedor)) {
     jsonFail(['error' => sqlsrv_errors()], $dbConnect);
 }
 
