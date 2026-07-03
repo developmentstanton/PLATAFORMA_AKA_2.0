@@ -12,6 +12,16 @@ if ($dbConnect === false) { fwrite(STDERR, "Conexión DB fallida\n"); exit(1); }
 $proveedores = array_slice($argv, 1);
 if (!$proveedores) { fwrite(STDERR, "Uso: php verificar_items_mat.php <prov1> [prov2 ...]\n"); exit(2); }
 
+// Guardrail: sin Items_Mat, buildRefsFromMat cae al camino viejo y la comparación sería vacua
+// (ambos caminos correrían lo mismo → "paridad total" falsa). Exigir que la tabla exista.
+$chk = sqlsrv_query($dbConnect, "SELECT OBJECT_ID('INTEGRACION.dbo.Items_Mat') AS oid");
+$oidRow = $chk ? sqlsrv_fetch_array($chk, SQLSRV_FETCH_ASSOC) : null;
+if (!$oidRow || $oidRow['oid'] === null) {
+    fwrite(STDERR, "ABORT: INTEGRACION.dbo.Items_Mat no existe. Puebla la tabla (EXEC dbo.usp_Refresh_Items_Mat) antes de verificar;\n");
+    fwrite(STDERR, "de lo contrario la comparación daría 'paridad total' sin probar realmente el camino nuevo.\n");
+    exit(2);
+}
+
 function refsViejo($conn, $prov) {  // devuelve mapa REFERENCIA => fila normalizada
     $rows = buildRefsTemp($conn, getRefsCached($conn, $prov)) ? leerRefs($conn) : null;
     sqlsrv_query($conn, "IF OBJECT_ID('tempdb..#refs') IS NOT NULL DROP TABLE #refs");
