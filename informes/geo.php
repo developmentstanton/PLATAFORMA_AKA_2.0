@@ -52,6 +52,25 @@
   const DIMS = ['marca','tipo','categoria','subcategoria','genero','publico','negocio','referencia'];
   const tsRef = {};
   const nf  = n => Number(n||0).toLocaleString('es-CO');
+  // ===== Fotos de tiendas (Cloudinary) =====
+  // Llenar con el cloud_name de tu cuenta Cloudinary. Vacío => solo placeholder (sin red).
+  const CLOUDINARY_CLOUD = '';
+  const FOTO_FOLDER = 'tiendas';   // convención acordada: tiendas/<cod>
+  // Placeholder SVG inline (silueta de tienda + "Sin foto"). No depende de archivos externos.
+  const FOTO_PLACEHOLDER = 'data:image/svg+xml;utf8,' + encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="280" height="160" viewBox="0 0 280 160">' +
+    '<rect width="280" height="160" fill="#eef2f7"/>' +
+    '<path d="M96 66h88v46H96z" fill="#c7cfdb"/>' +
+    '<path d="M88 66l10-20h84l10 20z" fill="#b3bccd"/>' +
+    '<rect x="128" y="86" width="24" height="26" fill="#eef2f7"/>' +
+    '<text x="140" y="140" font-family="sans-serif" font-size="13" fill="#8a94a6" text-anchor="middle">Sin foto</text>' +
+    '</svg>');
+  function fotoTiendaURL(cod) {
+    if (!CLOUDINARY_CLOUD || cod == null || cod === '') return null;
+    return 'https://res.cloudinary.com/' + CLOUDINARY_CLOUD +
+           '/image/upload/f_auto,q_auto,c_fill,w_600,h_400/' +
+           FOTO_FOLDER + '/' + encodeURIComponent(cod);
+  }
   const fmtMoney = v => '$ ' + Number(v||0).toLocaleString('es-CO');
   const esc = s => (s==null?'':String(s)).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const val = id => (document.getElementById(id)?.value || '');
