@@ -2,6 +2,7 @@ CREATE OR ALTER PROCEDURE dbo.usp_Refresh_Items_Mat
 AS
 BEGIN
     SET NOCOUNT ON;
+    SET XACT_ABORT ON;
 
     -- 1) Staging fresca (la parte lenta: leer la vista ITEMS). NO toca la tabla viva.
     IF OBJECT_ID('INTEGRACION.dbo.Items_Mat_stg') IS NOT NULL
@@ -30,9 +31,15 @@ BEGIN
         ON INTEGRACION.dbo.Items_Mat_stg (PROVEEDOR, REFERENCIA);
 
     -- 2) Swap atómico (rápido). La tabla viva sirve el dataset anterior hasta este instante.
-    BEGIN TRAN;
-        IF OBJECT_ID('INTEGRACION.dbo.Items_Mat') IS NOT NULL
-            DROP TABLE INTEGRACION.dbo.Items_Mat;
-        EXEC sp_rename 'INTEGRACION.dbo.Items_Mat_stg', 'Items_Mat';
-    COMMIT;
+    BEGIN TRY
+        BEGIN TRAN;
+            IF OBJECT_ID('INTEGRACION.dbo.Items_Mat') IS NOT NULL
+                DROP TABLE INTEGRACION.dbo.Items_Mat;
+            EXEC sp_rename 'INTEGRACION.dbo.Items_Mat_stg', 'Items_Mat';
+        COMMIT;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0 ROLLBACK TRAN;
+        THROW;
+    END CATCH;
 END;
