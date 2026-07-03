@@ -58,6 +58,44 @@
       XLSX.writeFile(wb, window.expFile(cuadro, proveedor));
       return true;
     };
+    // ===== Estado de filtros compartido por los informes (g00/o14/geo) =====
+    window.filtrosUI = {
+      _periodos: {},
+      _page: function (pageEl) {
+        if (pageEl && pageEl.nodeType === 1) return pageEl;
+        return document.querySelector('.page.active');
+      },
+      setPeriodo: function (pageId, desde, hasta) {
+        if (pageId) this._periodos[pageId] = { desde: desde || '', hasta: hasta || '' };
+      },
+      getPeriodo: function (pageId) {
+        return this._periodos[pageId] || null;
+      },
+      // Lee los .filter-group del informe activo y devuelve los que tienen selección.
+      activos: function (pageEl) {
+        const page = this._page(pageEl);
+        if (!page) return [];
+        const cont = page.querySelector('.g00-filters');
+        if (!cont) return [];
+        const out = [];
+        cont.querySelectorAll('.filter-group').forEach(function (grp) {
+          const sel = grp.querySelector('select');
+          const lab = grp.querySelector('label');
+          if (!sel || !lab || !sel.tomselect) return;
+          const items = sel.tomselect.items || [];
+          if (!items.length) return;
+          const opts = sel.tomselect.options || {};
+          const valores = items.map(function (v) {
+            return (opts[v] && opts[v].text != null) ? String(opts[v].text) : String(v);
+          });
+          out.push({ etiqueta: lab.textContent.trim(), valores: valores });
+        });
+        return out;
+      },
+      estaFiltrado: function (pageEl) {
+        return this.activos(pageEl).length > 0;
+      }
+    };
     </script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
     <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
