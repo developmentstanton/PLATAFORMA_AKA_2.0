@@ -147,11 +147,30 @@
         if (!act.length) chips.push('<span class="filtros-chip vacio">Sin filtros</span>');
         box.innerHTML = chips.join('');
       },
+      _renderMarcadores: function (page) {
+        const filtrado = this.estaFiltrado(page);
+        // Badge del título (solo cuando este informe es el activo)
+        const badge = document.getElementById('pageTitleFiltrado');
+        if (badge && page.classList.contains('active')) badge.style.display = filtrado ? '' : 'none';
+        // Marcador en cada pestaña del informe
+        page.querySelectorAll('.tab-bar .tab').forEach(function (tab) {
+          let m = tab.querySelector('.tab-filtrado');
+          if (filtrado && !m) {
+            m = document.createElement('span');
+            m.className = 'tab-filtrado';
+            m.textContent = '(filtrado)';
+            tab.appendChild(m);
+          } else if (!filtrado && m) {
+            m.remove();
+          }
+        });
+      },
       render: function (pageEl) {
         const page = this._page(pageEl);
         if (!page) return;
         this.ensureChrome(page);
         this._renderChips(page);
+        this._renderMarcadores(page);
       }
     };
     </script>
@@ -192,6 +211,9 @@
           padding:2px 10px; font-size:11px; color:var(--text); white-space:nowrap; }
         .filtros-chip b { color:var(--primary); font-weight:600; }
         .filtros-chip.vacio { color:var(--text-light); background:transparent; }
+        .filtrado-badge { font-size:12px; font-weight:600; color:var(--accent, #c0392b);
+          margin-left:8px; vertical-align:middle; letter-spacing:.3px; }
+        .tab .tab-filtrado { font-size:10px; font-weight:600; color:var(--accent, #c0392b); margin-left:6px; }
 
         /* ============ LOGIN ============ */
         .login-screen {
@@ -598,7 +620,7 @@
         <div class="topbar" id="topbar">
             <div id="topbarDates" class="topbar-dates" style="display:none;"></div>
             <div class="topbar-titles">
-                <h2 id="pageTitle">DASHBOARD</h2>
+                <h2 id="pageTitle">DASHBOARD</h2><span id="pageTitleFiltrado" class="filtrado-badge" style="display:none;">(filtrado)</span>
                 <div id="pageSubtitle" class="topbar-subtitle" style="display:none;"></div>
             </div>
             <div class="topbar-actions"></div>
@@ -1151,6 +1173,7 @@
         document.getElementById('pageTitle').textContent = titles[pageId] || pageId;
         // Extras del topbar exclusivos de G00: se ocultan al cambiar de página (g00OnEnter los reactiva).
         document.getElementById('pageSubtitle').style.display = 'none';
+        var _bf = document.getElementById('pageTitleFiltrado'); if (_bf) _bf.style.display = 'none';
         document.getElementById('topbar').classList.remove('topbar--g00');
         document.getElementById('topbar').classList.remove('topbar--o14');
         document.getElementById('topbarDates').style.display = 'none';
