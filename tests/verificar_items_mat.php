@@ -36,7 +36,12 @@ function leerRefs($conn) {
     $st = sqlsrv_query($conn, "SELECT REFERENCIA,MARCA,TIPO,LINEA,SUBLINEA,CATEGORIA,SUBCATEGORIA,GENERO,PUBLICO_OBJETIVO FROM #refs ORDER BY REFERENCIA");
     if ($st === false) return null;
     $m = [];
-    while ($r = sqlsrv_fetch_array($st, SQLSRV_FETCH_ASSOC)) { $m[$r['REFERENCIA']] = $r; }
+    // rtrim: los espacios finales son insignificantes para SQL Server (=, GROUP BY, DISTINCT, JOIN).
+    // El camino viejo (ITEMS char/varchar) y el nuevo (Items_Mat) pueden diferir solo en padding;
+    // comparar como compara SQL evita falsos negativos por espacios.
+    while ($r = sqlsrv_fetch_array($st, SQLSRV_FETCH_ASSOC)) {
+        $m[rtrim($r['REFERENCIA'])] = array_map(function ($v) { return is_string($v) ? rtrim($v) : $v; }, $r);
+    }
     sqlsrv_free_stmt($st);
     return $m;
 }
