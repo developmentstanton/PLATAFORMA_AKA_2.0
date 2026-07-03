@@ -13,3 +13,4 @@ cache/*
 # Backups y logs
 *.bak
 *.log
+sql/refrescar_items_mat.log
