@@ -142,6 +142,9 @@
       fetch('api/informe_o45.php?'+buildParams(),{credentials:'same-origin'}).then(r=>r.json()).then(d=>{
         if(!d.ok){ cont.innerHTML='<p style="padding:16px;color:var(--accent)">Error al cargar.</p>'; renderKpis(); return; }
         window.__o45last=d; if(d.proveedor) setTitle(d.proveedor); renderTabla(d); renderKpis(d);
+        const ayer = new Date(Date.now()-86400000).toISOString().slice(0,10);
+        filtrosUI.setPeriodo('informes-o45', val('o45-vdesde')||'2025-01-01', val('o45-vhasta')||ayer);
+        filtrosUI.render(document.getElementById('page-informes-o45'));
       }).catch(()=>{ cont.innerHTML='<p style="padding:16px;color:var(--accent)">Error de red.</p>'; renderKpis(); }).finally(hideLoading);
     };
 
@@ -182,6 +185,8 @@
       const rb = document.getElementById('topbarO45Refresh'); if(rb) rb.style.display = '';
       if (!filtrosInit) { initFiltros(); filtrosInit = true; }
       if (!window.__o45last) o45Load();
+      filtrosUI.setPeriodo('informes-o45', val('o45-vdesde')||'2025-01-01', val('o45-vhasta')||ayer);
+      filtrosUI.render(document.getElementById('page-informes-o45'));
     };
 
     // Foto del zapato al pasar el mouse sobre la columna Negocio (col 0), igual que O14.

@@ -555,6 +555,8 @@
     const rb = document.getElementById('topbarO14Refresh'); if(rb) rb.style.display = '';
     if (!filtrosInit) { initFiltros(); filtrosInit = true; }
     if(!tabState[currentTab]) loadCurrentTab();
+    filtrosUI.setPeriodo('informes-o14', val('o14-vdesde') || '2025-01-01', val('o14-vhasta') || new Date().toISOString().slice(0,10));
+    filtrosUI.render(document.getElementById('page-informes-o14'));
   };
 
   // Exporta a .xlsx en formato tabular (datos planos, no la vista pivote por talla):

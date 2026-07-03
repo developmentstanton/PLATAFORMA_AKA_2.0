@@ -1368,6 +1368,7 @@
         if (!filtrosInit) { initFiltros(); filtrosInit = true; }
         if (!tabState.detal) loadDetal();
         else Object.values(charts).forEach(c => c && c.resize());
+        filtrosUI.render(document.getElementById('page-informes-g00'));
     };
 
     window.g00ShowTab = function (name, el) {

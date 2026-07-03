@@ -155,6 +155,7 @@
     ensureMap();
     setTimeout(()=>{ if(map) map.invalidateSize(); }, 0);   // el contenedor ya es visible al entrar
     if (!window.__geolast) geoLoad();
+    filtrosUI.render(document.getElementById('page-georreferenciacion'));
   };
 })();
 </script>
