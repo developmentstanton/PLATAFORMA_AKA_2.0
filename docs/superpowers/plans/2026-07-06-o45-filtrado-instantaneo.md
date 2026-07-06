@@ -603,6 +603,8 @@ git commit -m "feat(o45): frontend carga dataset 1 vez + filtrado/reagregacion i
 
 ## Task 5: P1 — optimizar el build de la 1ª carga (medición → palanca INTEGRACION)
 
+> **DIFERIDA (Rafael, 2026-07-06).** El titular (filtrado instantáneo) está hecho y el build quedó en ~4-7s (cumple "unos segundos"). Hallazgo que la respalda: las 4 tablas del build (`historico_inventarios_PBI` 19,6M, `historico_hold_PBI`, `inv_actual_PBI`, `_hold_actual_PBI`) son **HEAPs sin índices**, y los joins usan `rtrim()`/`RIGHT('000'+…)` (no sargable) → un índice simple no ayudaría sin columna computada persistida o reescribir joins; y son tablas `INTEGRACION` de prod que el ETL probablemente recrea (borraría el índice). Payoff marginal (4-7s→2-4s) vs. riesgo. Se retoma solo si la 1ª carga molesta en práctica, con info del ETL. El resto del plan (Tasks 1-4) NO depende de esto.
+
 **Files:**
 - Modify: `api/lib_o45_dataset.php` (según la palanca elegida)
 - Possibly create: `sql/00X_*.sql` (índice o materialización, si aplica), `tests/verificar_o45_build.php` (medición antes/después)
