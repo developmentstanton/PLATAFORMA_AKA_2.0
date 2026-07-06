@@ -5,7 +5,7 @@
     <div class="g00-filter-row">
       <div class="filter-group o45-tienda-group"><label>Tienda</label><select id="o45-f-tienda" multiple></select></div>
       <div class="o14-apply">
-        <button class="g00-btn-refresh" onclick="o45Load()"><i class="fa-solid fa-rotate"></i> Aplicar</button>
+        <button class="g00-btn-refresh" onclick="o45Apply()"><i class="fa-solid fa-rotate"></i> Aplicar</button>
       </div>
     </div>
     <div class="g00-filter-row">
@@ -82,7 +82,9 @@
       const el=document.getElementById(id); if(!el) return;
       const uniq=[...new Set(valores.filter(v=>v!==''&&v!=null))].sort((a,b)=>String(a).localeCompare(String(b)));
       el.innerHTML = uniq.map(v=>'<option value="'+String(v).replace(/"/g,'&quot;')+'">'+esc(labelFn?labelFn(v):v)+'</option>').join('');
-      if (window.TomSelect){ if(tsRef[id]) tsRef[id].destroy(); tsRef[id]=new TomSelect(el,{plugins:['remove_button'],maxOptions:null,placeholder:'Todas'}); }
+      if (window.TomSelect){ if(tsRef[id]) tsRef[id].destroy();
+        tsRef[id]=new TomSelect(el,{plugins:['remove_button'],maxOptions:null,placeholder:'Todas',
+          onChange:()=>{ if(window.__o45dataset) window.o45Render(); }}); }
     }
 
     function initFiltros(){
@@ -95,9 +97,12 @@
         comboCatalogo.forEach(c=>{ const nom=c.tienda||''; if(!nom||seen[nom])return; seen[nom]=1; opts.push({nom, cod:c.tienda_cod||''}); });
         opts.sort((a,b)=>a.cod.localeCompare(b.cod));
         tEl.innerHTML = opts.map(o=>'<option value="'+esc(o.nom)+'">'+esc(o.cod)+' - '+esc(o.nom)+'</option>').join('');
-        if (window.TomSelect){ if(tsRef['o45-f-tienda']) tsRef['o45-f-tienda'].destroy(); tsRef['o45-f-tienda']=new TomSelect(tEl,{plugins:['remove_button'],maxOptions:null,placeholder:'Todas'}); }
-        // Filtros de dimensión: re-agregación instantánea en cliente (sin volver al servidor).
-        ['tienda',...DIMS].forEach(k=>{ const el=document.getElementById('o45-f-'+k); if(el) el.addEventListener('change', ()=> window.o45Render()); });
+        if (window.TomSelect){ if(tsRef['o45-f-tienda']) tsRef['o45-f-tienda'].destroy();
+          tsRef['o45-f-tienda']=new TomSelect(tEl,{plugins:['remove_button'],maxOptions:null,placeholder:'Todas',
+            onChange:()=>{ if(window.__o45dataset) window.o45Render(); }}); }
+        // Filtros de dimensión: re-agregación instantánea en cliente vía onChange de TomSelect (arriba y en
+        // poblarSelect). Se usa el callback OFICIAL de TomSelect (no el evento 'change' nativo del <select>,
+        // que TomSelect no siempre propaga de forma fiable). Sin fetch: instantáneo.
       });
     }
 
@@ -150,6 +155,18 @@
       const ayer = new Date(Date.now()-86400000).toISOString().slice(0,10);
       filtrosUI.setPeriodo('informes-o45', val('o45-vdesde')||'2025-01-01', val('o45-vhasta')||ayer);
       filtrosUI.render(document.getElementById('page-informes-o45'));
+    };
+
+    // o45Apply (botón "Aplicar"): re-fetch SOLO si cambió el rango de fechas (que redefine el dataset);
+    // si solo cambiaron filtros de dimensión, re-agrega local (instantáneo). Los filtros ya se aplican
+    // solos al seleccionar (onChange de TomSelect); este botón es la red para fechas + un "aplicar" explícito.
+    window.o45Apply = function(){
+      const ds = window.__o45dataset;
+      const ayer = new Date(Date.now()-86400000).toISOString().slice(0,10);
+      const desde = val('o45-vdesde')||'2025-01-01';
+      const hasta = val('o45-vhasta')||ayer;
+      if(!ds || !ds.rango || ds.rango.desde!==desde || ds.rango.hasta!==hasta){ window.o45Load(); }
+      else { window.o45Render(); }
     };
 
     // o45Load: trae el dataset granular (1ª carga o cambio de rango de fechas) y re-agrega local.
