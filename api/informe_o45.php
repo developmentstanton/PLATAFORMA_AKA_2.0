@@ -30,6 +30,7 @@ function getMulti($key) { $v = $_GET[$key] ?? []; if (!is_array($v)) $v = ($v ==
 require __DIR__ . '/../conexion/conexion_integracion.php';
 require __DIR__ . '/lib_refs.php';
 require __DIR__ . '/lib_precios.php';
+require __DIR__ . '/lib_o45_dataset.php';
 if ($dbConnect === false) { http_response_code(500); echo json_encode(['ok'=>false,'error'=>'Conexión DB fallida']); exit; }
 
 function run($c,$sql,$p=[]) { $s=sqlsrv_query($c,$sql,$p); if($s===false) return ['error'=>sqlsrv_errors()];
@@ -38,6 +39,21 @@ function jsonFail($rows,$c){ http_response_code(500); echo json_encode(['ok'=>fa
 
 // --- #refs del proveedor ---
 if (!buildRefsFromMat($dbConnect, $proveedor)) jsonFail(['error'=>sqlsrv_errors()], $dbConnect);
+
+// ===== tab=dataset: dataset granular (sin podar #refs) para filtrado en cliente =====
+if ($tab === 'dataset') {
+    $ds = buildO45Dataset($dbConnect, $desde, $hasta);
+    if ($ds['error']) jsonFail(['error'=>$ds['error']], $dbConnect);
+    $precios = preciosPorRefs($dbConnect);
+    sqlsrv_close($dbConnect);
+    $columnas = ['cia','bodega','grupo','tienda','es_cedi','referencia','color','talla',
+                 'marca','tipo','categoria','subcategoria','genero','publico',
+                 'disponible','hold','ventas','ventas30','inv_hist'];
+    $filas = array_map(fn($r) => array_map(fn($c) => $r[$c], $columnas), $ds['rows']);
+    echo json_encode(['ok'=>true,'tab'=>'dataset','proveedor'=>$proveedorSesion,
+        'columnas'=>$columnas,'filas'=>$filas,'precios'=>$precios,'rango'=>$ds['meta']], JSON_UNESCAPED_UNICODE);
+    exit;
+}
 
 // Filtros de dimensión (fila 2): podan #refs. (En tab=filtros NO se podan: catálogo completo.)
 if ($tab === 'data') {

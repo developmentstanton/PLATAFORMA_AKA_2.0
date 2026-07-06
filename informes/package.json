@@ -1,0 +1,4 @@
+{
+  "type": "module",
+  "description": "Ambito ESM para módulos JS puros bajo informes/ (p.ej. o45_aggregate.js), usados tanto en <script type=\"module\"> del navegador como en tests Node (.mjs)."
+}
