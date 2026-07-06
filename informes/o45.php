@@ -58,6 +58,7 @@
   #o45-img-pop img { max-width:260px; max-height:320px; width:auto; height:auto; display:block; border-radius:4px; }
 </style>
 
+<script type="module" src="informes/o45_aggregate.js"></script>
 <script>
   (function(){
     'use strict';
@@ -71,10 +72,10 @@
     function getMultiVals(id){ const el=document.getElementById(id); if(!el) return [];
       return Array.from(el.selectedOptions||[]).map(o=>o.value).filter(Boolean); }
 
-    function buildParams(){
-      const p = new URLSearchParams({ tab:'data', desde: val('o45-vdesde')||'2025-01-01', hasta: val('o45-vhasta')||new Date(Date.now()-86400000).toISOString().slice(0,10) });
-      ['tienda',...DIMS].forEach(k=>{ getMultiVals('o45-f-'+k).forEach(v=>p.append(k+'[]', v)); });
-      return p.toString();
+    function currentFilters(){
+      const f = {}; DIMS.forEach(k=> f[k]=getMultiVals('o45-f-'+k));
+      f.tienda = getMultiVals('o45-f-tienda');
+      return f;
     }
 
     function poblarSelect(id, valores, labelFn){
@@ -95,6 +96,8 @@
         opts.sort((a,b)=>a.cod.localeCompare(b.cod));
         tEl.innerHTML = opts.map(o=>'<option value="'+esc(o.nom)+'">'+esc(o.cod)+' - '+esc(o.nom)+'</option>').join('');
         if (window.TomSelect){ if(tsRef['o45-f-tienda']) tsRef['o45-f-tienda'].destroy(); tsRef['o45-f-tienda']=new TomSelect(tEl,{plugins:['remove_button'],maxOptions:null,placeholder:'Todas'}); }
+        // Filtros de dimensión: re-agregación instantánea en cliente (sin volver al servidor).
+        ['tienda',...DIMS].forEach(k=>{ const el=document.getElementById('o45-f-'+k); if(el) el.addEventListener('change', ()=> window.o45Render()); });
       });
     }
 
@@ -136,15 +139,28 @@
         allowOutsideClick:false,allowEscapeKey:false,showConfirmButton:false,didOpen:()=>Swal.showLoading()}); }
     function hideLoading(){ if(window.Swal && Swal.isVisible()) Swal.close(); }
 
+    // o45Render: re-agrega el dataset ya cargado (window.__o45dataset) según los filtros de dimensión
+    // vigentes en los <select> — instantáneo, sin ir al servidor.
+    window.o45Render = function(){
+      if(!window.__o45dataset){ window.o45Load(); return; }
+      const d = window.aggregateO45(window.__o45dataset, currentFilters());
+      d.proveedor = window.__o45dataset.proveedor;
+      window.__o45last = d;
+      renderTabla(d); renderKpis(d);
+      const ayer = new Date(Date.now()-86400000).toISOString().slice(0,10);
+      filtrosUI.setPeriodo('informes-o45', val('o45-vdesde')||'2025-01-01', val('o45-vhasta')||ayer);
+      filtrosUI.render(document.getElementById('page-informes-o45'));
+    };
+
+    // o45Load: trae el dataset granular (1ª carga o cambio de rango de fechas) y re-agrega local.
     window.o45Load = function(){
       const cont=document.getElementById('o45-tabla');
       showLoading();
-      fetch('api/informe_o45.php?'+buildParams(),{credentials:'same-origin'}).then(r=>r.json()).then(d=>{
+      const p = new URLSearchParams({ tab:'dataset', desde: val('o45-vdesde')||'2025-01-01', hasta: val('o45-vhasta')||new Date(Date.now()-86400000).toISOString().slice(0,10) });
+      fetch('api/informe_o45.php?'+p.toString(),{credentials:'same-origin'}).then(r=>r.json()).then(d=>{
         if(!d.ok){ cont.innerHTML='<p style="padding:16px;color:var(--accent)">Error al cargar.</p>'; renderKpis(); return; }
-        window.__o45last=d; if(d.proveedor) setTitle(d.proveedor); renderTabla(d); renderKpis(d);
-        const ayer = new Date(Date.now()-86400000).toISOString().slice(0,10);
-        filtrosUI.setPeriodo('informes-o45', val('o45-vdesde')||'2025-01-01', val('o45-vhasta')||ayer);
-        filtrosUI.render(document.getElementById('page-informes-o45'));
+        window.__o45dataset=d; if(d.proveedor) setTitle(d.proveedor);
+        window.o45Render();
       }).catch(()=>{ cont.innerHTML='<p style="padding:16px;color:var(--accent)">Error de red.</p>'; renderKpis(); }).finally(hideLoading);
     };
 
@@ -184,7 +200,7 @@
       }
       const rb = document.getElementById('topbarO45Refresh'); if(rb) rb.style.display = '';
       if (!filtrosInit) { initFiltros(); filtrosInit = true; }
-      if (!window.__o45last) o45Load();
+      if (!window.__o45dataset) o45Load();
       filtrosUI.setPeriodo('informes-o45', val('o45-vdesde')||'2025-01-01', val('o45-vhasta')||ayer);
       filtrosUI.render(document.getElementById('page-informes-o45'));
     };
