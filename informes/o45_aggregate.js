@@ -1,5 +1,5 @@
 // Agregación de o45 en cliente: filtra el dataset granular y reproduce EXACTO tab=data.
-// dataset = {columnas, filas (array de arrays), precios {'ref|col':num}, rango {desde,hasta,dias,modo_stock}}
+// dataset = {columnas, filas (array de arrays), precios {'ref|col':num}, rango {desde,hasta,w30desde,dias,stock_corte}} — idéntico a rango de tab=data
 // filtros = {marca:[],tipo:[],categoria:[],subcategoria:[],genero:[],publico:[],referencia:[],grupo:[],tienda:[],negocio:[]}
 function aggregateO45(dataset, filtros) {
     const C = {}; dataset.columnas.forEach((n, i) => C[n] = i);
@@ -46,7 +46,9 @@ function aggregateO45(dataset, filtros) {
         }
     }
 
-    const r2 = x => Math.round(x * 100) / 100;
+    // Redondeo a 2 decimales compatible con PHP round() (half-away-from-zero, tolerante al error
+    // de punto flotante): p.ej. 179/40=4.475 -> PHP round=4.48; Math.round(447.4999..) daria 4.47.
+    const r2 = x => Math.sign(x) * Math.round(Math.abs(x) * 100 + 1e-9) / 100;
     const filas = [];
     const tot = { ventas: 0, ventas30: 0, stock_cedi: 0, stock_tiendas: 0, total_stock: 0 };
     for (const a of g.values()) {

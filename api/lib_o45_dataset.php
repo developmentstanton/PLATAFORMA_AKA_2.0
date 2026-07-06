@@ -28,8 +28,8 @@ if (!function_exists('buildO45Dataset')) {
                         : date('Y-m-t', strtotime(date('Y-m-01', strtotime($hasta)) . ' -1 day')); // fin del mes anterior
         }
 
-        $meta = ['desde'=>$desde,'hasta'=>$hasta,'dias'=>$dias,
-            'modo_stock'=>($modoStock==='vivo'?'vivo':$corteStock)];
+        $meta = ['desde'=>$desde,'hasta'=>$hasta,'w30desde'=>$w30desde,'dias'=>$dias,
+            'stock_corte'=>($modoStock==='vivo'?'vivo':$corteStock)];
 
         // Libera las temp tables en cualquier salida (feliz o con error).
         $dropTemps = function () use ($conn) {

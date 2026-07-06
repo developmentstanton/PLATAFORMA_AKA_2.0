@@ -1,7 +1,10 @@
 <?php
 // Captura por proveedor: el dataset (tab=dataset) y la salida oráculo (tab=data), a JSON.
-// Ademas captura 2-3 oraculos tab=data CON filtros reales derivados del propio dataset
-// (marca, grupo, negocio) para que el golden JS compare tambien el camino filtrado.
+// Ademas captura oraculos tab=data CON filtros reales derivados del propio dataset
+// (marca, grupo, tienda, negocio) para que el golden JS compare tambien el camino filtrado.
+// Los valores de filtro se derivan de filas con ACTIVIDAD real (ventas!=0 o disp+hold>0), y
+// para grupo/tienda ademas se excluyen filas de BODEGA/ADMINISTRATIVAS, para garantizar que
+// al menos un caso filtrado ejercite de verdad la rama de total.tiendas>0.
 //
 // GOTCHA: los warnings de arranque de PHP (xdebug/dio/openssl) en este entorno contaminan
 // stdout y corrompen el JSON capturado por shell_exec. Por eso invocamos con
@@ -18,29 +21,51 @@ function endpoint($tab, $prov, $extra = []) {
     return shell_exec($cmd);
 }
 
-function primerValor(array $ds, string $col): ?string {
+// Una fila "tiene actividad" si vendió algo O tiene stock (disp+hold) — mismo criterio que
+// el review pidió para garantizar que el filtro elegido de veras ejercite la rama de tiendas
+// (si eligiéramos un valor de una fila 100% inactiva, total.tiendas daría 0 igual que antes).
+function filaActiva(array $row, int $iv, int $id, int $ih): bool {
+    return (int)$row[$iv] !== 0 || ((int)$row[$id] + (int)$row[$ih]) > 0;
+}
+
+// Elige un valor de $col tomado de una fila con actividad real. Para grupo/tienda además
+// excluye filas cuyo grupo sea BODEGA o ADMINISTRATIVAS (esos grupos nunca cuentan como
+// "tienda" en aggregateO45, así que un valor derivado de ahí nunca movería total.tiendas).
+function valorActivo(array $ds, string $col, array $excluirGrupos = []): ?string {
     if (empty($ds['columnas']) || empty($ds['filas'])) return null;
-    $idx = array_search($col, $ds['columnas'], true);
-    if ($idx === false) return null;
+    $ic = array_search($col, $ds['columnas'], true);
+    $ig = array_search('grupo', $ds['columnas'], true);
+    $iv = array_search('ventas', $ds['columnas'], true);
+    $id = array_search('disponible', $ds['columnas'], true);
+    $ih = array_search('hold', $ds['columnas'], true);
+    if ($ic === false || $iv === false || $id === false || $ih === false) return null;
     foreach ($ds['filas'] as $row) {
-        $v = $row[$idx];
-        if ($v !== '' && $v !== null) return $v;
+        $v = $row[$ic];
+        if ($v === '' || $v === null) continue;
+        if ($excluirGrupos && $ig !== false && in_array($row[$ig], $excluirGrupos, true)) continue;
+        if (!filaActiva($row, $iv, $id, $ih)) continue;
+        return $v;
     }
     return null;
 }
 
-function primerNegocio(array $ds): ?string {
+function negocioActivo(array $ds): ?string {
     if (empty($ds['columnas']) || empty($ds['filas'])) return null;
     $ir = array_search('referencia', $ds['columnas'], true);
     $ic = array_search('color', $ds['columnas'], true);
-    if ($ir === false || $ic === false) return null;
+    $iv = array_search('ventas', $ds['columnas'], true);
+    $id = array_search('disponible', $ds['columnas'], true);
+    $ih = array_search('hold', $ds['columnas'], true);
+    if ($ir === false || $ic === false || $iv === false || $id === false || $ih === false) return null;
     foreach ($ds['filas'] as $row) {
-        if ($row[$ir] !== '' && $row[$ir] !== null) return $row[$ir] . '-' . $row[$ic];
+        if ($row[$ir] === '' || $row[$ir] === null) continue;
+        if (!filaActiva($row, $iv, $id, $ih)) continue;
+        return $row[$ir] . '-' . $row[$ic];
     }
     return null;
 }
 
-// Proveedores rápidos primero; BRAHMA CONCEPT es lento (dataset ~15s + cada oráculo ~15s).
+// Proveedores rápidos primero; BRAHMA CONCEPT es lento (dataset ~15-30s + cada oráculo ~15-30s).
 $provs = ['BH BRANDS SAS', 'CALZADO WALDOS', 'BELLINO', 'BRAHMA CONCEPT'];
 
 foreach ($provs as $p) {
@@ -58,10 +83,14 @@ foreach ($provs as $p) {
     }
 
     $casos = [
-        'marca'   => ['col' => 'marca',   'valor' => primerValor($ds, 'marca')],
-        'grupo'   => ['col' => 'grupo',   'valor' => primerValor($ds, 'grupo')],
-        'negocio' => ['col' => 'negocio', 'valor' => primerNegocio($ds)],
+        'marca'   => ['col' => 'marca',   'valor' => valorActivo($ds, 'marca')],
+        'grupo'   => ['col' => 'grupo',   'valor' => valorActivo($ds, 'grupo', ['BODEGA', 'ADMINISTRATIVAS'])],
+        'tienda'  => ['col' => 'tienda',  'valor' => valorActivo($ds, 'tienda', ['BODEGA', 'ADMINISTRATIVAS'])],
+        'negocio' => ['col' => 'negocio', 'valor' => negocioActivo($ds)],
     ];
+    // El dataset de proveedores grandes (BRAHMA CONCEPT ~60k filas) ocupa >100MB decodificado;
+    // ya derivamos los valores de filtro, así que lo liberamos antes de los shell_exec lentos.
+    unset($ds, $datasetJson);
 
     foreach ($casos as $tag => $c) {
         if ($c['valor'] === null) continue;

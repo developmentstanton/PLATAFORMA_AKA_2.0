@@ -25,14 +25,16 @@ function combos(dataset) {
     ];
 }
 
+// Clave-tupla COMPLETA de una fila (negocio + ref + color + todas las medidas normalizadas).
+// No se puede usar `negocio` como clave: un ref-color puede existir bajo 2 cías (tab=data agrupa
+// por cia,negocio,ref,color) -> 2 filas con el mismo negocio. Se compara como MULTISET de tuplas.
+function rowKey(f) { return [f.negocio, f.referencia, f.color, ...NUM.map(c => norm(f[c]))].join('|'); }
 function compara(got, oracle, ctx) {
-    const gMap = new Map(got.filas.map(f => [f.negocio, f]));
-    const oMap = new Map(oracle.filas.map(f => [f.negocio, f]));
-    assert.equal(gMap.size, oMap.size, `${ctx}: #negocios difiere`);
-    for (const [k, of] of oMap) {
-        const gf = gMap.get(k); assert.ok(gf, `${ctx}: falta negocio ${k}`);
-        for (const c of NUM) assert.equal(norm(gf[c]), norm(of[c]), `${ctx}: ${k}.${c}`);
-    }
+    assert.equal(got.filas.length, oracle.filas.length, `${ctx}: #filas difiere`);
+    const gc = new Map(); for (const f of got.filas)   { const k = rowKey(f); gc.set(k, (gc.get(k) || 0) + 1); }
+    const oc = new Map(); for (const f of oracle.filas) { const k = rowKey(f); oc.set(k, (oc.get(k) || 0) + 1); }
+    for (const [k, c] of oc) assert.equal(gc.get(k) || 0, c, `${ctx}: fila del oráculo sin match exacto -> ${k}`);
+    for (const k of gc.keys()) assert.ok(oc.has(k), `${ctx}: fila extra en got -> ${k}`);
     for (const c of ['ventas','tiendas','total_stock','ind_ventas_mes'])
         assert.equal(norm(got.total[c]), norm(oracle.total[c]), `${ctx}: total.${c}`);
 }
@@ -41,7 +43,10 @@ let n = 0;
 for (const slug of slugs) {
     const dataset = JSON.parse(readFileSync(join(fx, `dataset_${slug}.json`)));
     // Caso SIN filtros vs oráculo sin filtros.
-    compara(aggregateO45(dataset, {}), JSON.parse(readFileSync(join(fx, `tabdata_${slug}.json`))), `${slug}[sinfiltro]`);
+    const oracleSinFiltro = JSON.parse(readFileSync(join(fx, `tabdata_${slug}.json`)));
+    compara(aggregateO45(dataset, {}), oracleSinFiltro, `${slug}[sinfiltro]`);
+    // rango debe ser IDÉNTICO al de tab=data (misma forma: desde,hasta,w30desde,dias,stock_corte).
+    assert.deepEqual(aggregateO45(dataset, {}).rango, oracleSinFiltro.rango, `${slug}: rango difiere de tab=data`);
     // Casos CON filtros: cada tabdata_<slug>__<f>.json tiene su filtros_<slug>__<f>.json.
     for (const ff of readdirSync(fx).filter(f => f.startsWith(`tabdata_${slug}__`))) {
         const tag = ff.slice(`tabdata_${slug}__`.length, -'.json'.length);
