@@ -28,18 +28,39 @@ if (!function_exists('buildO45Dataset')) {
                         : date('Y-m-t', strtotime(date('Y-m-01', strtotime($hasta)) . ' -1 day')); // fin del mes anterior
         }
 
+        $meta = ['desde'=>$desde,'hasta'=>$hasta,'dias'=>$dias,
+            'modo_stock'=>($modoStock==='vivo'?'vivo':$corteStock)];
+
+        // Libera las temp tables en cualquier salida (feliz o con error).
+        $dropTemps = function () use ($conn) {
+            $d1 = sqlsrv_query($conn, "IF OBJECT_ID('tempdb..#base') IS NOT NULL DROP TABLE #base");
+            if ($d1 !== false) sqlsrv_free_stmt($d1);
+            $d2 = sqlsrv_query($conn, "IF OBJECT_ID('tempdb..#inv_hist') IS NOT NULL DROP TABLE #inv_hist");
+            if ($d2 !== false) sqlsrv_free_stmt($d2);
+        };
+
         // --- #base: disponible, hold, ventas (rango), ventas30 (30d hasta hasta) ---
         // (idéntico a informe_o45.php:65-68)
         $cre = sqlsrv_query($conn, "CREATE TABLE #base (cia varchar(10), bodega varchar(20), negocio varchar(120),
             referencia varchar(50), color varchar(40), talla varchar(40),
             disponible int, hold int, ventas int, ventas30 int, inv_hist int)");
-        if ($cre !== false) sqlsrv_free_stmt($cre);
+        if ($cre === false) {
+            $errs = sqlsrv_errors();
+            $dropTemps();
+            return ['rows'=>[], 'meta'=>$meta, 'error'=>$errs];
+        }
+        sqlsrv_free_stmt($cre);
 
         // #inv_hist: llaves (cia,bodega,ref,color,talla) con inventario>0 en ALGUN corte de fin de mes dentro del rango.
         // (idéntico a informe_o45.php:70-73)
         $creH = sqlsrv_query($conn, "CREATE TABLE #inv_hist (cia varchar(10), bodega varchar(20),
             referencia varchar(50), color varchar(40), talla varchar(40))");
-        if ($creH !== false) sqlsrv_free_stmt($creH);
+        if ($creH === false) {
+            $errs = sqlsrv_errors();
+            $dropTemps();
+            return ['rows'=>[], 'meta'=>$meta, 'error'=>$errs];
+        }
+        sqlsrv_free_stmt($creH);
 
         // Poblar #inv_hist (idéntico a informe_o45.php:76-91, siempre — buildO45Dataset es el
         // equivalente de tab=data, su escaneo histórico siempre debe correr).
@@ -58,7 +79,12 @@ if (!function_exists('buildO45Dataset')) {
               WHERE hh.FECHA BETWEEN ? AND ? AND hh.CIA<>'001' AND CAST(hh.CANTIDAD AS int) > 0
           ) z";
         $rh = sqlsrv_query($conn, $insHist, [$desde,$hasta,$desde,$hasta]);
-        if ($rh !== false) sqlsrv_free_stmt($rh);
+        if ($rh === false) {
+            $errs = sqlsrv_errors();
+            $dropTemps();
+            return ['rows'=>[], 'meta'=>$meta, 'error'=>$errs];
+        }
+        sqlsrv_free_stmt($rh);
 
         // Partición de ventas: Ventas_Detal_PBI cubre 2026+ y Ventas_Detal_Acum_PBI ≤2025 (sin solape).
         // Solo se une Acum si la ventana toca ≤2025 (evita escanear 2.7M filas en vano y NO duplica años).
@@ -149,7 +175,12 @@ if (!function_exists('buildO45Dataset')) {
         array_push($p, $w30desde, $hasta);  // ventas30_src
         if ($acumV30 !== '') array_push($p, $w30desde, $hasta);
         $ins = sqlsrv_query($conn, $insBase, $p);
-        if ($ins !== false) sqlsrv_free_stmt($ins);
+        if ($ins === false) {
+            $errs = sqlsrv_errors();
+            $dropTemps();
+            return ['rows'=>[], 'meta'=>$meta, 'error'=>$errs];
+        }
+        sqlsrv_free_stmt($ins);
 
         // Excluir bodegas ADMINISTRATIVAS (no son tiendas), conservando CEDI. Siempre-on.
         // (idéntico a informe_o45.php:182-188)
@@ -170,26 +201,27 @@ if (!function_exists('buildO45Dataset')) {
                  INNER JOIN #refs r ON r.REFERENCIA = b.referencia
                  LEFT JOIN INTEGRACION.dbo.Bodegas bo WITH (NOLOCK) ON bo.COD=b.bodega AND RIGHT('000'+rtrim(bo.CIA),3)=b.cia";
         $st = sqlsrv_query($conn, $sql);
-        $rows = [];
-        if ($st !== false) {
-            while ($x = sqlsrv_fetch_array($st, SQLSRV_FETCH_ASSOC)) {
-                $rows[] = [
-                    'cia'=>rtrim((string)$x['cia']), 'bodega'=>rtrim((string)$x['bodega']),
-                    'grupo'=>rtrim((string)$x['grupo']), 'tienda'=>rtrim((string)$x['tienda']),
-                    'es_cedi'=>(int)$x['es_cedi'], 'referencia'=>rtrim((string)$x['referencia']),
-                    'color'=>rtrim((string)$x['color']), 'talla'=>rtrim((string)$x['talla']),
-                    'marca'=>rtrim((string)$x['marca']), 'tipo'=>rtrim((string)$x['tipo']),
-                    'categoria'=>rtrim((string)$x['categoria']), 'subcategoria'=>rtrim((string)$x['subcategoria']),
-                    'genero'=>rtrim((string)$x['genero']), 'publico'=>rtrim((string)$x['publico']),
-                    'disponible'=>(int)$x['disponible'], 'hold'=>(int)$x['hold'],
-                    'ventas'=>(int)$x['ventas'], 'ventas30'=>(int)$x['ventas30'], 'inv_hist'=>(int)$x['inv_hist'],
-                ];
-            }
-            sqlsrv_free_stmt($st);
+        if ($st === false) {
+            $errs = sqlsrv_errors();
+            $dropTemps();
+            return ['rows'=>[], 'meta'=>$meta, 'error'=>$errs];
         }
-        sqlsrv_query($conn, "IF OBJECT_ID('tempdb..#base') IS NOT NULL DROP TABLE #base");
-        sqlsrv_query($conn, "IF OBJECT_ID('tempdb..#inv_hist') IS NOT NULL DROP TABLE #inv_hist");
-        return ['rows'=>$rows, 'meta'=>['desde'=>$desde,'hasta'=>$hasta,'dias'=>$dias,
-            'modo_stock'=>($modoStock==='vivo'?'vivo':$corteStock)]];
+        $rows = [];
+        while ($x = sqlsrv_fetch_array($st, SQLSRV_FETCH_ASSOC)) {
+            $rows[] = [
+                'cia'=>rtrim((string)$x['cia']), 'bodega'=>rtrim((string)$x['bodega']),
+                'grupo'=>rtrim((string)$x['grupo']), 'tienda'=>rtrim((string)$x['tienda']),
+                'es_cedi'=>(int)$x['es_cedi'], 'referencia'=>rtrim((string)$x['referencia']),
+                'color'=>rtrim((string)$x['color']), 'talla'=>rtrim((string)$x['talla']),
+                'marca'=>rtrim((string)$x['marca']), 'tipo'=>rtrim((string)$x['tipo']),
+                'categoria'=>rtrim((string)$x['categoria']), 'subcategoria'=>rtrim((string)$x['subcategoria']),
+                'genero'=>rtrim((string)$x['genero']), 'publico'=>rtrim((string)$x['publico']),
+                'disponible'=>(int)$x['disponible'], 'hold'=>(int)$x['hold'],
+                'ventas'=>(int)$x['ventas'], 'ventas30'=>(int)$x['ventas30'], 'inv_hist'=>(int)$x['inv_hist'],
+            ];
+        }
+        sqlsrv_free_stmt($st);
+        $dropTemps();
+        return ['rows'=>$rows, 'meta'=>$meta, 'error'=>null];
     }
 }

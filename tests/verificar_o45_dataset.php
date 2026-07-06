@@ -89,9 +89,18 @@ foreach ($provs as $prov) {
             if ($fn === null || (string)$fv[$c] !== (string)$fn[$c]) { $dif++; if ($dif<=5) echo "   DIFF [$k].$c viejo=".var_export($fv[$c],true)." nuevo=".var_export($fn[$c]??null,true)."\n"; break; }
     }
     $extra = count(array_diff_key($mvn,$mvv));
-    printf("[%s] negocios nuevo=%d viejo=%d | difs=%d extra=%d | total.ventas n=%s v=%s\n",
-        $prov, count($mvn), count($mvv), $dif, $extra, $nuevo['total']['ventas'], $viejo['total']['ventas']);
-    if ($dif || $extra || (string)$nuevo['total']['ventas']!==(string)$viejo['total']['ventas']) $fallos++;
+    // Comparar TODAS las claves de total{} presentes en ambos lados (no solo ventas).
+    $totClaves = array_intersect(array_keys($nuevo['total']), array_keys($viejo['total']));
+    $totDif = 0;
+    foreach ($totClaves as $c) {
+        if ((string)$nuevo['total'][$c] !== (string)$viejo['total'][$c]) {
+            $totDif++;
+            echo "   DIFF [total].$c viejo=".var_export($viejo['total'][$c],true)." nuevo=".var_export($nuevo['total'][$c],true)."\n";
+        }
+    }
+    printf("[%s] negocios nuevo=%d viejo=%d | difs=%d extra=%d | total.ventas n=%s v=%s | total-difs=%d\n",
+        $prov, count($mvn), count($mvv), $dif, $extra, $nuevo['total']['ventas'], $viejo['total']['ventas'], $totDif);
+    if ($dif || $extra || $totDif) $fallos++;
 }
 echo $fallos===0 ? "\nRESULTADO: doble-oráculo OK \xE2\x9C\x94\n" : "\nRESULTADO: $fallos proveedor(es) con diferencias \xE2\x9C\x97\n";
 exit($fallos===0?0:1);
