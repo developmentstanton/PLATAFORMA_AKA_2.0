@@ -29,6 +29,7 @@ function getMulti($key) { $v = $_GET[$key] ?? []; if (!is_array($v)) $v = ($v ==
 
 require __DIR__ . '/../conexion/conexion_integracion.php';
 require __DIR__ . '/lib_refs.php';
+require __DIR__ . '/lib_precios.php';
 if ($dbConnect === false) { http_response_code(500); echo json_encode(['ok'=>false,'error'=>'Conexión DB fallida']); exit; }
 
 function run($c,$sql,$p=[]) { $s=sqlsrv_query($c,$sql,$p); if($s===false) return ['error'=>sqlsrv_errors()];
@@ -264,13 +265,10 @@ if ($tab === 'data') {
         ORDER BY ventas DESC");
     if (isset($agg['error'])) jsonFail($agg, $dbConnect);
 
-    $precioMap = [];
-    $pr = run($dbConnect, "
-        SELECT rtrim(f120_referencia) referencia, rtrim(f121_id_ext1_detalle) color, MAX(f126_precio) precio
-        FROM INTEGRACION.dbo.LISTA_PRECIOS_DETAL
-        GROUP BY f120_referencia, f121_id_ext1_detalle");
-    if (!isset($pr['error'])) foreach ($pr as $x)
-        $precioMap[trim((string)$x['referencia']) . '|' . trim((string)$x['color'])] = (float)$x['precio'];
+    // Precios vigentes por (ref,color), SOLO del proveedor (vía #refs). Reemplaza la vista
+    // LISTA_PRECIOS_DETAL (sin filtro, evaluaba ITEMS 17-joins x2 → >180s). Ver api/lib_precios.php
+    // y tests/verificar_precios_o45.php (paridad idéntica sobre el catálogo completo).
+    $precioMap = preciosPorRefs($dbConnect);
 
     $filas = [];
     $tot = ['ventas'=>0,'ventas30'=>0,'stock_cedi'=>0,'stock_tiendas'=>0,'total_stock'=>0];
