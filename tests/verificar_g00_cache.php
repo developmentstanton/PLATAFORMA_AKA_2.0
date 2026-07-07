@@ -1,10 +1,15 @@
 <?php
 /**
- * Test de paridad de lib_g00_cache.php.
+ * Test de paridad de lib_g00_cache.php / api/informe_g00.php.
  *  - Task 2: smoke del cache de ventas (ensureG00CacheVentas).
  *  - Task 3: paridad de siembra — countTiendasSiembraCache (cache, SUT real de
  *    lib_g00_cache.php) vs countTiendasSiembraVivoTest (oráculo en vivo), sin filtro y con
  *    1 filtro de marca, MISMO proveedor.
+ *  - Task 5 (--paridad): paridad EXTREMO A EXTREMO del endpoint completo
+ *    (api/informe_g00.php) — cache-first (?tab=X) vs vivo (?tab=X&nocache=1) — para la
+ *    matriz 3 proveedores x 4 tabs x 3 filtros + los casos mandatorios de periodos/retail/
+ *    desde-custom (ver g00RunParidadFull() más abajo). Además mide latencia (cache-miss vs
+ *    cache-hit) y, opcionalmente, concurrencia del materialize.
  *
  * countTiendasSiembraCache vive en api/lib_g00_cache.php (requireable) y se llama acá
  * DIRECTAMENTE — es el SUT real, no una copia. countTiendasSiembra (el oráculo en vivo)
@@ -14,13 +19,25 @@
  * para cteVentas()/g00CteVentasCache()). Por eso el oráculo SÍ se duplica acá a propósito
  * (countTiendasSiembraVivoTest): es un cálculo independiente en vivo, legítimo como oráculo;
  * si countTiendasSiembra cambia en informe_g00.php, replicar el cambio en esta copia.
+ * Para --paridad el "oráculo" es distinto: en vez de duplicar código, se DRIVEA el endpoint
+ * real (tests/_endpoint_run.php, sesión simulada) dos veces por combinación — con y sin
+ * `nocache=1` — y se comparan las respuestas JSON completas. Ningún código de negocio se
+ * duplica; se compara el sistema real contra sí mismo en sus dos rutas.
  *
- * Uso: php tests/verificar_g00_cache.php ["PROVEEDOR"]
+ * Uso:
+ *   php tests/verificar_g00_cache.php ["PROVEEDOR"]   — smoke (Task 2) + siembra (Task 3)
+ *   php tests/verificar_g00_cache.php --paridad       — matriz completa (Task 5)
  */
 error_reporting(E_ERROR|E_PARSE);
 require __DIR__ . '/../conexion/conexion_integracion.php';
 require __DIR__ . '/../api/lib_refs.php';
 require __DIR__ . '/../api/lib_g00_cache.php';   // <-- SUT
+require __DIR__ . '/../api/lib_g00_rango.php';
+
+if (($argv[1] ?? '') === '--paridad') {
+    require __DIR__ . '/_task5_paridad.php';
+    exit(g00RunParidadFull($dbConnect));
+}
 
 $prov = $argv[1] ?? 'BH BRANDS SAS';
 $anioA = (int)date('Y'); $anioB = $anioA - 1;
