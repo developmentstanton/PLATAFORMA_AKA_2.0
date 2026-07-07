@@ -68,12 +68,57 @@ function g00DiffPayloads($a, $b, string $path = ''): array {
 }
 
 /**
- * Ejecuta una combinación (proveedor, tab, filtros, extra) dos veces — cache y nocache=1 —
- * y compara. Imprime PASS/FAIL con detalle de diffs (máx 15 líneas) en caso de FAIL.
- * `generado` (timestamp de detal) se descarta antes de comparar: varía por llamada aunque
- * todo lo demás sea idéntico.
+ * Señal de volumen por tab: cuántas filas de dato real (no metadatos) trae el payload y
+ * cuánto valor de ventas suma. Se usa como guarda de no-vacuidad: si AMBOS lados (cache y
+ * nocache) de un combo dan volumen 0, un PASS por igualdad (empty === empty) es VACUO —
+ * no prueba nada de la lógica de cache — y debe marcarse aparte, no contar como paridad
+ * genuina verificada. Estructura de cada tab (ver api/informe_g00.php):
+ *  - detal:     kpis.ventas_actual / kpis.ventas_anterior + filas de por_grupo/por_marca.
+ *  - tiendas:   payload.tiendas[] (cada fila con val_act/val_ant).
+ *  - productos: 3 árboles (negocios/categorias/generos), cada nodo con val_act/val_ant.
+ *  - periodos:  payload.dias[] (cada fila con val_act/val_ant).
  */
-function g00ParidadCombo(string $prov, string $tab, array $filtros, array $extra, string $label, array &$fails): bool {
+function g00VolumeSignal(string $tab, array $payload): array {
+    switch ($tab) {
+        case 'detal':
+            $va = (float)($payload['kpis']['ventas_actual']   ?? 0);
+            $vb = (float)($payload['kpis']['ventas_anterior'] ?? 0);
+            $rows = count($payload['por_grupo'] ?? []) + count($payload['por_marca'] ?? []);
+            return ['val' => $va + $vb, 'rows' => $rows];
+        case 'tiendas':
+            $tiendas = $payload['tiendas'] ?? [];
+            $val = 0.0;
+            foreach ($tiendas as $t) $val += (float)($t['val_act'] ?? 0) + (float)($t['val_ant'] ?? 0);
+            return ['val' => $val, 'rows' => count($tiendas)];
+        case 'productos':
+            $rows = count($payload['negocios'] ?? []) + count($payload['categorias'] ?? []) + count($payload['generos'] ?? []);
+            $val = 0.0;
+            foreach (['negocios', 'categorias', 'generos'] as $k) {
+                foreach ($payload[$k] ?? [] as $node) $val += (float)($node['val_act'] ?? 0) + (float)($node['val_ant'] ?? 0);
+            }
+            return ['val' => $val, 'rows' => $rows];
+        case 'periodos':
+            $dias = $payload['dias'] ?? [];
+            $val = 0.0;
+            foreach ($dias as $d) $val += (float)($d['val_act'] ?? 0) + (float)($d['val_ant'] ?? 0);
+            return ['val' => $val, 'rows' => count($dias)];
+        default:
+            return ['val' => 0.0, 'rows' => 0];
+    }
+}
+
+/**
+ * Ejecuta una combinación (proveedor, tab, filtros, extra) dos veces — cache y nocache=1 —
+ * y compara. Imprime PASS/FAIL/EMPTY con detalle de diffs (máx 15 líneas) en caso de FAIL,
+ * y volumen (val_act+val_ant, filas) en caso de PASS/EMPTY para que un humano audite la
+ * corrida sin adivinar. `generado` (timestamp de detal) se descarta antes de comparar: varía
+ * por llamada aunque todo lo demás sea idéntico.
+ *
+ * Retorna 'FAIL' | 'PASS' (paridad genuina, con datos) | 'EMPTY' (ambos lados vacíos: cache
+ * y nocache coinciden, pero por-vacuidad, NO prueba nada de la lógica de cache — se cuenta
+ * aparte, nunca como paridad genuina verificada).
+ */
+function g00ParidadCombo(string $prov, string $tab, array $filtros, array $extra, string $label, array &$fails): string {
     $qsCache   = http_build_query(array_merge(['tab' => $tab], $filtros, $extra));
     $qsNocache = http_build_query(array_merge(['tab' => $tab], $filtros, $extra, ['nocache' => 1]));
 
@@ -83,17 +128,17 @@ function g00ParidadCombo(string $prov, string $tab, array $filtros, array $extra
     if ($rc === null || $rn === null) {
         echo "  [FAIL] $label -- respuesta no decodificable (cache=" . ($rc === null ? 'NULL' : 'ok') . " nocache=" . ($rn === null ? 'NULL' : 'ok') . ")\n";
         $fails[] = $label;
-        return false;
+        return 'FAIL';
     }
     if (($rc['ok'] ?? null) !== true) {
         echo "  [FAIL] $label -- cache ok:false " . json_encode($rc) . "\n";
         $fails[] = $label;
-        return false;
+        return 'FAIL';
     }
     if (($rn['ok'] ?? null) !== true) {
         echo "  [FAIL] $label -- nocache ok:false " . json_encode($rn) . "\n";
         $fails[] = $label;
-        return false;
+        return 'FAIL';
     }
 
     unset($rc['generado'], $rn['generado']);
@@ -101,8 +146,13 @@ function g00ParidadCombo(string $prov, string $tab, array $filtros, array $extra
     $normB = g00NormalizeForCompare($rn);
 
     if ($normA === $normB) {
-        echo "  [PASS] $label\n";
-        return true;
+        $vol = g00VolumeSignal($tab, $rc);
+        if ($vol['val'] <= 0.0 && $vol['rows'] <= 0) {
+            echo "  [EMPTY/SKIPPED] $label -- ambos lados vacios (val=0, rows=0); PASS trivial, NO cuenta como paridad verificada\n";
+            return 'EMPTY';
+        }
+        printf("  [PASS] %s (val_act+val_ant=%s, rows=%d)\n", $label, number_format($vol['val'], 2, '.', ''), $vol['rows']);
+        return 'PASS';
     }
 
     echo "  [FAIL] $label -- DIFF DETECTADO:\n";
@@ -110,7 +160,7 @@ function g00ParidadCombo(string $prov, string $tab, array $filtros, array $extra
     foreach (array_slice($diffs, 0, 15) as $d) echo "     $d\n";
     if (count($diffs) > 15) echo "     ... (" . (count($diffs) - 15) . " diffs mas, truncado)\n";
     $fails[] = $label;
-    return false;
+    return 'FAIL';
 }
 
 // ------------------------------------------------------------------
@@ -218,13 +268,35 @@ function g00TestConcurrencia($dbConnect, string $prov): ?array {
 // Orquestador principal.
 // ------------------------------------------------------------------
 function g00RunParidadFull($dbConnect): int {
+    // NOTA (fix revisión critica 2026-07-07): CALZADO WALDOS fue reemplazado por
+    // DISANDINA S.A. Motivo: CALZADO WALDOS tiene 0 filas de venta en TODA la ventana
+    // 2025-01-01..hoy-1 (verificado por query directa contra
+    // INTEGRACION.dbo.Ventas_Detal_PBI/Ventas_Detal_Acum_PBI join #refs) -> los 17 combos
+    // que lo usaban (12 de la matriz principal + 5 de los casos mandatorios) comparaban
+    // payload_vacio === payload_vacio: PASS trivial que NO prueba nada de la lógica de
+    // cache (paridad vacua). DISANDINA S.A. es un proveedor genuinamente chico (92 items,
+    // 396 filas de venta en 2025-01-01..hoy-1, vs 5788 de BH BRANDS SAS y 96894 de BRAHMA
+    // CONCEPT) pero con ventas reales confirmadas en TODAS las ventanas que ejercita esta
+    // matriz, incluida la más angosta (desde-custom = Mar-01 del año actual..ayer):
+    //   ventana completa 2025-01-01..hoy-1        : 396 filas, $32.85M+$2.76M
+    //   año actual (Ene1-ayer)                     : 40  filas, $2,762,686
+    //   desde-custom (Mar1-ayer, año actual)        : 15  filas, $976,890
+    //   marca=OAKLEY  en año actual (Ene1-ayer)     : 19  filas, $1,380,419
+    //   marca=OAKLEY  en desde-custom               : 2   filas, $135,967
+    //   grupo=AKA     en año actual (Ene1-ayer)     : 38  filas, $2,667,055
+    //   grupo=AKA     en desde-custom               : 14  filas, $949,243
+    // marca=OAKLEY (mayor volumen de filas de venta entre las marcas de DISANDINA) y
+    // grupo=AKA (grupo dominante, 394/396 filas) fueron elegidos por ser los filtros
+    // no-triviales con más señal, análogo al criterio ya usado para BH BRANDS SAS/BRAHMA
+    // CONCEPT.
     $provInfo = [
         'BH BRANDS SAS'  => ['marca' => 'GOODYEAR', 'grupo' => 'AKA'],
         'BRAHMA CONCEPT' => ['marca' => 'BRAHMA',    'grupo' => 'SPRING STEP'],
-        'CALZADO WALDOS' => ['marca' => 'PRODUCTO ANTIGUO SIN IDENTIFICAR MARCA', 'grupo' => 'ZEUS'],
+        'DISANDINA S.A.' => ['marca' => 'OAKLEY',    'grupo' => 'AKA'],
     ];
     $tabs = ['detal', 'tiendas', 'productos', 'periodos'];
     $fails = [];
+    $empties = [];
     $total = 0;
 
     echo "==== PARTE A.1 -- MATRIZ PRINCIPAL: 3 proveedores x 4 tabs x 3 filtros ====\n";
@@ -238,7 +310,8 @@ function g00RunParidadFull($dbConnect): int {
             foreach ($filtroSets as $fLabel => $filtros) {
                 $label = "$prov | tab=$tab | $fLabel";
                 $total++;
-                g00ParidadCombo($prov, $tab, $filtros, [], $label, $fails);
+                $status = g00ParidadCombo($prov, $tab, $filtros, [], $label, $fails);
+                if ($status === 'EMPTY') $empties[] = $label;
             }
         }
     }
@@ -257,12 +330,21 @@ function g00RunParidadFull($dbConnect): int {
         foreach ($extraCases as $c) {
             $label = "$prov | {$c['label']}";
             $total++;
-            g00ParidadCombo($prov, $c['tab'], [], $c['extra'], $label, $fails);
+            $status = g00ParidadCombo($prov, $c['tab'], [], $c['extra'], $label, $fails);
+            if ($status === 'EMPTY') $empties[] = $label;
         }
     }
 
+    $genuinos = $total - count($fails) - count($empties);
     echo "\n==== RESULTADO PARIDAD ====\n";
-    printf("Combos ejecutados: %d | Fallos: %d\n", $total, count($fails));
+    printf(
+        "Combos ejecutados: %d | Paridad GENUINA verificada (no-vacua, 0 diffs): %d | EMPTY/SKIPPED (vacuos, excluidos del conteo de paridad): %d | Fallos: %d\n",
+        $total, $genuinos, count($empties), count($fails)
+    );
+    if ($empties) {
+        echo "COMBOS VACUOS (cache y nocache coinciden pero AMBOS vacios -- no prueban paridad, revisar si el filtro/ventana es correcto):\n";
+        foreach ($empties as $e) echo "  - $e\n";
+    }
     if ($fails) {
         echo "COMBOS CON DIFERENCIAS (requieren escalar como bug de Task 4, NO normalizar):\n";
         foreach ($fails as $f) echo "  - $f\n";
