@@ -415,12 +415,74 @@ if ($tab === 'filtros') {
 }
 
 // ====================================================================
+// CACHE-FIRST (enfoque B): materializa el granular denormalizado
+// (ventas ⋈ #refs ⋈ Bodegas) por (proveedor+span) en g00_cache_ventas y
+// re-agrega cada tab sobre él, en vez de re-escanear las fact tables por
+// request. ?nocache=1 selecciona la ruta VIVA (cteVentas ⋈ #refs ⋈ Bodegas),
+// que es el oráculo de paridad y debe seguir siendo byte-idéntica a la de hoy.
+// ====================================================================
+require_once __DIR__ . '/lib_g00_cache.php';
+$nocache = !empty($_GET['nocache']);
+
+// --- Rango de Mensual (hoisted desde el tab Detal a scope compartido) ---
+// Mensual escanea Ene→Hasta del año mayor vs su espejo menor. Ese span puede
+// EXTENDERSE antes de $gmin cuando ?desde es custom (p.ej. desde=Mar: Mensual
+// sigue arrancando en Ene), por lo que el cache debe cubrir la UNIÓN de ambos
+// pushdowns. Se computa acá una sola vez y el tab Detal lo reutiliza.
+$mensDesA = "$yearAct-01-01";
+$mensHasA = $hastaAct;
+if ($cal === 'retail') {
+    $shiftToActualDays = 364 * ($yearAct - $anioBIn);
+    $mensDesB = date('Y-m-d', strtotime($mensDesA . ' -' . $shiftToActualDays . ' days'));
+    $mensHasB = $hastaAnt;
+} else {
+    $shiftToActualDays = 0;   // diaadia: el mes calendario ya coincide
+    $mensDesB = g00_set_anio($mensDesA, $anioBIn);
+    $mensHasB = $hastaAnt;
+}
+$mensGmin = min($mensDesB, $mensDesA);
+$mensGmax = max($mensHasA, $mensHasB);
+// Para 'ant' (retail) el mes se mapea sumando 364 días para que caiga en el mes
+// 'act' equivalente; para 'diaadia' el mes 'ant' ya es el mismo mes calendario.
+$mesAntExpr = $shiftToActualDays > 0
+    ? "MONTH(DATEADD(DAY, $shiftToActualDays, FECHA))"
+    : "MONTH(FECHA)";
+
+// Span del cache = unión de TODOS los pushdowns de fecha de los tabs (main
+// $gmin..$gmax y el de Mensual $mensGmin..$mensGmax). Al cargar el cache con
+// este span, cada tab —filtrando por su propio predicado de fecha sobre el
+// cache— ve EXACTO el mismo row-set que su ruta viva → paridad por construcción.
+$cacheDesde = min($gmin, $mensGmin);
+$cacheHasta = max($gmax, $mensGmax);
+
+// Re-prefijo de los filtros a la tabla denormalizada de cache (i./v./b. → c.).
+// El same-store re-prefija SOLO su correlación externa `v.BODEGA`; el alias
+// interno `sb` del EXISTS debe quedar intacto (un str_replace de 'b.' lo
+// rompería: 'sb.' → 'sc.').
+$filtroExtraC     = str_replace(['i.', 'v.', 'b.'], 'c.', $filtroExtra);
+$sameStoreClauseC = str_replace('v.', 'c.', $sameStoreClause);
+
+// El cache queda identificado por (proveedor + span). El contenido depende SOLO
+// de esos dos (los predicados act/ant y S.S.S se aplican en lectura), así que la
+// key no necesita $cal ni $sss: dos requests con el mismo span comparten cache.
+$ckey = g00CacheKey($proveedor, $yearAct, $anioBIn, $cacheDesde, $cacheHasta);
+$skey = g00SiembraKey($proveedor);
+if (!$nocache) {
+    if (!ensureG00CacheVentas($dbConnect, $ckey, $cacheDesde, $cacheHasta)) jsonFail(['error' => sqlsrv_errors()], $dbConnect);
+    ensureG00CacheSiembra($dbConnect, $skey);
+    g00CacheCleanup($dbConnect);   // poda keys viejas (>TTL) para no crecer sin límite
+}
+
+// ====================================================================
 // TAB: TIENDAS
 // ====================================================================
 if ($tab === 'tiendas') {
     // Resumen por tienda + negocio (REFERENCIA-COLOR), 1 query con GROUPING SETS.
     // GROUPING_ID(BODEGA, REFERENCIA, COLOR): 7=() KPIs grand total, 3=(BODEGA) tienda, 0=(BODEGA,REF,COLOR) negocio.
-    $sql = cteVentas() . "
+    // Fuente de filas: viva (cteVentas ⋈ #refs ⋈ Bodegas) o cache (g00_cache_ventas),
+    // según $nocache. La agregación (SELECT/GROUP BY) es idéntica: solo cambia el origen.
+    if ($nocache) {
+        $vtSrc = cteVentas() . "
         , vt AS (
             SELECT v.FECHA, v.BODEGA, v.CANTIDAD, v.VALOR, v.MARGEN,
                    ISNULL(b.NOMBRE, v.BODEGA)   AS NOMBRE,
@@ -433,7 +495,34 @@ if ($tab === 'tiendas') {
             WHERE (v.FECHA BETWEEN ? AND ? OR v.FECHA BETWEEN ? AND ?)
               $filtroExtra
               $sameStoreClause
-        )
+        )";
+        $vtParams = array_merge(
+            [$gmin, $gmax, $gmin, $gmax],                 // CTE pushdown
+            [$desdeAct, $hastaAct, $desdeAnt, $hastaAnt], // vt OR-filter (act, ant)
+            $paramsExtra,
+            $sameStoreParams
+        );
+    } else {
+        $vtSrc = "
+        WITH vt AS (
+            SELECT c.FECHA, c.BODEGA, c.CANTIDAD, c.VALOR, c.MARGEN,
+                   ISNULL(c.NOMBRE, c.BODEGA)   AS NOMBRE,
+                   ISNULL(c.GRUPO, 'SIN GRUPO') AS GRUPO,
+                   c.REFERENCIA,
+                   ISNULL(c.COLOR, '')          AS COLOR
+            FROM INTEGRACION.dbo.g00_cache_ventas c WITH (NOLOCK)
+            WHERE c.cache_key = ? AND (c.FECHA BETWEEN ? AND ? OR c.FECHA BETWEEN ? AND ?)
+              $filtroExtraC
+              $sameStoreClauseC
+        )";
+        $vtParams = array_merge(
+            [$ckey],                                      // cache_key (reemplaza pushdown)
+            [$desdeAct, $hastaAct, $desdeAnt, $hastaAnt], // vt OR-filter (act, ant)
+            $paramsExtra,
+            $sameStoreParams
+        );
+    }
+    $sql = $vtSrc . "
         SELECT
             GROUPING_ID(BODEGA, REFERENCIA, COLOR) AS gid,
             BODEGA      AS cod,
@@ -450,10 +539,7 @@ if ($tab === 'tiendas') {
         GROUP BY GROUPING SETS ( (), (BODEGA), (BODEGA, REFERENCIA, COLOR) )
     ";
     $params = array_merge(
-        [$gmin, $gmax, $gmin, $gmax],                 // CTE pushdown
-        [$desdeAct, $hastaAct, $desdeAnt, $hastaAnt], // vt OR-filter (act, ant)
-        $paramsExtra,
-        $sameStoreParams,                             // S.S.S (vacío si no es same)
+        $vtParams,                                    // fuente (pushdown+OR-filter+extra+ss | ckey+OR-filter+extra+ss)
         [$desdeAct,$hastaAct, $desdeAnt,$hastaAnt,    // val_act / val_ant
          $desdeAct,$hastaAct, $desdeAnt,$hastaAnt,    // ups_act / ups_ant
          $desdeAct,$hastaAct]                          // margen_prom
@@ -502,7 +588,9 @@ if ($tab === 'tiendas') {
     // Solo cuentan como tienda los grupos tipo TIENDAS (excluye BODEGA/ADMINISTRATIVAS); sus ventas SÍ aparecen en la lista.
     $tiendasAct = 0; foreach ($tiendas as $t) if ($t['val_act']>0 && !in_array(strtoupper(trim((string)$t['grupo'])), ['BODEGA','ADMINISTRATIVAS'], true)) $tiendasAct++;
     $kpis = [
-        'tiendas_siembra' => countTiendasSiembra($dbConnect, $filtroExtra, $paramsExtra),
+        'tiendas_siembra' => $nocache
+            ? countTiendasSiembra($dbConnect, $filtroExtra, $paramsExtra)
+            : countTiendasSiembraCache($dbConnect, $skey, $filtroExtra, $paramsExtra),
         'tiendas_actual'  => $tiendasAct,
         'ticket_prom'     => $kpi['ups_act']>0 ? $kpi['val_act']/$kpi['ups_act'] : 0,
         'margen_prom'     => $kpi['margen'],
@@ -524,28 +612,46 @@ if ($tab === 'periodos') {
     // S.S.S en Periodos: misma cláusula EXISTS. Vacío salvo sss=same.
     $sameStorePeriodos = ''; $ssParamsPeriodos = [];
     if ($sss === 'same') { $sameStorePeriodos = $sameStoreClause; $ssParamsPeriodos = [$pAntDesde, $hastaAct]; }
-    $sql = cteVentas() . "
+    // Fuente de filas viva/cache según $nocache. Esta query lee la fuente DIRECTAMENTE
+    // (sin CTE intermedia): en cache el `c.cache_key = ?` vive en el WHERE, textualmente
+    // DESPUÉS del SELECT, así que su param va tras los del SELECT (no al frente).
+    if ($nocache) {
+        $periPrefix = cteVentas();
+        $periFromWhere = "
+        FROM ventas v
+        INNER JOIN #refs i                                 ON i.REFERENCIA = v.REFERENCIA
+        LEFT  JOIN INTEGRACION.dbo.Bodegas b WITH (NOLOCK) ON b.COD        = v.BODEGA AND b.CIA = 7
+        WHERE 1=1
+          $filtroExtra
+          $sameStorePeriodos";
+        $periLeadParams = [$pGmin, $pGmax, $pGmin, $pGmax];         // CTE pushdown (antes del SELECT)
+        $periTailParams = array_merge($paramsExtra, $ssParamsPeriodos);
+    } else {
+        $sameStorePeriodosC = str_replace('v.', 'c.', $sameStorePeriodos);
+        $periPrefix = '';
+        $periFromWhere = "
+        FROM INTEGRACION.dbo.g00_cache_ventas c WITH (NOLOCK)
+        WHERE c.cache_key = ?
+          $filtroExtraC
+          $sameStorePeriodosC";
+        $periLeadParams = [];
+        $periTailParams = array_merge([$ckey], $paramsExtra, $ssParamsPeriodos);
+    }
+    $sql = $periPrefix . "
         SELECT
             MONTH(FECHA) AS mes,
             DAY(FECHA)   AS dia,
             SUM(CASE WHEN FECHA BETWEEN ? AND ? THEN VALOR    ELSE 0 END) AS val_act,
             SUM(CASE WHEN FECHA BETWEEN ? AND ? THEN VALOR    ELSE 0 END) AS val_ant,
             SUM(CASE WHEN FECHA BETWEEN ? AND ? THEN CANTIDAD ELSE 0 END) AS ups_act,
-            SUM(CASE WHEN FECHA BETWEEN ? AND ? THEN CANTIDAD ELSE 0 END) AS ups_ant
-        FROM ventas v
-        INNER JOIN #refs i                                 ON i.REFERENCIA = v.REFERENCIA
-        LEFT  JOIN INTEGRACION.dbo.Bodegas b WITH (NOLOCK) ON b.COD        = v.BODEGA AND b.CIA = 7
-        WHERE 1=1
-          $filtroExtra
-          $sameStorePeriodos
+            SUM(CASE WHEN FECHA BETWEEN ? AND ? THEN CANTIDAD ELSE 0 END) AS ups_ant" . $periFromWhere . "
         GROUP BY MONTH(FECHA), DAY(FECHA)
     ";
     $params = array_merge(
-        [$pGmin, $pGmax, $pGmin, $pGmax],            // CTE pushdown
+        $periLeadParams,                             // CTE pushdown (nocache) | vacío (cache)
         [$desdeAct,$hastaAct, $pAntDesde,$pAntHasta, // val_act / val_ant
          $desdeAct,$hastaAct, $pAntDesde,$pAntHasta],// ups_act / ups_ant
-        $paramsExtra,
-        $ssParamsPeriodos                            // S.S.S (vacío si no es same) — va al final: el WHERE es textualmente posterior al SELECT
+        $periTailParams                              // cache_key(cache) + extra + S.S.S — WHERE posterior al SELECT
     );
     $rows = run($dbConnect, $sql, $params);
     if (isset($rows['error'])) jsonFail($rows, $dbConnect);
@@ -579,7 +685,9 @@ if ($tab === 'productos') {
         COUNT(DISTINCT CASE WHEN FECHA BETWEEN ? AND ? AND GRUPO NOT IN ('BODEGA','ADMINISTRATIVAS') THEN BODEGA END) AS tiendas_act,
         COUNT(DISTINCT CASE WHEN FECHA BETWEEN ? AND ? AND GRUPO NOT IN ('BODEGA','ADMINISTRATIVAS') THEN BODEGA END) AS tiendas_ant";
 
-    $prodCte = cteVentas() . "
+    // Fuente ventas_enriq: viva o cache según $nocache. Agregación idéntica en las 3 queries.
+    if ($nocache) {
+        $prodCte = cteVentas() . "
         , ventas_enriq AS (
             SELECT v.FECHA, v.BODEGA, v.CANTIDAD, v.VALOR, v.MARGEN,
                    v.REFERENCIA, ISNULL(v.COLOR,'') AS COLOR, ISNULL(v.TALLA,'') AS TALLA,
@@ -596,13 +704,39 @@ if ($tab === 'productos') {
               $sameStoreClause
         )
     ";
+        $prodLeadParams = array_merge(
+            [$gmin, $gmax, $gmin, $gmax],                   // cteVentas pushdown (PBI + Acum)
+            [$desdeAct, $hastaAct, $desdeAnt, $hastaAnt],   // ventas_enriq WHERE OR-filter
+            $paramsExtra,
+            $sameStoreParams
+        );
+    } else {
+        $prodCte = "
+        WITH ventas_enriq AS (
+            SELECT c.FECHA, c.BODEGA, c.CANTIDAD, c.VALOR, c.MARGEN,
+                   c.REFERENCIA, ISNULL(c.COLOR,'') AS COLOR, ISNULL(c.TALLA,'') AS TALLA,
+                   ISNULL(c.GRUPO,'SIN GRUPO')   AS GRUPO,
+                   ISNULL(c.CATEGORIA,'')        AS CATEGORIA,
+                   ISNULL(c.SUBCATEGORIA,'')     AS SUBCATEGORIA,
+                   ISNULL(c.GENERO,'')           AS GENERO,
+                   ISNULL(c.PUBLICO_OBJETIVO,'') AS PUBLICO
+            FROM INTEGRACION.dbo.g00_cache_ventas c WITH (NOLOCK)
+            WHERE c.cache_key = ? AND (c.FECHA BETWEEN ? AND ? OR c.FECHA BETWEEN ? AND ?)
+              $filtroExtraC
+              $sameStoreClauseC
+        )
+    ";
+        $prodLeadParams = array_merge(
+            [$ckey],                                        // cache_key (reemplaza pushdown)
+            [$desdeAct, $hastaAct, $desdeAnt, $hastaAnt],   // ventas_enriq WHERE OR-filter
+            $paramsExtra,
+            $sameStoreParams
+        );
+    }
 
     // Params idénticos para las 3 queries (solo cambian nombres de columna, no marcadores).
     $pProd = array_merge(
-        [$gmin, $gmax, $gmin, $gmax],                       // cteVentas pushdown (PBI + Acum)
-        [$desdeAct, $hastaAct, $desdeAnt, $hastaAnt],       // ventas_enriq WHERE OR-filter
-        $paramsExtra,
-        $sameStoreParams,
+        $prodLeadParams,                                    // fuente (pushdown|ckey) + OR-filter + extra + ss
         [$desdeAct,$hastaAct, $desdeAnt,$hastaAnt,          // val_act / val_ant
          $desdeAct,$hastaAct, $desdeAnt,$hastaAnt,          // ups_act / ups_ant
          $desdeAct,$hastaAct,                                // margen_prom
@@ -669,7 +803,8 @@ if ($tab === 'productos') {
 //   gid 31 → KPIs totales | 7 → mensual | 27 → grupo | 29 → marca | 28 → marca+tipo
 //
 // S.S.S (same-store): $sameStoreClause / $sameStoreParams se construyen arriba (scope compartido).
-$sqlConsolidado = cteVentas() . "
+if ($nocache) {
+    $consSrc = cteVentas() . "
     , ventas_enriq AS (
         SELECT v.FECHA, v.BODEGA, v.CANTIDAD, v.VALOR, v.MARGEN,
                ISNULL(b.GRUPO, 'SIN GRUPO') AS GRUPO,
@@ -681,7 +816,33 @@ $sqlConsolidado = cteVentas() . "
         WHERE (v.FECHA BETWEEN ? AND ? OR v.FECHA BETWEEN ? AND ?)
           $filtroExtra
           $sameStoreClause
-    )
+    )";
+    $consLeadParams = array_merge(
+        [$gmin, $gmax, $gmin, $gmax],                  // CTE pushdown PBI + Acum
+        [$desdeAct, $hastaAct, $desdeAnt, $hastaAnt],  // ventas_enriq OR-filter exacto
+        $paramsExtra,
+        $sameStoreParams
+    );
+} else {
+    $consSrc = "
+    WITH ventas_enriq AS (
+        SELECT c.FECHA, c.BODEGA, c.CANTIDAD, c.VALOR, c.MARGEN,
+               ISNULL(c.GRUPO, 'SIN GRUPO') AS GRUPO,
+               c.MARCA AS MARCA,
+               c.TIPO  AS TIPO
+        FROM INTEGRACION.dbo.g00_cache_ventas c WITH (NOLOCK)
+        WHERE c.cache_key = ? AND (c.FECHA BETWEEN ? AND ? OR c.FECHA BETWEEN ? AND ?)
+          $filtroExtraC
+          $sameStoreClauseC
+    )";
+    $consLeadParams = array_merge(
+        [$ckey],                                       // cache_key (reemplaza pushdown)
+        [$desdeAct, $hastaAct, $desdeAnt, $hastaAnt],  // ventas_enriq OR-filter exacto
+        $paramsExtra,
+        $sameStoreParams
+    );
+}
+$sqlConsolidado = $consSrc . "
     SELECT
         GROUPING_ID(YEAR(FECHA), MONTH(FECHA), GRUPO, MARCA, TIPO) AS gid,
         YEAR(FECHA)  AS anio,
@@ -706,10 +867,7 @@ $sqlConsolidado = cteVentas() . "
     )
 ";
 $paramsConsolidado = array_merge(
-    [$gmin, $gmax, $gmin, $gmax],   // CTE pushdown PBI + Acum
-    [$desdeAct, $hastaAct, $desdeAnt, $hastaAnt],  // ventas_enriq OR-filter exacto
-    $paramsExtra,
-    $sameStoreParams,               // EXISTS same-store SOLO si sss=same (vacío por defecto)
+    $consLeadParams,                // fuente: (pushdown+OR+extra+ss) viva | (ckey+OR+extra+ss) cache
     [$desdeAct,$hastaAct, $desdeAnt,$hastaAnt,    // val_act / val_ant
      $desdeAct,$hastaAct, $desdeAnt,$hastaAnt,    // ups_act / ups_ant
      $desdeAct,$hastaAct,                          // margen_prom
@@ -747,31 +905,15 @@ $deltaUps     = $upsAnt    > 0 ? (($upsAct    - $upsAnt)    / $upsAnt)    * 100 
 $deltaTiendas = $tiendasAn > 0 ? (($tiendasAc - $tiendasAn) / $tiendasAn) * 100 : 0;
 $ticketProm   = $upsAct    > 0 ?  $ventasAct / $upsAct                          : 0;
 
-// Mensual: añoMayor Ene→Hasta vs añoMenor, honrando cal.
-$mensDesA   = "$yearAct-01-01";
-$mensHasA   = $hastaAct;
-if ($cal === 'retail') {
-    $shiftToActualDays = 364 * ($yearAct - $anioBIn);
-    $mensDesB = date('Y-m-d', strtotime($mensDesA . ' -' . $shiftToActualDays . ' days'));
-    $mensHasB = $hastaAnt;
-} else {
-    $shiftToActualDays = 0;   // diaadia: el mes calendario ya coincide
-    $mensDesB = g00_set_anio($mensDesA, $anioBIn);
-    $mensHasB = $hastaAnt;
-}
-$mensGmin = min($mensDesB, $mensDesA);
-$mensGmax = max($mensHasA, $mensHasB);
-
-// Para 'ant' (retail) el mes se mapea sumando 364 días para que caiga en el mes 'act'
-// equivalente; para 'diaadia' el mes 'ant' ya es el mismo mes calendario.
-$mesAntExpr = $shiftToActualDays > 0
-    ? "MONTH(DATEADD(DAY, $shiftToActualDays, FECHA))"
-    : "MONTH(FECHA)";
+// Mensual: rango ($mensDesA/$mensHasA/$mensDesB/$mensHasB, $mensGmin/$mensGmax,
+// $mesAntExpr, $shiftToActualDays) ya computado arriba (bloque cache-first hoisted),
+// porque el span de Mensual entra en el cálculo del span del cache.
 // El mes se calcula UNA sola vez dentro del CTE (alias `mes`) y se agrupa por ese alias.
 // Antes el mismo CASE se repetía en SELECT y en GROUP BY; como cada uno usa marcadores `?`
 // distintos, SQL Server no los reconoce como la misma expresión y lanza el error 8120
 // ('FECHA' inválida fuera de agregado/GROUP BY). Con el alias, el GROUP BY no lleva params.
-$sqlMensual = cteVentas() . "
+if ($nocache) {
+    $vmSrc = cteVentas() . "
     , vm AS (
         SELECT v.FECHA, v.BODEGA, v.CANTIDAD, v.VALOR,
                ISNULL(b.GRUPO, 'SIN GRUPO') AS GRUPO,
@@ -782,7 +924,36 @@ $sqlMensual = cteVentas() . "
         WHERE (v.FECHA BETWEEN ? AND ? OR v.FECHA BETWEEN ? AND ?)
           $filtroExtra
           $sameStoreClause
-    )
+    )";
+    $vmLeadParams = array_merge(
+        [$mensGmin, $mensGmax, $mensGmin, $mensGmax],   // cte pushdown
+        [$mensDesA, $mensHasA],                          // vm: CASE mes (rango act)
+        [$mensDesA, $mensHasA, $mensDesB, $mensHasB],   // vm WHERE OR-filter (act, ant)
+        $paramsExtra,
+        $sameStoreParams
+    );
+} else {
+    // $mesAntExpr usa FECHA bare → resuelve a c.FECHA (único origen). cache_key va en el
+    // WHERE (tras el CASE-mes del SELECT), así que su param va tras los del CASE-mes.
+    $vmSrc = "
+    WITH vm AS (
+        SELECT c.FECHA, c.BODEGA, c.CANTIDAD, c.VALOR,
+               ISNULL(c.GRUPO, 'SIN GRUPO') AS GRUPO,
+               CASE WHEN c.FECHA BETWEEN ? AND ? THEN MONTH(c.FECHA) ELSE $mesAntExpr END AS mes
+        FROM INTEGRACION.dbo.g00_cache_ventas c WITH (NOLOCK)
+        WHERE c.cache_key = ? AND (c.FECHA BETWEEN ? AND ? OR c.FECHA BETWEEN ? AND ?)
+          $filtroExtraC
+          $sameStoreClauseC
+    )";
+    $vmLeadParams = array_merge(
+        [$mensDesA, $mensHasA],                          // vm: CASE mes (rango act)
+        [$ckey],                                          // cache_key (WHERE, tras el CASE)
+        [$mensDesA, $mensHasA, $mensDesB, $mensHasB],   // vm WHERE OR-filter (act, ant)
+        $paramsExtra,
+        $sameStoreParams
+    );
+}
+$sqlMensual = $vmSrc . "
     SELECT
         GROUPING_ID(mes) AS gid,
         mes,
@@ -796,11 +967,7 @@ $sqlMensual = cteVentas() . "
     GROUP BY GROUPING SETS ((mes), ())
 ";
 $pMensual = array_merge(
-    [$mensGmin, $mensGmax, $mensGmin, $mensGmax],   // cte pushdown
-    [$mensDesA, $mensHasA],                          // vm: CASE mes (rango act)
-    [$mensDesA, $mensHasA, $mensDesB, $mensHasB],   // vm WHERE OR-filter (act, ant)
-    $paramsExtra,
-    $sameStoreParams,
+    $vmLeadParams,                                   // fuente (pushdown|ckey en su posición) + CASE-mes + OR-filter + extra + ss
     [$mensDesA, $mensHasA, $mensDesB, $mensHasB,     // val_act / val_ant
      $mensDesA, $mensHasA, $mensDesB, $mensHasB,     // ups_act / ups_ant
      $mensDesA, $mensHasA, $mensDesB, $mensHasB]     // tiendas_act / tiendas_ant
@@ -878,7 +1045,9 @@ foreach ($marcaArr as &$mref) {
 unset($mref);
 
 // Tiendas con Siembra (cualquier marca del proveedor, según filtros de producto/bodega; sin fecha ni S.S.S).
-$tiendasSiembra = countTiendasSiembra($dbConnect, $filtroExtra, $paramsExtra);
+$tiendasSiembra = $nocache
+    ? countTiendasSiembra($dbConnect, $filtroExtra, $paramsExtra)
+    : countTiendasSiembraCache($dbConnect, $skey, $filtroExtra, $paramsExtra);
 
 $out = [
     'ok'        => true,
