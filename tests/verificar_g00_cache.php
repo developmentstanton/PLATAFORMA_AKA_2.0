@@ -2,15 +2,18 @@
 /**
  * Test de paridad de lib_g00_cache.php.
  *  - Task 2: smoke del cache de ventas (ensureG00CacheVentas).
- *  - Task 3: paridad de siembra — countTiendasSiembraCache (cache) vs countTiendasSiembra
- *    (oráculo en vivo), sin filtro y con 1 filtro de marca, MISMO proveedor.
+ *  - Task 3: paridad de siembra — countTiendasSiembraCache (cache, SUT real de
+ *    lib_g00_cache.php) vs countTiendasSiembraVivoTest (oráculo en vivo), sin filtro y con
+ *    1 filtro de marca, MISMO proveedor.
  *
- * countTiendasSiembra/countTiendasSiembraCache viven en api/informe_g00.php, que NO se
- * puede `require` desde CLI: ese script tiene efectos de lado (session_start, chequeo de
- * auth con `exit`) que abortan cualquier script que lo incluya (mismo problema documentado
- * en la cabecera de lib_g00_cache.php para cteVentas()/g00CteVentasCache()). Se duplican
- * acá a propósito, mismo patrón: si los originales cambian en informe_g00.php, replicar
- * el cambio en las copias *Test de este archivo.
+ * countTiendasSiembraCache vive en api/lib_g00_cache.php (requireable) y se llama acá
+ * DIRECTAMENTE — es el SUT real, no una copia. countTiendasSiembra (el oráculo en vivo)
+ * sigue viviendo en api/informe_g00.php, que NO se puede `require` desde CLI: ese script
+ * tiene efectos de lado (session_start, chequeo de auth con `exit`) que abortan cualquier
+ * script que lo incluya (mismo problema documentado en la cabecera de lib_g00_cache.php
+ * para cteVentas()/g00CteVentasCache()). Por eso el oráculo SÍ se duplica acá a propósito
+ * (countTiendasSiembraVivoTest): es un cálculo independiente en vivo, legítimo como oráculo;
+ * si countTiendasSiembra cambia en informe_g00.php, replicar el cambio en esta copia.
  *
  * Uso: php tests/verificar_g00_cache.php ["PROVEEDOR"]
  */
@@ -79,22 +82,6 @@ function countTiendasSiembraVivoTest($conn, $filtroExtra, $paramsExtra) {
     return (int)($r[0]['n'] ?? 0);
 }
 
-// Copia EXACTA de countTiendasSiembraCache (api/informe_g00.php, Task 3) — vía cache.
-function countTiendasSiembraCacheTest($conn, $key, $filtroExtra, $paramsExtra) {
-    $fc = str_replace(['i.', 'v.', 'b.'], 'c.', $filtroExtra);
-    $sql = "
-      SELECT COUNT(DISTINCT c.BODEGA) AS n
-      FROM INTEGRACION.dbo.g00_cache_siembra c WITH (NOLOCK)
-      WHERE c.cache_key = ?
-        AND c.q > 0
-        AND ISNULL(c.GRUPO,'') NOT IN ('BODEGA','ADMINISTRATIVAS')
-      $fc
-    ";
-    $r = testRunLocal($conn, $sql, array_merge([$key], $paramsExtra));
-    if (isset($r['error'])) return null;
-    return (int)($r[0]['n'] ?? 0);
-}
-
 $skey = g00SiembraKey($prov);
 $okS  = ensureG00CacheSiembra($dbConnect, $skey);
 if (!$okS) {
@@ -103,7 +90,7 @@ if (!$okS) {
 }
 
 // (a) sin filtro
-$viaCacheA = countTiendasSiembraCacheTest($dbConnect, $skey, '', []);
+$viaCacheA = countTiendasSiembraCache($dbConnect, $skey, '', []);
 $enVivoA   = countTiendasSiembraVivoTest($dbConnect, '', []);
 if ($viaCacheA !== null && $viaCacheA === $enVivoA) {
     echo "SIEMBRA OK ($viaCacheA)\n";
@@ -124,7 +111,7 @@ if ($marca === null) {
 } else {
     $filtroExtra = "AND i.MARCA IN (?)";
     $paramsExtra = [$marca];
-    $viaCacheB = countTiendasSiembraCacheTest($dbConnect, $skey, $filtroExtra, $paramsExtra);
+    $viaCacheB = countTiendasSiembraCache($dbConnect, $skey, $filtroExtra, $paramsExtra);
     $enVivoB   = countTiendasSiembraVivoTest($dbConnect, $filtroExtra, $paramsExtra);
     if ($viaCacheB !== null && $viaCacheB === $enVivoB) {
         echo "SIEMBRA OK marca=$marca ($viaCacheB)\n";

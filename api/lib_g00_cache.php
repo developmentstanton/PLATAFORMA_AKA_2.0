@@ -223,6 +223,34 @@ if (!function_exists('ensureG00CacheSiembra')) {
     }
 }
 
+if (!function_exists('countTiendasSiembraCache')) {
+    /**
+     * Igual que countTiendasSiembra (informe_g00.php) pero agregando sobre el cache granular
+     * de siembra (INTEGRACION.dbo.g00_cache_siembra, Task 3) en vez de re-escanear el ERP.
+     * $filtroExtra recibe los MISMOS alias que countTiendasSiembra (i.=#refs, v.=siembra,
+     * b.=Bodegas); como el cache ya viene denormalizado en una sola tabla, se re-prefijan a
+     * `c.` antes de usarlos. El cache guarda RAW (sin el filtro q>0 ni la exclusión de GRUPO)
+     * — ambos se re-aplican acá, igual que en el original. Requiere ensureG00CacheSiembra
+     * ($conn,$key) previo. Soft-fail → null (mismo contrato que countTiendasSiembra).
+     */
+    function countTiendasSiembraCache($conn, $key, $filtroExtra, $paramsExtra) {
+        $fc = str_replace(['i.', 'v.', 'b.'], 'c.', $filtroExtra);
+        $sql = "
+          SELECT COUNT(DISTINCT c.BODEGA) n
+          FROM INTEGRACION.dbo.g00_cache_siembra c WITH (NOLOCK)
+          WHERE c.cache_key = ?
+            AND c.q > 0
+            AND ISNULL(c.GRUPO,'') NOT IN ('BODEGA','ADMINISTRATIVAS')
+          $fc
+        ";
+        $st = sqlsrv_query($conn, $sql, array_merge([$key], $paramsExtra));
+        if ($st === false) return null;
+        $row = sqlsrv_fetch_array($st, SQLSRV_FETCH_ASSOC);
+        sqlsrv_free_stmt($st);
+        return (int)($row['n'] ?? 0);
+    }
+}
+
 if (!function_exists('g00CacheCleanup')) {
     // Borra filas de cache (ventas + siembra) más viejas que el TTL. Llamar periódicamente
     // (p.ej. al inicio de un materialize) para no acumular basura de keys viejas.
