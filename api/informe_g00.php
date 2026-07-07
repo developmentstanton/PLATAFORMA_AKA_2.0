@@ -190,6 +190,32 @@ function countTiendasSiembra($conn, $filtroExtra, $paramsExtra) {
 }
 
 /**
+ * Igual que countTiendasSiembra pero agregando sobre el cache granular de siembra
+ * (INTEGRACION.dbo.g00_cache_siembra, Task 3 — g00_filtrado_rapido) en vez de re-escanear
+ * el ERP. $filtroExtra recibe los MISMOS alias que countTiendasSiembra (i.=#refs,
+ * v.=siembra, b.=Bodegas); como el cache ya viene denormalizado en una sola tabla, se
+ * re-prefijan a `c.` antes de usarlos. El cache guarda RAW (sin el filtro q>0 ni la
+ * exclusión de GRUPO) — ambos se re-aplican acá, igual que en el original.
+ * Requiere ensureG00CacheSiembra($conn,$key) previo (lib_g00_cache.php).
+ * Soft-fail → null (mismo contrato que countTiendasSiembra). No usada todavía por ningún
+ * tab (el switch de call-sites es Task 4); existe para que el test de paridad la ejercite.
+ */
+function countTiendasSiembraCache($conn, $key, $filtroExtra, $paramsExtra) {
+    $fc = str_replace(['i.', 'v.', 'b.'], 'c.', $filtroExtra);
+    $sql = "
+      SELECT COUNT(DISTINCT c.BODEGA) AS n
+      FROM INTEGRACION.dbo.g00_cache_siembra c WITH (NOLOCK)
+      WHERE c.cache_key = ?
+        AND c.q > 0
+        AND ISNULL(c.GRUPO,'') NOT IN ('BODEGA','ADMINISTRATIVAS')
+      $fc
+    ";
+    $r = run($conn, $sql, array_merge([$key], $paramsExtra));
+    if (isset($r['error'])) return null;
+    return (int)($r[0]['n'] ?? 0);
+}
+
+/**
  * Ensambla filas de un GROUPING SETS de 2 niveles en {rows:[{label,...,children:[]}], total}.
  * $gidTotal = gid de la fila grand-total (); $gidPadre = gid de la fila padre (hijo NULL).
  * $padreKey($r)→etiqueta del padre; $hijoLabel($r)→etiqueta del hijo.

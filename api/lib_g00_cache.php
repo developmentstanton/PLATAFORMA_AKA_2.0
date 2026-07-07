@@ -25,6 +25,13 @@ if (!function_exists('g00CacheKey')) {
     }
 }
 
+if (!function_exists('g00SiembraKey')) {
+    // Siembra = snapshot (foto actual, sin fechas): la key es SOLO el proveedor.
+    function g00SiembraKey($proveedor): string {
+        return substr(sha1($proveedor), 0, 32);
+    }
+}
+
 if (!function_exists('g00CteVentasCache')) {
     /**
      * Copia literal de cteVentas() (informe_g00.php:83-95). Duplicada aquí a propósito:
@@ -128,6 +135,87 @@ if (!function_exists('ensureG00CacheVentas')) {
         // Orden de params: los 4 `?` de g00CteVentasCache() (PBI desde,hasta; Acum desde,hasta)
         // van PRIMERO (posicional dentro del batch), luego el `?` del SELECT (cache_key).
         $ins = sqlsrv_query($conn, $sql, [$desde2, $hasta, $desde2, $hasta, $key]);
+        if ($ins === false) { sqlsrv_rollback($conn); return false; }
+        sqlsrv_free_stmt($ins);
+
+        return sqlsrv_commit($conn); // libera el applock
+    }
+}
+
+if (!function_exists('ensureG00CacheSiembra')) {
+    /**
+     * Materializa el granular de siembra (snapshot por proveedor, sin fechas) para $key si
+     * falta o está stale. Fuente EXACTA del subquery `v` de countTiendasSiembra
+     * (informe_g00.php:167-190): t400_cm_existencia ⋈ t150/t121/t120 (SIESA, SELECT-only),
+     * agrupado por bodega/referencia/color/talla, luego INNER JOIN #refs + LEFT JOIN Bodegas.
+     *
+     * Se guarda RAW (todas las filas joineadas, q crudo, GRUPO crudo): NO se aplica acá el
+     * `v.q > 0` ni la exclusión `ISNULL(b.GRUPO,'') NOT IN ('BODEGA','ADMINISTRATIVAS')` del
+     * original — esos filtros se re-aplican en tiempo de lectura (countTiendasSiembraCache
+     * en informe_g00.php), para que el cache quede filter-agnostic.
+     *
+     * Requiere que `#refs` YA esté construido en la MISMA conexión ($conn) antes de llamar
+     * (buildRefsFromMat) — igual que ensureG00CacheVentas.
+     *
+     * Concurrencia: mismo patrón que ensureG00CacheVentas — sp_getapplock (@LockMode=
+     * 'Exclusive', @LockOwner='Transaction') sobre un recurso namespaced ('g00cache_siembra:'
+     * + $key, distinto del namespace de ventas) dentro de una transacción real, con
+     * double-checked locking tras adquirir el lock.
+     */
+    function ensureG00CacheSiembra($conn, $key): bool {
+        // Fast path: sin tocar transacción/lock si ya hay cache fresco.
+        if (g00CacheFresco($conn, 'g00_cache_siembra', $key)) return true;
+
+        if (sqlsrv_begin_transaction($conn) === false) return false;
+
+        $lockRes = 'g00cache_siembra:' . $key; // namespace propio, no choca con ventas
+        $lockSql = "DECLARE @res int;
+                     EXEC @res = sp_getapplock @Resource = ?, @LockMode = 'Exclusive',
+                          @LockOwner = 'Transaction', @LockTimeout = 30000;
+                     SELECT @res AS res;";
+        $lockSt = sqlsrv_query($conn, $lockSql, [$lockRes]);
+        if ($lockSt === false) { sqlsrv_rollback($conn); return false; }
+        $lockRow = sqlsrv_fetch_array($lockSt, SQLSRV_FETCH_ASSOC);
+        sqlsrv_free_stmt($lockSt);
+        $lockCode = $lockRow['res'] ?? -999;
+        if ($lockCode < 0) { // -1 timeout, -2 cancelado, -3 deadlock, -999 sin resultado
+            sqlsrv_rollback($conn);
+            return false;
+        }
+
+        // Double-check: otro request pudo haber materializado mientras esperábamos el lock.
+        if (g00CacheFresco($conn, 'g00_cache_siembra', $key)) {
+            sqlsrv_commit($conn); // libera el applock
+            return true;
+        }
+
+        $del = sqlsrv_query($conn, "DELETE FROM INTEGRACION.dbo.g00_cache_siembra WHERE cache_key=?", [$key]);
+        if ($del === false) { sqlsrv_rollback($conn); return false; }
+        sqlsrv_free_stmt($del);
+
+        // Subquery `v` + los dos JOIN copiados BYTE-FOR-BYTE de informe_g00.php:170-182.
+        $sql = "
+            INSERT INTO INTEGRACION.dbo.g00_cache_siembra
+              (cache_key,BODEGA,REFERENCIA,COLOR,TALLA,
+               MARCA,TIPO,CATEGORIA,SUBCATEGORIA,GENERO,PUBLICO_OBJETIVO,
+               GRUPO,NOMBRE,CENTRO_COMERCIAL,DEPTO,CIUDAD,q)
+            SELECT ?, v.bodega, v.REFERENCIA, v.COLOR, v.TALLA,
+                   i.MARCA, i.TIPO, i.CATEGORIA, i.SUBCATEGORIA, i.GENERO, i.PUBLICO_OBJETIVO,
+                   b.GRUPO, b.NOMBRE, b.CENTRO_COMERCIAL, b.DEPTO, b.CIUDAD, v.q
+            FROM (
+                SELECT rtrim(f150_id) bodega, rtrim(f120_referencia) REFERENCIA,
+                       rtrim(f121_id_ext1_detalle) COLOR, rtrim(f121_id_ext2_detalle) TALLA,
+                       SUM(CAST(f400_cant_nivel_min_1 AS int)) q
+                FROM stanton.dbo.t400_cm_existencia
+                 INNER JOIN stanton.dbo.t150_mc_bodegas           ON f150_rowid = f400_rowid_bodega
+                 INNER JOIN stanton.dbo.t121_mc_items_extensiones ON f121_rowid = f400_rowid_item_ext
+                 INNER JOIN stanton.dbo.t120_mc_items             ON f120_rowid = f121_rowid_item
+                WHERE (f400_cant_nivel_min_1>0 OR f400_cant_nivel_pedido>0) AND f120_referencia<>'GIFTCARD'
+                GROUP BY rtrim(f150_id), rtrim(f120_referencia), rtrim(f121_id_ext1_detalle), rtrim(f121_id_ext2_detalle)
+            ) v
+            INNER JOIN #refs i                                 ON i.REFERENCIA = v.REFERENCIA
+            LEFT  JOIN INTEGRACION.dbo.Bodegas b WITH (NOLOCK) ON b.COD = v.bodega AND b.CIA = 7";
+        $ins = sqlsrv_query($conn, $sql, [$key]);
         if ($ins === false) { sqlsrv_rollback($conn); return false; }
         sqlsrv_free_stmt($ins);
 
