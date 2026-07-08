@@ -112,12 +112,29 @@ if (!function_exists('ensureO14CacheBase')) {
       SELECT rtrim(CIA), rtrim(BODEGA), rtrim(REFERENCIA), rtrim(COLOR), rtrim(TALLA), CANTIDAD
       FROM INTEGRACION.dbo.Ventas_Detal_Acum_PBI WITH (NOLOCK) WHERE FECHA BETWEEN ? AND ?" : "";
 
-        // CTEs s/d/h/llaves copiadas BYTE-A-BYTE de informe_o14.php:122-193 (INNER JOIN #refs r
-        // agregado en s/d/h/v tal como en el original — poda por universo de proveedor, no por
-        // filtros de UI, ya que #refs llega sin podar). Ventas (v) y las dims (r/#refs, bo/Bodegas)
-        // se agregan sobre `llaves` en el SELECT final. WITH debe ser la primera cláusula del
-        // batch (mismo gotcha T-SQL documentado en lib_g00_cache.php): INSERT va DESPUÉS del WITH.
-        $sql = "
+        // Materialize en DOS pasos (medido: BELTRANY 23s->2.4s, BRAHMA 7.5s->9.2s consistente).
+        // Un único INSERT...SELECT con las 4 CTEs + #refs + Bodegas directo a la tabla persistente
+        // o14_cache_base sufría un plan patológico (proveedor CHICO más lento que uno GRANDE,
+        // síntoma clásico de inestabilidad de plan). Partirlo en (1) build de un temp table con
+        // las medidas base (mismo patrón que ya usa el endpoint vivo con #base) y (2) INSERT al
+        // cache desde el temp + dims evita el plan malo. Paridad byte-a-byte preservada: mismas
+        // CTEs s/d/h/v/llaves, mismo INNER JOIN #refs, misma regla ADMIN/CEDI — solo cambia DÓNDE
+        // aterriza el resultado intermedio. #o14mat es un nombre DISTINTO a #base del endpoint
+        // (misma conexión no debe colisionar) y es un temp de sesión, vive bien dentro de la txn.
+        $drop = sqlsrv_query($conn, "IF OBJECT_ID('tempdb..#o14mat') IS NOT NULL DROP TABLE #o14mat;");
+        if ($drop === false) { sqlsrv_rollback($conn); return false; }
+        sqlsrv_free_stmt($drop);
+
+        $create = sqlsrv_query($conn, "CREATE TABLE #o14mat (cia varchar(10), bodega varchar(20), negocio varchar(120), referencia varchar(50), color varchar(40), talla varchar(40), siembra int, disponible int, hold int, ventas int);");
+        if ($create === false) { sqlsrv_rollback($conn); return false; }
+        sqlsrv_free_stmt($create);
+
+        // Paso 1: CTEs s/d/h/v/llaves copiadas BYTE-A-BYTE de informe_o14.php:122-193 (INNER JOIN
+        // #refs r agregado en s/d/h/v tal como en el original — poda por universo de proveedor,
+        // no por filtros de UI, ya que #refs llega sin podar). WITH debe ser la primera cláusula
+        // del batch (mismo gotcha T-SQL documentado en lib_g00_cache.php): INSERT va DESPUÉS del
+        // WITH. Sin #refs/Bodegas/cache_key acá — solo las 10 columnas base.
+        $sqlBuild = "
   WITH s AS (
     SELECT RIGHT('000'+rtrim(f400_id_cia),3) cia, rtrim(f150_id) bodega, rtrim(f120_referencia) referencia,
            rtrim(f121_id_ext1_detalle) color, rtrim(f121_id_ext2_detalle) talla, SUM(CAST(f400_cant_nivel_min_1 AS int)) q
@@ -159,31 +176,46 @@ if (!function_exists('ensureO14CacheBase')) {
     UNION SELECT cia,bodega,referencia,color,talla FROM h
     UNION SELECT cia,bodega,referencia,color,talla FROM v
   )
-  INSERT INTO INTEGRACION.dbo.o14_cache_base
-    (cache_key,cia,bodega,negocio,referencia,color,talla,siembra,disponible,hold,ventas,
-     marca,tipo,categoria,subcategoria,genero,publico_objetivo,
-     grupo,nombre,centro_comercial,depto,ciudad)
-  SELECT ?, k.cia, k.bodega, k.referencia+'-'+k.color, k.referencia, k.color, k.talla,
-         CAST(ISNULL(s.q,0) AS int), CAST(ISNULL(d.q,0) AS int), CAST(ISNULL(h.q,0) AS int), CAST(ISNULL(v.q,0) AS int),
-         r.MARCA, r.TIPO, r.CATEGORIA, r.SUBCATEGORIA, r.GENERO, r.PUBLICO_OBJETIVO,
-         bo.GRUPO, bo.NOMBRE, bo.CENTRO_COMERCIAL, bo.DEPTO, bo.CIUDAD
+  INSERT INTO #o14mat (cia,bodega,negocio,referencia,color,talla,siembra,disponible,hold,ventas)
+  SELECT k.cia, k.bodega, k.referencia+'-'+k.color, k.referencia, k.color, k.talla,
+         CAST(ISNULL(s.q,0) AS int), CAST(ISNULL(d.q,0) AS int), CAST(ISNULL(h.q,0) AS int), CAST(ISNULL(v.q,0) AS int)
   FROM llaves k
    LEFT  JOIN s ON s.cia=k.cia AND s.bodega=k.bodega AND s.referencia=k.referencia AND s.color=k.color AND s.talla=k.talla
    LEFT  JOIN d ON d.cia=k.cia AND d.bodega=k.bodega AND d.referencia=k.referencia AND d.color=k.color AND d.talla=k.talla
    LEFT  JOIN h ON h.cia=k.cia AND h.bodega=k.bodega AND h.referencia=k.referencia AND h.color=k.color AND h.talla=k.talla
-   LEFT  JOIN v ON v.cia=k.cia AND v.bodega=k.bodega AND v.referencia=k.referencia AND v.color=k.color AND v.talla=k.talla
-   INNER JOIN #refs r                                 ON r.REFERENCIA = k.referencia
-   LEFT  JOIN INTEGRACION.dbo.Bodegas bo WITH (NOLOCK) ON bo.COD = k.bodega AND RIGHT('000'+rtrim(bo.CIA),3) = k.cia
-  WHERE (ISNULL(bo.GRUPO,'') <> 'ADMINISTRATIVAS' OR k.bodega = 'CEDI')";
+   LEFT  JOIN v ON v.cia=k.cia AND v.bodega=k.bodega AND v.referencia=k.referencia AND v.color=k.color AND v.talla=k.talla";
 
         // Orden de params: los `?` de la CTE `v` (PBI desde,hasta [+ Acum desde,hasta si
-        // $inclAcum]) van PRIMERO (posicional dentro del batch, dentro del WITH), luego el `?`
-        // del SELECT del INSERT (cache_key) — mismo orden que $pVentas en informe_o14.php:150.
-        $params = $inclAcum ? [$desde, $hasta, $desde, $hasta, $key] : [$desde, $hasta, $key];
+        // $inclAcum]) — mismo orden que $pVentas en informe_o14.php:150. Sin cache_key acá.
+        $paramsBuild = $inclAcum ? [$desde, $hasta, $desde, $hasta] : [$desde, $hasta];
 
-        $ins = sqlsrv_query($conn, $sql, $params);
+        $build = sqlsrv_query($conn, $sqlBuild, $paramsBuild);
+        if ($build === false) { sqlsrv_rollback($conn); return false; }
+        sqlsrv_free_stmt($build);
+
+        // Paso 2: INSERT al cache desde el temp + dims de producto (#refs) y bodega (Bodegas).
+        // Misma regla ADMIN/CEDI que antes (documentada en la cabecera del archivo), mismo
+        // INNER JOIN #refs (poda por universo de proveedor), dims guardadas RAW.
+        $sqlInsert = "
+  INSERT INTO INTEGRACION.dbo.o14_cache_base
+    (cache_key,cia,bodega,negocio,referencia,color,talla,siembra,disponible,hold,ventas,
+     marca,tipo,categoria,subcategoria,genero,publico_objetivo,
+     grupo,nombre,centro_comercial,depto,ciudad)
+  SELECT ?, b.cia,b.bodega,b.negocio,b.referencia,b.color,b.talla,b.siembra,b.disponible,b.hold,b.ventas,
+         r.MARCA,r.TIPO,r.CATEGORIA,r.SUBCATEGORIA,r.GENERO,r.PUBLICO_OBJETIVO,
+         bo.GRUPO,bo.NOMBRE,bo.CENTRO_COMERCIAL,bo.DEPTO,bo.CIUDAD
+  FROM #o14mat b
+   INNER JOIN #refs r ON r.REFERENCIA = b.referencia
+   LEFT  JOIN INTEGRACION.dbo.Bodegas bo WITH (NOLOCK) ON bo.COD = b.bodega AND RIGHT('000'+rtrim(bo.CIA),3) = b.cia
+  WHERE (ISNULL(bo.GRUPO,'') <> 'ADMINISTRATIVAS' OR b.bodega = 'CEDI')";
+
+        $ins = sqlsrv_query($conn, $sqlInsert, [$key]);
         if ($ins === false) { sqlsrv_rollback($conn); return false; }
         sqlsrv_free_stmt($ins);
+
+        $dropEnd = sqlsrv_query($conn, "IF OBJECT_ID('tempdb..#o14mat') IS NOT NULL DROP TABLE #o14mat;");
+        if ($dropEnd === false) { sqlsrv_rollback($conn); return false; }
+        sqlsrv_free_stmt($dropEnd);
 
         return sqlsrv_commit($conn); // libera el applock
     }
