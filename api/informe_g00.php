@@ -510,7 +510,7 @@ if ($tab === 'tiendas') {
                    ISNULL(c.GRUPO, 'SIN GRUPO') AS GRUPO,
                    c.REFERENCIA,
                    ISNULL(c.COLOR, '')          AS COLOR
-            FROM INTEGRACION.dbo.g00_cache_ventas c WITH (NOLOCK)
+            FROM INTEGRACION.dbo.g00_cache_ventas c
             WHERE c.cache_key = ? AND (c.FECHA BETWEEN ? AND ? OR c.FECHA BETWEEN ? AND ?)
               $filtroExtraC
               $sameStoreClauseC
@@ -630,7 +630,7 @@ if ($tab === 'periodos') {
         $sameStorePeriodosC = str_replace('v.', 'c.', $sameStorePeriodos);
         $periPrefix = '';
         $periFromWhere = "
-        FROM INTEGRACION.dbo.g00_cache_ventas c WITH (NOLOCK)
+        FROM INTEGRACION.dbo.g00_cache_ventas c
         WHERE c.cache_key = ?
           $filtroExtraC
           $sameStorePeriodosC";
@@ -720,7 +720,7 @@ if ($tab === 'productos') {
                    ISNULL(c.SUBCATEGORIA,'')     AS SUBCATEGORIA,
                    ISNULL(c.GENERO,'')           AS GENERO,
                    ISNULL(c.PUBLICO_OBJETIVO,'') AS PUBLICO
-            FROM INTEGRACION.dbo.g00_cache_ventas c WITH (NOLOCK)
+            FROM INTEGRACION.dbo.g00_cache_ventas c
             WHERE c.cache_key = ? AND (c.FECHA BETWEEN ? AND ? OR c.FECHA BETWEEN ? AND ?)
               $filtroExtraC
               $sameStoreClauseC
@@ -830,7 +830,7 @@ if ($nocache) {
                ISNULL(c.GRUPO, 'SIN GRUPO') AS GRUPO,
                c.MARCA AS MARCA,
                c.TIPO  AS TIPO
-        FROM INTEGRACION.dbo.g00_cache_ventas c WITH (NOLOCK)
+        FROM INTEGRACION.dbo.g00_cache_ventas c
         WHERE c.cache_key = ? AND (c.FECHA BETWEEN ? AND ? OR c.FECHA BETWEEN ? AND ?)
           $filtroExtraC
           $sameStoreClauseC
@@ -940,7 +940,7 @@ if ($nocache) {
         SELECT c.FECHA, c.BODEGA, c.CANTIDAD, c.VALOR,
                ISNULL(c.GRUPO, 'SIN GRUPO') AS GRUPO,
                CASE WHEN c.FECHA BETWEEN ? AND ? THEN MONTH(c.FECHA) ELSE $mesAntExpr END AS mes
-        FROM INTEGRACION.dbo.g00_cache_ventas c WITH (NOLOCK)
+        FROM INTEGRACION.dbo.g00_cache_ventas c
         WHERE c.cache_key = ? AND (c.FECHA BETWEEN ? AND ? OR c.FECHA BETWEEN ? AND ?)
           $filtroExtraC
           $sameStoreClauseC

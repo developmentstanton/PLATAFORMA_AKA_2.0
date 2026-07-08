@@ -260,7 +260,7 @@ if (!function_exists('countTiendasSiembraCache')) {
         $fc = str_replace(['i.', 'v.', 'b.'], 'c.', $filtroExtra);
         $sql = "
           SELECT COUNT(DISTINCT c.BODEGA) n
-          FROM INTEGRACION.dbo.g00_cache_siembra c WITH (NOLOCK)
+          FROM INTEGRACION.dbo.g00_cache_siembra c
           WHERE c.cache_key = ?
             AND c.q > 0
             AND ISNULL(c.GRUPO,'') NOT IN ('BODEGA','ADMINISTRATIVAS')
