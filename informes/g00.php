@@ -535,7 +535,7 @@
                 plugins: ['remove_button'],
                 maxOptions: 1000,
                 placeholder: 'Todas',
-                onChange: () => { refreshOptions(); }
+                onChange: () => { refreshOptions(); g00AutoAplicar(); }
             });
         });
         initSeg('g00-cal');
@@ -1353,6 +1353,17 @@
         Object.keys(tabState).forEach(k => tabState[k] = false);
         loadCurrentTab();
     };
+
+    // Auto-aplicar filtros de dimensión con debounce: al cambiar un filtro recarga sola
+    // tras una pausa breve (agrupa cambios múltiples en un solo fetch). El cache hace ese
+    // g00Load() rápido (~0,3-2s cache-hit). No dispara durante la cascada de opciones.
+    // El botón "Aplicar" sigue disponible para forzar la carga inmediata.
+    let g00AplicarTimer = null;
+    function g00AutoAplicar() {
+        if (cascadeBusy) return;
+        clearTimeout(g00AplicarTimer);
+        g00AplicarTimer = setTimeout(g00Load, 400);
+    }
 
     let filtrosInit = false;
     window.g00OnEnter = function () {
