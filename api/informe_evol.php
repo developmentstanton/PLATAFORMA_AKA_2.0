@@ -49,11 +49,56 @@ function run($c,$sql,$p=[]) { $s=sqlsrv_query($c,$sql,$p); if($s===false) return
   $r=[]; while($x=sqlsrv_fetch_array($s,SQLSRV_FETCH_ASSOC))$r[]=$x; sqlsrv_free_stmt($s); return $r; }
 function jsonFail($rows,$c){ http_response_code(500); echo json_encode(['ok'=>false,'error'=>'Consulta fallida','detalle'=>$rows['error']??$rows]); sqlsrv_close($c); exit; }
 
+/** Arma el WHERE de filtros (REF/negocio/BOD) sobre las columnas del cache (prefijo `c.`) + sus
+ *  params. Espejo en tiempo de lectura de los DELETE de #refs/#base del camino vivo (nocache).
+ *  Columnas del cache en minúscula (strtolower del valor de $FILTROS_*): tienda→nombre,
+ *  publico→publico_objetivo, etc. BOD conserva CEDI igual que el DELETE del endpoint
+ *  (c.bodega='CEDI' pasa siempre). */
+function construirFiltrosCache() {
+    global $FILTROS_REF, $FILTROS_BOD;
+    $where = ''; $params = [];
+    foreach ($FILTROS_REF as $key => $col) {
+        $vals = getMulti($key); if (!$vals) continue;
+        $ph = implode(',', array_fill(0, count($vals), '?'));
+        $where .= " AND c." . strtolower($col) . " IN ($ph)";
+        $params = array_merge($params, $vals);
+    }
+    $negVals = getMulti('negocio');
+    if ($negVals) {
+        $ph = implode(',', array_fill(0, count($negVals), '?'));
+        $where .= " AND c.negocio IN ($ph)";
+        $params = array_merge($params, $negVals);
+    }
+    foreach ($FILTROS_BOD as $key => $col) {
+        $vals = getMulti($key); if (!$vals) continue;
+        $ph = implode(',', array_fill(0, count($vals), '?'));
+        $where .= " AND (c.bodega = 'CEDI' OR ISNULL(c." . strtolower($col) . ",'') IN ($ph))";
+        $params = array_merge($params, $vals);
+    }
+    return [$where, $params];
+}
+
 // --- #refs del proveedor (cache compartida g00_refs_*) ---
 if (!buildRefsFromMat($dbConnect, $proveedor)) jsonFail(['error'=>sqlsrv_errors()], $dbConnect);
 
-// Filtros de dimensión (podan #refs). En tab=filtros NO se podan (catálogo completo).
-if ($tab === 'data') {
+// Camino cache-first (default) vs camino vivo/oráculo (?nocache=1). Solo tab=data usa cache;
+// 'filtros' y tabs desconocidos siguen el camino vivo (build de #base). En modo cache #refs NO se
+// poda (el cache guarda el universo del proveedor); los filtros REF/negocio/BOD se aplican como
+// WHERE en tiempo de lectura (construirFiltrosCache), no como DELETE.
+$nocache   = !empty($_GET['nocache']);
+$cacheMode = !$nocache && ($tab === 'data');
+$ekey = null; $whereFiltros = ''; $paramsFiltros = [];
+if ($cacheMode) {
+    require_once __DIR__ . '/lib_evol_cache.php';
+    // $desdeMes/$hastaMes YA normalizados arriba (:19-22): la key y el contenido cacheado son 1:1.
+    $ekey = evolCacheKey($proveedor, $desdeMes, $hastaMes);
+    if (!ensureEvolCacheBase($dbConnect, $ekey, $desdeMes, $hastaMes)) jsonFail(['error'=>sqlsrv_errors()], $dbConnect);
+    evolCacheCleanup($dbConnect);
+    [$whereFiltros, $paramsFiltros] = construirFiltrosCache();
+}
+
+// Filtros de dimensión (podan #refs). En tab=filtros/cache NO se podan (catálogo/universo completo).
+if (!$cacheMode && $tab === 'data') {
     foreach ($FILTROS_REF as $key => $col) {
         $vals = getMulti($key); if (!$vals) continue;
         $ph = implode(',', array_fill(0, count($vals), '?'));
@@ -62,6 +107,9 @@ if ($tab === 'data') {
     }
 }
 
+// En modo cache NO se construye #base ni se aplican los DELETE de filtros: tab=data lee directo del
+// cache con filtros como WHERE. Este bloque es el camino vivo (nocache) y el de 'filtros'.
+if (!$cacheMode) {
 // === #base a granularidad (negocio, mes, cia, bodega): cada fila aporta UNA medida; se agrega al final. ===
 $cre = sqlsrv_query($dbConnect, "CREATE TABLE #base (negocio varchar(120), mes char(7), cia varchar(10),
     bodega varchar(20), referencia varchar(50), color varchar(40), ventas int, compras int, stock int)");
@@ -171,6 +219,7 @@ if ($tab === 'data') {
         if ($x===false) jsonFail(['error'=>sqlsrv_errors()], $dbConnect); else sqlsrv_free_stmt($x);
     }
 }
+} // fin del bloque !$cacheMode (build #base + DELETE ADMIN + filtros negocio/BOD)
 
 // ===== tab=filtros: catálogo del universo del proveedor (idéntico a O45, cache evol_filtros_*) =====
 if ($tab === 'filtros') {
@@ -200,24 +249,45 @@ if ($tab === 'filtros') {
 }
 
 // ===== tab=data: agregación por (negocio, mes) y ensamble tidy =====
-$agg = run($dbConnect, "
-  WITH perbod AS (
-    SELECT b.negocio, b.mes, b.cia, b.bodega, MAX(b.referencia) referencia, MAX(b.color) color,
-           SUM(b.ventas) ventas, SUM(b.compras) compras, SUM(b.stock) stock
-    FROM #base b GROUP BY b.negocio, b.mes, b.cia, b.bodega )
-  SELECT pb.negocio, pb.mes, MAX(pb.referencia) referencia, MAX(pb.color) color,
-         SUM(pb.ventas) ventas, SUM(pb.compras) compras, SUM(pb.stock) stock,
-         COUNT(DISTINCT CASE WHEN pb.stock>0 AND ISNULL(bo.GRUPO,'') NOT IN ('BODEGA','ADMINISTRATIVAS')
-                              THEN pb.cia+'-'+pb.bodega END) tiendas
-  FROM perbod pb
-   LEFT JOIN INTEGRACION.dbo.Bodegas bo WITH (NOLOCK) ON bo.COD=pb.bodega AND RIGHT('000'+rtrim(bo.CIA),3)=pb.cia
-  GROUP BY pb.negocio, pb.mes
-  ORDER BY pb.negocio, pb.mes");
+// En modo cache la fuente es el cache denormalizado (grupo es columna → sin LEFT JOIN Bodegas);
+// en nocache es #base + LEFT JOIN Bodegas. Mismo GROUP BY/pivot en ambos.
+if ($cacheMode) {
+    $agg = run($dbConnect, "
+      WITH perbod AS (
+        SELECT c.negocio, c.mes, c.cia, c.bodega, MAX(c.referencia) referencia, MAX(c.color) color,
+               SUM(c.ventas) ventas, SUM(c.compras) compras, SUM(c.stock) stock, MAX(ISNULL(c.grupo,'')) grupo
+        FROM INTEGRACION.dbo.evol_cache_base c
+        WHERE c.cache_key=? $whereFiltros
+        GROUP BY c.negocio, c.mes, c.cia, c.bodega )
+      SELECT pb.negocio, pb.mes, MAX(pb.referencia) referencia, MAX(pb.color) color,
+             SUM(pb.ventas) ventas, SUM(pb.compras) compras, SUM(pb.stock) stock,
+             COUNT(DISTINCT CASE WHEN pb.stock>0 AND pb.grupo NOT IN ('BODEGA','ADMINISTRATIVAS')
+                                  THEN pb.cia+'-'+pb.bodega END) tiendas
+      FROM perbod pb
+      GROUP BY pb.negocio, pb.mes
+      ORDER BY pb.negocio, pb.mes", array_merge([$ekey], $paramsFiltros));
+} else {
+    $agg = run($dbConnect, "
+      WITH perbod AS (
+        SELECT b.negocio, b.mes, b.cia, b.bodega, MAX(b.referencia) referencia, MAX(b.color) color,
+               SUM(b.ventas) ventas, SUM(b.compras) compras, SUM(b.stock) stock
+        FROM #base b GROUP BY b.negocio, b.mes, b.cia, b.bodega )
+      SELECT pb.negocio, pb.mes, MAX(pb.referencia) referencia, MAX(pb.color) color,
+             SUM(pb.ventas) ventas, SUM(pb.compras) compras, SUM(pb.stock) stock,
+             COUNT(DISTINCT CASE WHEN pb.stock>0 AND ISNULL(bo.GRUPO,'') NOT IN ('BODEGA','ADMINISTRATIVAS')
+                                  THEN pb.cia+'-'+pb.bodega END) tiendas
+      FROM perbod pb
+       LEFT JOIN INTEGRACION.dbo.Bodegas bo WITH (NOLOCK) ON bo.COD=pb.bodega AND RIGHT('000'+rtrim(bo.CIA),3)=pb.cia
+      GROUP BY pb.negocio, pb.mes
+      ORDER BY pb.negocio, pb.mes");
+}
 if (isset($agg['error'])) jsonFail($agg, $dbConnect);
 
 // marca por negocio (para columna/Excel y sort estable)
 $marcaMap = [];
-$rm = run($dbConnect, "SELECT b.negocio, MAX(r.MARCA) marca FROM #base b INNER JOIN #refs r ON r.REFERENCIA=b.referencia GROUP BY b.negocio");
+$rm = $cacheMode
+  ? run($dbConnect, "SELECT c.negocio, MAX(c.marca) marca FROM INTEGRACION.dbo.evol_cache_base c WHERE c.cache_key=? $whereFiltros GROUP BY c.negocio", array_merge([$ekey], $paramsFiltros))
+  : run($dbConnect, "SELECT b.negocio, MAX(r.MARCA) marca FROM #base b INNER JOIN #refs r ON r.REFERENCIA=b.referencia GROUP BY b.negocio");
 if (!isset($rm['error'])) foreach ($rm as $x) $marcaMap[$x['negocio']] = trim((string)$x['marca']);
 
 // días por mes: mes pasado = días del mes; mes en curso = día de AYER (corte O45).
@@ -255,17 +325,33 @@ usort($negocios, fn($a,$b) => $b['totales']['ventas'] <=> $a['totales']['ventas'
 // === TOTAL general por mes (todos los negocios). Ingreso/Ventas/Stock = suma;
 //     Tiendas = conteo distinto de tiendas con inventario (NO suma, evita doble conteo);
 //     Meses de Inv e Índice se RECALCULAN sobre los totales (mismas fórmulas por-negocio). ===
-$aggTot = run($dbConnect, "
-  WITH perbod AS (
-    SELECT b.mes, b.cia, b.bodega, SUM(b.ventas) ventas, SUM(b.compras) compras, SUM(b.stock) stock
-    FROM #base b GROUP BY b.mes, b.cia, b.bodega )
-  SELECT pb.mes,
-         SUM(pb.ventas) ventas, SUM(pb.compras) compras, SUM(pb.stock) stock,
-         COUNT(DISTINCT CASE WHEN pb.stock>0 AND ISNULL(bo.GRUPO,'') NOT IN ('BODEGA','ADMINISTRATIVAS')
-                              THEN pb.cia+'-'+pb.bodega END) tiendas
-  FROM perbod pb
-   LEFT JOIN INTEGRACION.dbo.Bodegas bo WITH (NOLOCK) ON bo.COD=pb.bodega AND RIGHT('000'+rtrim(bo.CIA),3)=pb.cia
-  GROUP BY pb.mes");
+if ($cacheMode) {
+    $aggTot = run($dbConnect, "
+      WITH perbod AS (
+        SELECT c.mes, c.cia, c.bodega, SUM(c.ventas) ventas, SUM(c.compras) compras, SUM(c.stock) stock,
+               MAX(ISNULL(c.grupo,'')) grupo
+        FROM INTEGRACION.dbo.evol_cache_base c
+        WHERE c.cache_key=? $whereFiltros
+        GROUP BY c.mes, c.cia, c.bodega )
+      SELECT pb.mes,
+             SUM(pb.ventas) ventas, SUM(pb.compras) compras, SUM(pb.stock) stock,
+             COUNT(DISTINCT CASE WHEN pb.stock>0 AND pb.grupo NOT IN ('BODEGA','ADMINISTRATIVAS')
+                                  THEN pb.cia+'-'+pb.bodega END) tiendas
+      FROM perbod pb
+      GROUP BY pb.mes", array_merge([$ekey], $paramsFiltros));
+} else {
+    $aggTot = run($dbConnect, "
+      WITH perbod AS (
+        SELECT b.mes, b.cia, b.bodega, SUM(b.ventas) ventas, SUM(b.compras) compras, SUM(b.stock) stock
+        FROM #base b GROUP BY b.mes, b.cia, b.bodega )
+      SELECT pb.mes,
+             SUM(pb.ventas) ventas, SUM(pb.compras) compras, SUM(pb.stock) stock,
+             COUNT(DISTINCT CASE WHEN pb.stock>0 AND ISNULL(bo.GRUPO,'') NOT IN ('BODEGA','ADMINISTRATIVAS')
+                                  THEN pb.cia+'-'+pb.bodega END) tiendas
+      FROM perbod pb
+       LEFT JOIN INTEGRACION.dbo.Bodegas bo WITH (NOLOCK) ON bo.COD=pb.bodega AND RIGHT('000'+rtrim(bo.CIA),3)=pb.cia
+      GROUP BY pb.mes");
+}
 if (isset($aggTot['error'])) jsonFail($aggTot, $dbConnect);
 
 $totalGeneral = [
