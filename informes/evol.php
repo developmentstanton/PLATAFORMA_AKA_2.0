@@ -71,6 +71,10 @@
   let filtrosInit = false, comboCatalogo = [];
   const DIMS = ['marca','tipo','categoria','subcategoria','genero','publico','negocio','referencia'];
   const tsRef = {};
+
+  // Auto-aplicar al cambiar un filtro de dimensión (rápido gracias al cache). No aplica a desde/hasta (rango de meses = manual).
+  let evolAplicarTimer = null;
+  function evolAutoAplicar(){ clearTimeout(evolAplicarTimer); evolAplicarTimer = setTimeout(evolLoad, 400); }
   const nf  = n => (n==null||n===''?'':Number(n).toLocaleString('es-CO'));
   const nf2 = n => (n==null||n===''?'':Number(n).toLocaleString('es-CO',{minimumFractionDigits:2,maximumFractionDigits:2}));
   const esc = s => (s==null?'':String(s)).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -92,7 +96,7 @@
     const el=document.getElementById(id); if(!el) return;
     const uniq=[...new Set(valores.filter(v=>v!==''&&v!=null))].sort((a,b)=>String(a).localeCompare(String(b)));
     el.innerHTML = uniq.map(v=>'<option value="'+String(v).replace(/"/g,'&quot;')+'">'+esc(labelFn?labelFn(v):v)+'</option>').join('');
-    if (window.TomSelect){ if(tsRef[id]) tsRef[id].destroy(); tsRef[id]=new TomSelect(el,{plugins:['remove_button'],maxOptions:null,placeholder:'Todas'}); }
+    if (window.TomSelect){ if(tsRef[id]) tsRef[id].destroy(); tsRef[id]=new TomSelect(el,{plugins:['remove_button'],maxOptions:null,placeholder:'Todas',onChange:()=>{ evolAutoAplicar(); }}); }
   }
 
   function initFiltros(){
@@ -103,7 +107,7 @@
       comboCatalogo.forEach(c=>{ const nom=c.tienda||''; if(!nom||seen[nom])return; seen[nom]=1; opts.push({nom, cod:c.tienda_cod||''}); });
       opts.sort((a,b)=>a.cod.localeCompare(b.cod));
       tEl.innerHTML = opts.map(o=>'<option value="'+esc(o.nom)+'">'+esc(o.cod)+' - '+esc(o.nom)+'</option>').join('');
-      if (window.TomSelect){ if(tsRef['evol-f-tienda']) tsRef['evol-f-tienda'].destroy(); tsRef['evol-f-tienda']=new TomSelect(tEl,{plugins:['remove_button'],maxOptions:null,placeholder:'Todas'}); }
+      if (window.TomSelect){ if(tsRef['evol-f-tienda']) tsRef['evol-f-tienda'].destroy(); tsRef['evol-f-tienda']=new TomSelect(tEl,{plugins:['remove_button'],maxOptions:null,placeholder:'Todas',onChange:()=>{ evolAutoAplicar(); }}); }
     });
   }
 
