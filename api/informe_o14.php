@@ -90,24 +90,63 @@ function ensamblarArbol($rows) {
     return [$grupos, $tallas, $kpi];
 }
 
-/** KPIs de conteo (red, incluido CEDI) desde #base. */
-function kpiCounts($c) {
+/** KPIs de conteo (red, incluido CEDI). Fuente parametrizable: #base (nocache) o el cache
+ *  (o14_cache_base, alias `c`) con su WHERE de cache_key+filtros. $params se repite por subquery. */
+function kpiCounts($c, $from = "#base", $where = "", $params = []) {
     $r = run($c, "
         SELECT
-          (SELECT COUNT(DISTINCT cia+'|'+negocio) FROM #base)              negocios,
-          (SELECT COUNT(DISTINCT cia+'|'+negocio) FROM #base WHERE siembra>0) negocios_con_siembra,
-          (SELECT COUNT(DISTINCT cia+'-'+bodega)   FROM #base WHERE siembra>0) tiendas_con_siembra,
-          (SELECT COUNT(DISTINCT cia+'-'+bodega)   FROM #base WHERE disponible>0) tiendas_con_inv,
-          (SELECT COUNT(DISTINCT cia+'-'+bodega)   FROM #base WHERE ventas<>0) tiendas_con_venta");
+          (SELECT COUNT(DISTINCT cia+'|'+negocio) FROM $from WHERE 1=1 $where)                 negocios,
+          (SELECT COUNT(DISTINCT cia+'|'+negocio) FROM $from WHERE 1=1 $where AND siembra>0)    negocios_con_siembra,
+          (SELECT COUNT(DISTINCT cia+'-'+bodega)   FROM $from WHERE 1=1 $where AND siembra>0)    tiendas_con_siembra,
+          (SELECT COUNT(DISTINCT cia+'-'+bodega)   FROM $from WHERE 1=1 $where AND disponible>0) tiendas_con_inv,
+          (SELECT COUNT(DISTINCT cia+'-'+bodega)   FROM $from WHERE 1=1 $where AND ventas<>0)    tiendas_con_venta",
+        array_merge($params, $params, $params, $params, $params));
     if (isset($r['error']) || !$r) return [];
     return array_map('intval', $r[0]);
+}
+
+/** Arma el WHERE de filtros (REF/SKU/BOD) sobre las columnas del cache (prefijo `c.`) + sus params.
+ *  Espejo en tiempo de lectura de los DELETE de #refs/#base del camino nocache. Columnas del cache
+ *  en minúscula (lower del valor de $FILTROS_*): tienda→nombre, publico→publico_objetivo, etc.
+ *  BOD conserva CEDI igual que el DELETE del endpoint (b.bodega<>'CEDI'). */
+function construirFiltrosCache() {
+    global $FILTROS_REF, $FILTROS_SKU, $FILTROS_BOD;
+    $where = ''; $params = [];
+    foreach (array_merge($FILTROS_REF, $FILTROS_SKU) as $key => $col) {
+        $vals = getMulti($key); if (!$vals) continue;
+        $ph = implode(',', array_fill(0, count($vals), '?'));
+        $where .= " AND c." . strtolower($col) . " IN ($ph)";
+        $params = array_merge($params, $vals);
+    }
+    foreach ($FILTROS_BOD as $key => $col) {
+        $vals = getMulti($key); if (!$vals) continue;
+        $ph = implode(',', array_fill(0, count($vals), '?'));
+        $where .= " AND (c.bodega = 'CEDI' OR ISNULL(c." . strtolower($col) . ",'') IN ($ph))";
+        $params = array_merge($params, $vals);
+    }
+    return [$where, $params];
 }
 
 // --- #refs del proveedor ---
 if (!buildRefsFromMat($dbConnect, $proveedor)) jsonFail(['error'=>sqlsrv_errors()], $dbConnect);
 
+// Camino cache-first (default) vs camino vivo/oráculo (?nocache=1). El cache solo aplica a los tabs
+// que re-agregan #base (b/c/reco); 'filtros' y tabs desconocidos siguen el camino de siempre.
+$nocache   = !empty($_GET['nocache']);
+$cacheMode = !$nocache && ($tab === 'b' || $tab === 'c' || $tab === 'reco');
+$okey = null; $whereFiltros = ''; $paramsFiltros = [];
+if ($cacheMode) {
+    require_once __DIR__ . '/lib_o14_cache.php';
+    // #refs NO se poda: el cache guarda el universo completo del proveedor; los filtros de REF/SKU/BOD
+    // se aplican como WHERE en tiempo de lectura (construirFiltrosCache), no como DELETE.
+    $okey = o14CacheKey($proveedor, $desde, $hasta);
+    if (!ensureO14CacheBase($dbConnect, $okey, $desde, $hasta)) jsonFail(['error'=>sqlsrv_errors()], $dbConnect);
+    o14CacheCleanup($dbConnect);
+    [$whereFiltros, $paramsFiltros] = construirFiltrosCache();
+}
+
 // Filtros de dimensión de referencia: podar #refs → cae en las 4 fuentes (todas la inner-joinan).
-if ($tab === 'b' || $tab === 'c' || $tab === 'reco') {   // producto/SKU acotan B/C/KPIs y reco; bodega solo B/C
+if (!$cacheMode && ($tab === 'b' || $tab === 'c' || $tab === 'reco')) {   // producto/SKU acotan B/C/KPIs y reco; bodega solo B/C
     foreach ($FILTROS_REF as $key => $col) {
         $vals = getMulti($key); if (!$vals) continue;
         $ph = implode(',', array_fill(0, count($vals), '?'));
@@ -116,6 +155,9 @@ if ($tab === 'b' || $tab === 'c' || $tab === 'reco') {   // producto/SKU acotan 
     }
 }
 
+// En modo cache NO se construye #base ni se aplican los DELETE de filtros: los tabs leen directo
+// del cache con filtros como WHERE. Este bloque es el camino vivo (nocache) y el de 'filtros'.
+if (!$cacheMode) {
 // --- #base unificada (CREATE separado + WITH...INSERT; cia normalizada a 3 díg) ---
 // Ventas se incluye en el UNIVERSO de filas (no solo siembra/disp/hold) para no perder tiendas/negocios
 // con inventario cero hoy pero con ventas en el período. Se omite en 'reco' (no la usa) por rendimiento.
@@ -226,6 +268,7 @@ if ($tab === 'b' || $tab === 'c' || $tab === 'reco') {
         if ($d === false) jsonFail(['error'=>sqlsrv_errors()], $dbConnect); else sqlsrv_free_stmt($d);
     }
 }
+} // fin del bloque !$cacheMode (build #base + DELETE ADMIN/SKU/BOD)
 
 // ====================================================================
 // TAB FILTROS — catálogo (combos + sku) del universo del proveedor para la cascada.
@@ -275,24 +318,45 @@ if ($tab === 'filtros') {
 // TAB B — por negocio (cia, ref-color); excluye CEDI
 // ====================================================================
 if ($tab === 'b') {
-    $agg = run($dbConnect, "
-        SELECT cia + '|' + negocio kb, cia, negocio, referencia, color, talla,
-               SUM(siembra) siembra, SUM(disponible) disponible, SUM(hold) hold, SUM(ventas) ventas
-        FROM #base
-        GROUP BY cia, negocio, referencia, color, talla
-        ORDER BY negocio");
+    if ($cacheMode) {
+        $agg = run($dbConnect, "
+            SELECT c.cia + '|' + c.negocio kb, c.cia, c.negocio, c.referencia, c.color, c.talla,
+                   SUM(c.siembra) siembra, SUM(c.disponible) disponible, SUM(c.hold) hold, SUM(c.ventas) ventas
+            FROM INTEGRACION.dbo.o14_cache_base c
+            WHERE c.cache_key=? $whereFiltros
+            GROUP BY c.cia, c.negocio, c.referencia, c.color, c.talla
+            ORDER BY c.negocio", array_merge([$okey], $paramsFiltros));
+    } else {
+        $agg = run($dbConnect, "
+            SELECT cia + '|' + negocio kb, cia, negocio, referencia, color, talla,
+                   SUM(siembra) siembra, SUM(disponible) disponible, SUM(hold) hold, SUM(ventas) ventas
+            FROM #base
+            GROUP BY cia, negocio, referencia, color, talla
+            ORDER BY negocio");
+    }
     if (isset($agg['error'])) jsonFail($agg, $dbConnect);
 
     [$filas, $tallas, $kpi] = ensamblarTidy($agg, 'kb');
     $kpi['negocios']    = count($filas);
     $kpi['total_stock'] = $kpi['disponible'] + $kpi['hold'];
 
-    $cnt = run($dbConnect, "
-        SELECT
-          (SELECT COUNT(DISTINCT cia+'|'+negocio) FROM #base WHERE siembra>0)    negocios_con_siembra,
-          (SELECT COUNT(DISTINCT cia+'-'+bodega)   FROM #base WHERE siembra>0)    tiendas_con_siembra,
-          (SELECT COUNT(DISTINCT cia+'-'+bodega)   FROM #base WHERE disponible>0) tiendas_con_inv,
-          (SELECT COUNT(DISTINCT cia+'-'+bodega)   FROM #base WHERE ventas<>0)    tiendas_con_venta");
+    if ($cacheMode) {
+        $pF = array_merge([$okey], $paramsFiltros);
+        $cnt = run($dbConnect, "
+            SELECT
+              (SELECT COUNT(DISTINCT cia+'|'+negocio) FROM INTEGRACION.dbo.o14_cache_base c WHERE c.cache_key=? $whereFiltros AND c.siembra>0)    negocios_con_siembra,
+              (SELECT COUNT(DISTINCT cia+'-'+bodega)   FROM INTEGRACION.dbo.o14_cache_base c WHERE c.cache_key=? $whereFiltros AND c.siembra>0)    tiendas_con_siembra,
+              (SELECT COUNT(DISTINCT cia+'-'+bodega)   FROM INTEGRACION.dbo.o14_cache_base c WHERE c.cache_key=? $whereFiltros AND c.disponible>0) tiendas_con_inv,
+              (SELECT COUNT(DISTINCT cia+'-'+bodega)   FROM INTEGRACION.dbo.o14_cache_base c WHERE c.cache_key=? $whereFiltros AND c.ventas<>0)    tiendas_con_venta",
+            array_merge($pF, $pF, $pF, $pF));
+    } else {
+        $cnt = run($dbConnect, "
+            SELECT
+              (SELECT COUNT(DISTINCT cia+'|'+negocio) FROM #base WHERE siembra>0)    negocios_con_siembra,
+              (SELECT COUNT(DISTINCT cia+'-'+bodega)   FROM #base WHERE siembra>0)    tiendas_con_siembra,
+              (SELECT COUNT(DISTINCT cia+'-'+bodega)   FROM #base WHERE disponible>0) tiendas_con_inv,
+              (SELECT COUNT(DISTINCT cia+'-'+bodega)   FROM #base WHERE ventas<>0)    tiendas_con_venta");
+    }
     if (!isset($cnt['error']) && $cnt) {
         $kpi['negocios_con_siembra']=(int)$cnt[0]['negocios_con_siembra'];
         $kpi['tiendas_con_siembra']=(int)$cnt[0]['tiendas_con_siembra'];
@@ -311,22 +375,39 @@ if ($tab === 'b') {
 // TAB C — árbol Grupo → Almacén → Negocio (todos los negocios); CEDI dentro de su grupo real (BODEGA)
 // ====================================================================
 if ($tab === 'c') {
-    $rows = run($dbConnect, "
-        SELECT
-          ISNULL(bo.GRUPO,'SIN GRUPO') grupo,
-          (b.cia + '-' + b.bodega) llave, b.cia, b.bodega,
-          ISNULL(bo.NOMBRE, b.bodega) nombre, b.negocio, b.referencia, b.color, b.talla,
-          SUM(b.siembra) siembra, SUM(b.disponible) disponible, SUM(b.hold) hold, SUM(b.ventas) ventas
-        FROM #base b
-         LEFT JOIN INTEGRACION.dbo.Bodegas bo WITH (NOLOCK) ON bo.COD=b.bodega AND RIGHT('000'+rtrim(bo.CIA),3)=b.cia
-        GROUP BY ISNULL(bo.GRUPO,'SIN GRUPO'),
-                 b.cia, b.bodega, bo.NOMBRE, b.negocio, b.referencia, b.color, b.talla
-        ORDER BY ISNULL(bo.GRUPO,'SIN GRUPO'), llave, b.negocio");
+    if ($cacheMode) {
+        // grupo/nombre son columnas del cache: sin LEFT JOIN Bodegas. ISNULL igual que el endpoint.
+        $rows = run($dbConnect, "
+            SELECT
+              ISNULL(c.grupo,'SIN GRUPO') grupo,
+              (c.cia + '-' + c.bodega) llave, c.cia, c.bodega,
+              ISNULL(c.nombre, c.bodega) nombre, c.negocio, c.referencia, c.color, c.talla,
+              SUM(c.siembra) siembra, SUM(c.disponible) disponible, SUM(c.hold) hold, SUM(c.ventas) ventas
+            FROM INTEGRACION.dbo.o14_cache_base c
+            WHERE c.cache_key=? $whereFiltros
+            GROUP BY ISNULL(c.grupo,'SIN GRUPO'),
+                     c.cia, c.bodega, ISNULL(c.nombre,c.bodega), c.negocio, c.referencia, c.color, c.talla
+            ORDER BY ISNULL(c.grupo,'SIN GRUPO'), (c.cia+'-'+c.bodega), c.negocio", array_merge([$okey], $paramsFiltros));
+    } else {
+        $rows = run($dbConnect, "
+            SELECT
+              ISNULL(bo.GRUPO,'SIN GRUPO') grupo,
+              (b.cia + '-' + b.bodega) llave, b.cia, b.bodega,
+              ISNULL(bo.NOMBRE, b.bodega) nombre, b.negocio, b.referencia, b.color, b.talla,
+              SUM(b.siembra) siembra, SUM(b.disponible) disponible, SUM(b.hold) hold, SUM(b.ventas) ventas
+            FROM #base b
+             LEFT JOIN INTEGRACION.dbo.Bodegas bo WITH (NOLOCK) ON bo.COD=b.bodega AND RIGHT('000'+rtrim(bo.CIA),3)=b.cia
+            GROUP BY ISNULL(bo.GRUPO,'SIN GRUPO'),
+                     b.cia, b.bodega, bo.NOMBRE, b.negocio, b.referencia, b.color, b.talla
+            ORDER BY ISNULL(bo.GRUPO,'SIN GRUPO'), llave, b.negocio");
+    }
     if (isset($rows['error'])) jsonFail($rows, $dbConnect);
 
     [$grupos, $tallas, $kpi] = ensamblarArbol($rows);
     $kpi['total_stock'] = $kpi['disponible'] + $kpi['hold'];
-    $kpi = array_merge($kpi, kpiCounts($dbConnect));
+    $kpi = array_merge($kpi, $cacheMode
+        ? kpiCounts($dbConnect, "INTEGRACION.dbo.o14_cache_base c", " AND c.cache_key=? $whereFiltros", array_merge([$okey], $paramsFiltros))
+        : kpiCounts($dbConnect));
     sqlsrv_close($dbConnect);
     echo json_encode(['ok'=>true,'tab'=>'c','rango'=>['desde'=>$desde,'hasta'=>$hasta],
         'tallas'=>$tallas,'medidas'=>['siembra','disponible','hold','disphold','sobrante','faltante','ventas'],
@@ -340,11 +421,20 @@ if ($tab === 'c') {
 if ($tab === 'reco') {
     require __DIR__ . '/o14_recomendador.php';
     // Reco GENERAL: corre el motor por (cia, negocio) sobre #base filtrado (producto/SKU y bodega).
-    $rows = run($dbConnect, "
-        SELECT cia, bodega, negocio, referencia, color, talla,
-               SUM(siembra) siembra, SUM(disponible) disponible, SUM(hold) hold
-        FROM #base
-        GROUP BY cia, bodega, negocio, referencia, color, talla");
+    if ($cacheMode) {
+        $rows = run($dbConnect, "
+            SELECT c.cia, c.bodega, c.negocio, c.referencia, c.color, c.talla,
+                   SUM(c.siembra) siembra, SUM(c.disponible) disponible, SUM(c.hold) hold
+            FROM INTEGRACION.dbo.o14_cache_base c
+            WHERE c.cache_key=? $whereFiltros
+            GROUP BY c.cia, c.bodega, c.negocio, c.referencia, c.color, c.talla", array_merge([$okey], $paramsFiltros));
+    } else {
+        $rows = run($dbConnect, "
+            SELECT cia, bodega, negocio, referencia, color, talla,
+                   SUM(siembra) siembra, SUM(disponible) disponible, SUM(hold) hold
+            FROM #base
+            GROUP BY cia, bodega, negocio, referencia, color, talla");
+    }
     if (isset($rows['error'])) jsonFail($rows, $dbConnect);
 
     // Agrupar por (cia, negocio): tiendas (no-CEDI) + cedi (disponible).
