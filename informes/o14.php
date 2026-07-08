@@ -178,9 +178,17 @@
     });
     cascadeBusy = false;
   }
+  // o14Load() rápido (~cache-hit). No dispara durante la cascada de opciones.
+  // El botón "Aplicar" sigue disponible para forzar la carga inmediata.
+  let o14AplicarTimer = null;
+  function o14AutoAplicar() {
+    if (cascadeBusy) return;
+    clearTimeout(o14AplicarTimer);
+    o14AplicarTimer = setTimeout(o14Load, 400);
+  }
   function initFiltros() {
     FILTER_FIELDS.forEach(field => {
-      tom[field] = new TomSelect('#o14-f-' + field, { plugins:['remove_button'], maxOptions:1000, placeholder:'Todas', onChange:()=>refreshOptions() });
+      tom[field] = new TomSelect('#o14-f-' + field, { plugins:['remove_button'], maxOptions:1000, placeholder:'Todas', onChange:()=>{ refreshOptions(); o14AutoAplicar(); } });
     });
     fetch('api/informe_o14.php?tab=filtros', { credentials:'same-origin' })
       .then(r=>r.json()).then(data => { combos = (data&&data.combos)?data.combos:[]; sku = (data&&data.sku)?data.sku:[]; refreshOptions(); })
