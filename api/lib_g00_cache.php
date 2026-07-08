@@ -56,9 +56,32 @@ if (!function_exists('g00CteVentasCache')) {
 }
 
 if (!function_exists('g00CacheFresco')) {
-    // ¿Hay cache fresco (dentro del TTL) para esta key? Lectura NOLOCK, sin transacción.
+    /**
+     * ¿Hay cache fresco (dentro del TTL) para esta key?
+     *
+     * Lectura con WITH (READPAST) — NO NOLOCK — a propósito (fix concurrencia 2026-07-08):
+     * NOLOCK (READ UNCOMMITTED) puede leer filas SIN COMMITEAR de un rebuild EN VUELO. Si el
+     * request Y está reconstruyendo esta key (DELETE + INSERT ~2.5s dentro de su transacción,
+     * cada fila insertada con creado=SYSDATETIME() fresco), un lector Z que use NOLOCK vería
+     * esas filas frescas-pero-no-commiteadas -> creería "fresco" -> saltaría su propio ensure
+     * -> leería un ROW-SET PARCIAL (torn read) -> agregados silenciosamente subestimados.
+     *
+     * READPAST omite las filas con lock de fila (las X-locks que Y mantiene sobre TODAS las
+     * filas de la key durante su transacción: las viejas en DELETE y las nuevas en INSERT).
+     * Efecto: durante el rebuild de Y, este gate ve "no fresco" -> Z entra a la ruta ensure
+     * -> Z bloquea en el sp_getapplock existente hasta que Y comitea -> el re-check IN-LOCK
+     * (que también llama a esta función, ya con Y commiteado) ve filas frescas COMMITEADAS
+     * -> Z hace commit y su lectura posterior de pestaña pega datos totalmente commiteados.
+     * La serialización sigue siendo el applock; nunca se expone un set parcial.
+     *
+     * READPAST exige READ COMMITTED (el isolation por defecto de sqlsrv, tanto en autocommit
+     * del fast-path como dentro de la transacción del re-check) — válido en ambos call-sites.
+     * Se prefiere READPAST sobre una lectura bloqueante (READ COMMITTED sin hint) porque
+     * enruta al segundo request por el applock en vez de dejarlo esperando ~2.5s sobre el
+     * SELECT; el punto de serialización queda uno solo (el applock que ya existía).
+     */
     function g00CacheFresco($conn, $tabla, $key): bool {
-        $sql = "SELECT TOP 1 1 FROM INTEGRACION.dbo.$tabla WITH (NOLOCK)
+        $sql = "SELECT TOP 1 1 FROM INTEGRACION.dbo.$tabla WITH (READPAST)
                 WHERE cache_key=? AND creado > DATEADD(minute, -" . G00_CACHE_TTL_MIN . ", SYSDATETIME())";
         $st = sqlsrv_query($conn, $sql, [$key]);
         if ($st === false) return false;
