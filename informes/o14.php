@@ -35,7 +35,11 @@
       <div class="filter-group"><label>Género</label><select id="o14-f-genero" multiple></select></div>
       <div class="filter-group"><label>Público</label><select id="o14-f-publico" multiple></select></div>
       <div class="filter-group"><label>Negocio</label>
-        <select id="o14-negocio" onchange="o14PickNegocio(this.value)"><option value="">— Todos —</option></select>
+        <div style="display:flex;align-items:center;gap:4px;">
+          <select id="o14-negocio" onchange="o14PickNegocio(this.value)"><option value="">— Todos —</option></select>
+          <button type="button" id="o14-negocio-clear" onclick="o14ClearNegocio()" title="Quitar filtro de negocio" aria-label="Quitar filtro de negocio"
+                  style="display:none;border:none;background:transparent;cursor:pointer;font-size:15px;color:var(--text-light,#888);line-height:1;padding:2px;">✕</button>
+        </div>
       </div>
     </div>
     <div class="g00-filter-row" style="flex-wrap:nowrap;">
@@ -479,6 +483,7 @@
     sel.innerHTML = '<option value="">— Todos —</option>' + opts.map(o=>'<option value="'+esc(o.v)+'">'+esc(o.t)+'</option>').join('');
     if(prev && seen[prev]) sel.value = prev;
     else if(negocioSel.ref && seen[negocioSel.ref+'|'+negocioSel.color]) sel.value = negocioSel.ref+'|'+negocioSel.color;
+    o14SyncNegocioClear();
   }
   // O14B: negocios desde las filas (f.key). O14C: desde el árbol grupos→almacenes→negocios.
   // (Ambas vistas tienen TODOS los negocios; se llena con la que cargue, para que el selector nunca quede vacío.)
@@ -505,6 +510,7 @@
     negocioSel = { ref:ref, color:color };
     document.getElementById('o14-c-sel').textContent = 'Negocio: '+ref+'-'+color;
     const selN = document.getElementById('o14-negocio'); if(selN) selN.value = ref+'|'+color;
+    o14SyncNegocioClear();
     tabState.reco=false; // reco depende del negocio elegido
     const cTab = document.querySelector('#page-informes-o14 .o14-tabs .tab:nth-child(1)');
     o14ShowTab('c', cTab);
@@ -513,6 +519,7 @@
 
   // Selector de la barra: elegir un negocio filtra el árbol de O14C; "— Todos —" muestra todo.
   window.o14PickNegocio = function(value){
+    o14SyncNegocioClear();
     const cTab = document.querySelector('#page-informes-o14 .o14-tabs .tab:nth-child(1)');
     // En Recomendaciones el selector filtra la reco EN SITIO (no salta a C): vacío = general; un negocio = solo ese.
     if(currentTab === 'reco'){
@@ -527,6 +534,17 @@
       if(tabState.c && lastData.c){ shownC=lastData.c; arbolState=null; renderArbol('o14-matriz-c', lastData.c, false); renderKpis(lastData.c.kpis||{}); }
       return; }
     const i = value.indexOf('|'); o14SelectNegocio(value.slice(0,i), value.slice(i+1));
+  };
+
+  // Muestra la ✕ de "quitar negocio" solo cuando hay un negocio elegido (espeja el valor del select).
+  function o14SyncNegocioClear(){
+    const c = document.getElementById('o14-negocio-clear'), s = document.getElementById('o14-negocio');
+    if(c) c.style.display = (s && s.value) ? '' : 'none';
+  }
+  // Botón ✕: limpia el filtro de negocio (vuelve a "— Todos —") reusando la lógica de o14PickNegocio.
+  window.o14ClearNegocio = function(){
+    const s = document.getElementById('o14-negocio'); if(s) s.value = '';
+    o14PickNegocio('');
   };
 
   window.o14ShowTab = function(name, el){
