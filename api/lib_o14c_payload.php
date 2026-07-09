@@ -52,6 +52,11 @@ if (!function_exists('o14cCacheDir')) {
         foreach (glob($dir . '/o14c_*.tmp.*') ?: [] as $f) {
             if (@filemtime($f) < $limite) @unlink($f);
         }
+        // barrer .lock viejos (uno por cache_key; hasta=hoy cambia la key a diario -> se acumulan).
+        // Solo los más viejos que el TTL: un lock recién creado por un build en vuelo nunca se toca.
+        foreach (glob($dir . '/o14c_*.lock') ?: [] as $f) {
+            if (@filemtime($f) < $limite) @unlink($f);
+        }
     }
 }
 

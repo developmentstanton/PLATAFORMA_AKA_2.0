@@ -108,9 +108,14 @@ check(o14cReadPayload('noexiste' . getmypid()) === null, 'read de key inexistent
 $orphan = o14cCacheDir() . '/o14c_orphan' . getmypid() . '.json.gz.tmp.999';
 file_put_contents($orphan, 'x');
 touch($orphan, time() - (O14_CACHE_TTL_MIN + 5) * 60);
+// --- cleanup barre .lock viejos (uno por cache_key/dia, se acumulan) ---
+$lock = o14cCacheDir() . '/o14c_orphan' . getmypid() . '.json.gz.lock';
+file_put_contents($lock, '');
+touch($lock, time() - (O14_CACHE_TTL_MIN + 5) * 60);
 o14cCleanup();
 check(!is_file($orphan), 'cleanup borra .tmp huerfano viejo');
-@unlink($orphan);
+check(!is_file($lock), 'cleanup borra .lock viejo');
+@unlink($orphan); @unlink($lock);
 
 echo $fail ? "\n$fail FALLO(S)\n" : "\nTODO OK\n";
 exit($fail ? 1 : 0);
