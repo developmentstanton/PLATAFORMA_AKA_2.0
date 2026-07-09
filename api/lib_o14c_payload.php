@@ -55,6 +55,15 @@ if (!function_exists('o14cCacheDir')) {
     }
 }
 
+if (!function_exists('o14cServeGz')) {
+    function o14cServeGz(string $gz): void {
+        header('Content-Type: application/json; charset=utf-8');
+        $ae = $_SERVER['HTTP_ACCEPT_ENCODING'] ?? '';
+        if (stripos($ae, 'gzip') !== false) { header('Content-Encoding: gzip'); echo $gz; }
+        else { echo gzdecode($gz); }
+    }
+}
+
 if (!function_exists('o14cCurrentStamp')) {
     function o14cCurrentStamp($conn, string $key): ?string {
         $st = sqlsrv_query($conn,
