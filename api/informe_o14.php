@@ -38,6 +38,7 @@ if ($tab === 'filtros') $cia = '';
 
 require __DIR__ . '/../conexion/conexion_integracion.php';
 require __DIR__ . '/lib_refs.php';
+require_once __DIR__ . '/lib_o14c_payload.php'; // ensamblarArbol + cache en disco tab=c
 if ($dbConnect === false) { http_response_code(500); echo json_encode(['ok'=>false,'error'=>'Conexión DB fallida']); exit; }
 
 function run($c,$sql,$p=[]) { $s=sqlsrv_query($c,$sql,$p); if($s===false) return ['error'=>sqlsrv_errors()];
@@ -60,34 +61,6 @@ function ensamblarTidy($agg, $keyField) {
     $tallas=array_keys($tallasSet);
     usort($tallas, fn($a,$b)=>(is_numeric($a)&&is_numeric($b))?($a<=>$b):strcmp($a,$b));
     return [array_values($filas), $tallas, $kpi];
-}
-
-/** Arma la jerarquía grupos→almacenes→negocios desde filas planas de #base+Bodegas.
- *  KPIs de cantidad se acumulan sobre TODOS los grupos (incluido CEDI). */
-function ensamblarArbol($rows) {
-    $tallasSet=[]; $arbol=[];
-    $kpi=['siembra'=>0,'disponible'=>0,'hold'=>0,'ventas'=>0,'sobrantes'=>0,'faltante'=>0];
-    foreach ($rows as $r) {
-        $g=$r['grupo']; $ll=$r['llave']; $neg=$r['negocio']; $talla=(string)$r['talla']; $tallasSet[$talla]=true;
-        $si=(int)$r['siembra']; $di=(int)$r['disponible']; $ho=(int)$r['hold']; $ve=(int)$r['ventas'];
-        $bal=$si-($di+$ho); $fal=max(0,$bal); $sob=max(0,-$bal);
-        if(!isset($arbol[$g])) $arbol[$g]=['grupo'=>$g,'almacenes'=>[]];
-        if(!isset($arbol[$g]['almacenes'][$ll])) $arbol[$g]['almacenes'][$ll]=['llave'=>$ll,'bodega'=>$r['bodega'],'nombre'=>$r['nombre'],'negocios'=>[]];
-        if(!isset($arbol[$g]['almacenes'][$ll]['negocios'][$neg])) $arbol[$g]['almacenes'][$ll]['negocios'][$neg]=['negocio'=>$neg,'referencia'=>$r['referencia'],'color'=>$r['color'],'valores'=>[]];
-        $vals=&$arbol[$g]['almacenes'][$ll]['negocios'][$neg]['valores'];
-        foreach(['siembra'=>$si,'disponible'=>$di,'hold'=>$ho,'disphold'=>$di+$ho,'sobrante'=>$sob,'faltante'=>$fal,'ventas'=>$ve] as $m=>$v)
-            $vals[$m][$talla]=($vals[$m][$talla]??0)+$v;
-        unset($vals);
-        $kpi['siembra']+=$si; $kpi['disponible']+=$di; $kpi['hold']+=$ho; $kpi['ventas']+=$ve; $kpi['sobrantes']+=$sob; $kpi['faltante']+=$fal;
-    }
-    $grupos=[];
-    foreach($arbol as $g){
-        $g['almacenes']=array_values(array_map(function($a){ $a['negocios']=array_values($a['negocios']); return $a; }, $g['almacenes']));
-        $grupos[]=$g;
-    }
-    $tallas=array_keys($tallasSet);
-    usort($tallas, fn($a,$b)=>(is_numeric($a)&&is_numeric($b))?($a<=>$b):strcmp($a,$b));
-    return [$grupos, $tallas, $kpi];
 }
 
 /** KPIs de conteo (red, incluido CEDI). Fuente parametrizable: #base (nocache) o el cache
@@ -142,6 +115,7 @@ if ($cacheMode) {
     $okey = o14CacheKey($proveedor, $desde, $hasta);
     if (!ensureO14CacheBase($dbConnect, $okey, $desde, $hasta)) jsonFail(['error'=>sqlsrv_errors()], $dbConnect);
     o14CacheCleanup($dbConnect);
+    o14cCleanup();
     [$whereFiltros, $paramsFiltros] = construirFiltrosCache();
 }
 
@@ -375,6 +349,34 @@ if ($tab === 'b') {
 // TAB C — árbol Grupo → Almacén → Negocio (todos los negocios); CEDI dentro de su grupo real (BODEGA)
 // ====================================================================
 if ($tab === 'c') {
+    // Cache en disco: SOLO tab=c cache-mode SIN filtros (el árbol determinista de 46k filas).
+    $sinFiltros = true;
+    foreach (array_merge($FILTROS_REF, $FILTROS_SKU, $FILTROS_BOD) as $k => $col) { if (getMulti($k)) { $sinFiltros = false; break; } }
+    if ($cacheMode && $sinFiltros) {
+        if (o14cDiskFresh($dbConnect, $okey)) {                       // HIT
+            $gz = o14cReadPayload($okey);
+            if ($gz !== null) { sqlsrv_close($dbConnect); o14cServeGz($gz); exit; }
+        }
+        // MISS: flock + double-check para que 2 requests no paguen los 26s a la vez
+        $lockPath = o14cPayloadPath($okey) . '.lock';
+        $lk = @fopen($lockPath, 'c');
+        if ($lk && flock($lk, LOCK_EX)) {
+            if (o14cDiskFresh($dbConnect, $okey)) {                   // otro request ya construyó
+                $gz = o14cReadPayload($okey);
+                if ($gz !== null) { flock($lk, LOCK_UN); fclose($lk); sqlsrv_close($dbConnect); o14cServeGz($gz); exit; }
+            }
+            $stamp = o14cCurrentStamp($dbConnect, $okey);
+            $payload = o14cBuildPayloadC($dbConnect, $okey, $desde, $hasta);
+            $json = json_encode($payload, JSON_UNESCAPED_UNICODE);
+            if ($stamp !== null) o14cWritePayload($okey, $json, $stamp);   // degrada si no puede escribir
+            flock($lk, LOCK_UN); fclose($lk);
+            sqlsrv_close($dbConnect);
+            o14cServeGz(gzencode($json, 6));
+            exit;
+        }
+        if ($lk) fclose($lk);
+        // si no se pudo lockear, cae al camino de filas de abajo (correcto, lento)
+    }
     if ($cacheMode) {
         // grupo/nombre son columnas del cache: sin LEFT JOIN Bodegas. ISNULL igual que el endpoint.
         $rows = run($dbConnect, "
