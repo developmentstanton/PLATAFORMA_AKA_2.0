@@ -58,7 +58,7 @@ if (!function_exists('o14cCacheDir')) {
 if (!function_exists('o14cCurrentStamp')) {
     function o14cCurrentStamp($conn, string $key): ?string {
         $st = sqlsrv_query($conn,
-            "SELECT TOP 1 CONVERT(varchar(30), creado, 126) s FROM INTEGRACION.dbo.o14_cache_base WITH (READPAST) WHERE cache_key=?",
+            "SELECT TOP 1 CONVERT(varchar(30), creado, 126) s FROM INTEGRACION.dbo.o14_cache_base WITH (READPAST) WHERE cache_key=? ORDER BY creado DESC",
             [$key]);
         if ($st === false) return null;
         $r = sqlsrv_fetch_array($st, SQLSRV_FETCH_ASSOC);
@@ -91,6 +91,7 @@ if (!function_exists('o14cCurrentStamp')) {
         [$grupos, $tallas, $kpi] = ensamblarArbol($rows);
         $kpi['total_stock'] = $kpi['disponible'] + $kpi['hold'];
 
+        // MANTENER EN SYNC con kpiCounts() de api/informe_o14.php: si allí se agrega/cambia un conteo, replicar aquí (parity).
         // Conteos (kpiCounts de informe_o14.php:95-105, unfiltered: WHERE cache_key=?).
         $cnt = sqlsrv_query($conn, "
             SELECT

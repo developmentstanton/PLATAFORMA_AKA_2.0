@@ -39,6 +39,26 @@ function o14cRunParidad(): int {
         echo ($suma==($p['kpis']['siembra']??-1)?"OK  ":"FAIL")."  $prov: suma arbol siembra ($suma) == kpis.siembra\n";
         if ($suma!=($p['kpis']['siembra']??-1)) $fail++;
     }
+    // --- Frescura: o14cCurrentStamp + o14cDiskFresh contra datos reales ---
+    $provF = 'BELTRANY SAS';
+    buildRefsFromMat($conn, $provF);
+    $keyF = o14CacheKey($provF, $desde, $hasta);
+    ensureO14CacheBase($conn, $keyF, $desde, $hasta);
+    $stampF = o14cCurrentStamp($conn, $keyF);
+    echo (($stampF !== null) ? "OK  " : "FAIL") . "  frescura: o14cCurrentStamp devuelve stamp no-null ($stampF)\n";
+    if ($stampF === null) $fail++;
+    $pF = o14cBuildPayloadC($conn, $keyF, $desde, $hasta);
+    o14cWritePayload($keyF, json_encode($pF, JSON_UNESCAPED_UNICODE), $stampF);
+    $fresco = o14cDiskFresh($conn, $keyF);
+    echo ($fresco ? "OK  " : "FAIL") . "  frescura: o14cDiskFresh TRUE tras escribir con el stamp vigente\n";
+    if (!$fresco) $fail++;
+    // stamp falso en disco -> debe dar FALSE
+    file_put_contents(o14cStampPath($keyF), 'STAMP-FALSO');
+    $stale = o14cDiskFresh($conn, $keyF);
+    echo (!$stale ? "OK  " : "FAIL") . "  frescura: o14cDiskFresh FALSE con stamp de disco desfasado\n";
+    if ($stale) $fail++;
+    @unlink(o14cPayloadPath($keyF)); @unlink(o14cStampPath($keyF));
+
     echo $fail?"\n$fail FALLO(S)\n":"\nPARIDAD OK\n";
     return $fail?1:0;
 }
