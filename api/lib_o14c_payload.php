@@ -63,9 +63,21 @@ if (!function_exists('o14cCacheDir')) {
 if (!function_exists('o14cServeGz')) {
     function o14cServeGz(string $gz): void {
         header('Content-Type: application/json; charset=utf-8');
+        header('Vary: Accept-Encoding');
         $ae = $_SERVER['HTTP_ACCEPT_ENCODING'] ?? '';
-        if (stripos($ae, 'gzip') !== false) { header('Content-Encoding: gzip'); echo $gz; }
-        else { echo gzdecode($gz); }
+        // Servir el gz CRUDO solo si (a) el cliente acepta gzip y (b) el server NO re-comprime
+        // (zlib.output_compression / mod_deflate via ob_gzhandler). Si el server re-comprimiera,
+        // mandar Content-Encoding:gzip + bytes ya-gzipeados = doble compresión = basura en el
+        // navegador. En ese caso servimos JSON plano y dejamos que el server comprima.
+        $z = ini_get('zlib.output_compression');
+        $zlibOn = ($z && strtolower((string)$z) !== 'off' && (string)$z !== '0');
+        $recomprime = $zlibOn || in_array('ob_gzhandler', ob_list_handlers(), true);
+        if (stripos($ae, 'gzip') !== false && !$recomprime) {
+            header('Content-Encoding: gzip');
+            echo $gz;
+        } else {
+            echo gzdecode($gz);
+        }
     }
 }
 
