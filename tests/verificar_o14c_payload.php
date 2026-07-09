@@ -29,5 +29,13 @@ check(o14cReadPayload('noexiste' . getmypid()) === null, 'read de key inexistent
 // limpieza
 @unlink(o14cPayloadPath($key)); @unlink(o14cStampPath($key));
 
+// --- cleanup barre .tmp.* huérfanos viejos (fuga de proceso muerto entre write y rename) ---
+$orphan = o14cCacheDir() . '/o14c_orphan' . getmypid() . '.json.gz.tmp.999';
+file_put_contents($orphan, 'x');
+touch($orphan, time() - (O14_CACHE_TTL_MIN + 5) * 60);
+o14cCleanup();
+check(!is_file($orphan), 'cleanup borra .tmp huerfano viejo');
+@unlink($orphan);
+
 echo $fail ? "\n$fail FALLO(S)\n" : "\nTODO OK\n";
 exit($fail ? 1 : 0);
