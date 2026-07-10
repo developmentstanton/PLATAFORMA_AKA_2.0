@@ -31,7 +31,10 @@ require __DIR__ . '/../conexion/conexion_integracion.php';
 require __DIR__ . '/lib_refs.php';
 require __DIR__ . '/lib_precios.php';
 require __DIR__ . '/lib_o45_dataset.php';
+require_once __DIR__ . '/lib_o45_disk.php';
 if ($dbConnect === false) { http_response_code(500); echo json_encode(['ok'=>false,'error'=>'Conexión DB fallida']); exit; }
+
+$nocache = !empty($_GET['nocache']);
 
 function run($c,$sql,$p=[]) { $s=sqlsrv_query($c,$sql,$p); if($s===false) return ['error'=>sqlsrv_errors()];
   $r=[]; while($x=sqlsrv_fetch_array($s,SQLSRV_FETCH_ASSOC))$r[]=$x; sqlsrv_free_stmt($s); return $r; }
@@ -42,6 +45,30 @@ if (!buildRefsFromMat($dbConnect, $proveedor)) jsonFail(['error'=>sqlsrv_errors(
 
 // ===== tab=dataset: dataset granular (sin podar #refs) para filtrado en cliente =====
 if ($tab === 'dataset') {
+    $o45key = o45CacheKey($proveedor, $desde, $hasta);
+    if (!$nocache) {
+        if (o45DiskFresh($dbConnect, $o45key)) {
+            $gz = o45ReadPayload($o45key);
+            if ($gz !== null) { sqlsrv_close($dbConnect); o45ServeGz($gz); exit; }
+        }
+        $lk = @fopen(diskCachePath('o45',$o45key).'.lock', 'c');
+        if ($lk && flock($lk, LOCK_EX)) {
+            if (o45DiskFresh($dbConnect, $o45key)) { $gz=o45ReadPayload($o45key);
+                if ($gz!==null){ flock($lk,LOCK_UN); fclose($lk); sqlsrv_close($dbConnect); o45ServeGz($gz); exit; } }
+            $stamp = o45CurrentStamp($dbConnect);
+            $payload = o45BuildPayload($dbConnect, $proveedorSesion, $desde, $hasta);
+            $json = json_encode($payload, JSON_UNESCAPED_UNICODE);
+            $okP = (($payload['ok'] ?? false) === true);
+            if ($okP && $stamp !== null) o45WritePayload($o45key, $json, $stamp);   // NO cachear errores
+            flock($lk,LOCK_UN); fclose($lk); sqlsrv_close($dbConnect); o45Cleanup();
+            if ($okP) { o45ServeGz(gzencode($json,6)); }
+            else { http_response_code(500); header('Content-Type: application/json; charset=utf-8'); echo $json; }
+            exit;
+        }
+        if ($lk) fclose($lk);
+        // lock-fail -> cae al camino actual de abajo (intacto)
+    }
+    // ---- camino actual (nocache=1 o lock-fail): buildO45Dataset directo (INTACTO) ----
     $ds = buildO45Dataset($dbConnect, $desde, $hasta);
     if ($ds['error']) jsonFail(['error'=>$ds['error']], $dbConnect);
     $precios = preciosPorRefs($dbConnect);
