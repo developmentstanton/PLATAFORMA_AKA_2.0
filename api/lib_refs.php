@@ -25,6 +25,9 @@ if (!function_exists('getRefsCached')) {
         return $rows;
     }
     function buildRefsTemp($conn, $refs) {
+        // Idempotente: permite reconstruir #refs varias veces en la misma conexión (p.ej. warmProveedor).
+        $drop = sqlsrv_query($conn, "DROP TABLE IF EXISTS #refs");
+        if ($drop !== false) sqlsrv_free_stmt($drop);
         $ok = sqlsrv_query($conn, "CREATE TABLE #refs (
             REFERENCIA varchar(50) NOT NULL PRIMARY KEY,
             MARCA varchar(40), TIPO varchar(40), LINEA varchar(40), SUBLINEA varchar(40),
@@ -66,6 +69,9 @@ if (!function_exists('buildRefsFromMat')) {
             return buildRefsTemp($conn, getRefsCached($conn, $proveedor));
         }
         // Camino nuevo: CREATE #refs (sin params) + INSERT ... SELECT (con param) — respeta gotcha sqlsrv.
+        // Idempotente: permite reconstruir #refs varias veces en la misma conexión (p.ej. warmProveedor).
+        $drop = sqlsrv_query($conn, "DROP TABLE IF EXISTS #refs");
+        if ($drop !== false) sqlsrv_free_stmt($drop);
         $ok = sqlsrv_query($conn, "CREATE TABLE #refs (
             REFERENCIA varchar(50) NOT NULL PRIMARY KEY,
             MARCA varchar(40), TIPO varchar(40), LINEA varchar(40), SUBLINEA varchar(40),
