@@ -1,15 +1,18 @@
 <?php
 /**
- * evol cache en disco. php tests/verificar_evol_disco.php --paridad  (requiere DB)
- * Verifica que evolBuildPayload devuelve un payload tab=data bien formado y consistente,
- * y la frescura por stamp. La paridad byte-a-byte vs vivo la cubre verificar_evol_cache --paridad
- * (Task 4, que ya rutea tab=data sin filtro por el disco).
+ * evol cache en disco.
+ *   php tests/verificar_evol_disco.php --paridad  (requiere DB) -- payload builder + frescura (Task 3)
+ *   php tests/verificar_evol_disco.php --e2e      (requiere DB) -- wiring del corto-circuito de
+ *     disco en api/informe_evol.php tab=data sin filtro (Task 4): disco vs vivo por HTTP real.
+ * La paridad byte-a-byte vs vivo EXHAUSTIVA (3 proveedores x 4 filtros) la cubre
+ * verificar_evol_cache --paridad (Task 4, que ya rutea tab=data sin filtro por el disco).
  */
 error_reporting(E_ERROR | E_PARSE);
 require __DIR__ . '/../api/lib_disk_cache.php';
 require __DIR__ . '/../api/lib_evol_cache.php';
 require __DIR__ . '/../api/lib_evol_disk.php';
-if (($argv[1] ?? '') !== '--paridad') { echo "usar --paridad (requiere DB)\n"; exit(0); }
+if (($argv[1] ?? '') === '--e2e') { require __DIR__ . '/_task4_paridad_evol.php'; exit(evolRunE2E()); }
+if (($argv[1] ?? '') !== '--paridad') { echo "usar --paridad o --e2e (requiere DB)\n"; exit(0); }
 require __DIR__ . '/../conexion/conexion_integracion.php';
 require __DIR__ . '/../api/lib_refs.php';
 if ($dbConnect===false){ echo "SKIP sin DB\n"; exit(0); }
