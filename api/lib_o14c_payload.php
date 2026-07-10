@@ -7,78 +7,23 @@
  * timestamp-de-DB, sin cruzar el reloj del server PHP (Colombia) con el de la RDS (UTC).
  */
 require_once __DIR__ . '/lib_o14_cache.php'; // O14_CACHE_TTL_MIN, o14CacheKey/Fresco/ensure
+require_once __DIR__ . '/lib_disk_cache.php'; // primitivas genéricas de cache en disco (gzip)
 
 if (!function_exists('o14cCacheDir')) {
-    function o14cCacheDir(): string { return __DIR__ . '/../cache'; }
+    function o14cCacheDir(): string { return diskCacheDir(); }
     // $key es un hash md5 de 32 hex (o14CacheKey) -> seguro como componente de nombre de archivo.
-    function o14cPayloadPath(string $key): string { return o14cCacheDir() . '/o14c_' . $key . '.json.gz'; }
-    function o14cStampPath(string $key): string { return o14cCacheDir() . '/o14c_' . $key . '.stamp'; }
+    function o14cPayloadPath(string $key): string { return diskCachePath('o14c', $key); }
+    function o14cStampPath(string $key): string { return diskCacheStampPath('o14c', $key); }
 
-    function o14cWritePayload(string $key, string $jsonPlano, string $stamp): bool {
-        $dir = o14cCacheDir();
-        if (!is_dir($dir) || !is_writable($dir)) return false;       // degradar sin romper
-        $gz = gzencode($jsonPlano, 6);
-        if ($gz === false) return false;
-        // escritura atómica: tmp + rename (un lector nunca ve un archivo a medias).
-        // ORDEN IMPORTANTE: primero el .json.gz, DESPUÉS el .stamp. Si el paso del stamp
-        // falla, queda payload-nuevo + stamp-viejo/ausente -> o14cDiskFresh da FALSE (mismatch)
-        // -> se reconstruye en el próximo request (desperdicio, NO incorrección). NO invertir:
-        // stamp-primero podría dejar stamp-nuevo + payload-viejo -> o14cDiskFresh daría TRUE y
-        // serviría un árbol STALE. La no-atomicidad del par es segura SOLO con este orden.
-        $tmp = o14cPayloadPath($key) . '.tmp.' . getmypid();
-        if (@file_put_contents($tmp, $gz) === false) { @unlink($tmp); return false; }
-        if (!@rename($tmp, o14cPayloadPath($key))) { @unlink($tmp); return false; }
-        $tmpS = o14cStampPath($key) . '.tmp.' . getmypid();
-        if (@file_put_contents($tmpS, $stamp) === false) { @unlink($tmpS); return false; }
-        if (!@rename($tmpS, o14cStampPath($key))) { @unlink($tmpS); return false; }
-        return true;
-    }
+    function o14cWritePayload(string $key, string $jsonPlano, string $stamp): bool { return diskCacheWrite('o14c', $key, $jsonPlano, $stamp); }
 
-    function o14cReadPayload(string $key): ?string {
-        $p = o14cPayloadPath($key);
-        if (!is_file($p)) return null;
-        $b = @file_get_contents($p);
-        return $b === false ? null : $b;
-    }
+    function o14cReadPayload(string $key): ?string { return diskCacheRead('o14c', $key); }
 
-    function o14cCleanup(): void {
-        $dir = o14cCacheDir();
-        if (!is_dir($dir)) return;
-        $limite = time() - O14_CACHE_TTL_MIN * 60;
-        foreach (glob($dir . '/o14c_*.json.gz') ?: [] as $f) {
-            if (@filemtime($f) < $limite) { @unlink($f); @unlink(substr($f, 0, -8) . '.stamp'); }
-        }
-        // barrer .tmp.* huérfanos (proceso muerto entre file_put_contents y rename)
-        foreach (glob($dir . '/o14c_*.tmp.*') ?: [] as $f) {
-            if (@filemtime($f) < $limite) @unlink($f);
-        }
-        // barrer .lock viejos (uno por cache_key; hasta=hoy cambia la key a diario -> se acumulan).
-        // Solo los más viejos que el TTL: un lock recién creado por un build en vuelo nunca se toca.
-        foreach (glob($dir . '/o14c_*.lock') ?: [] as $f) {
-            if (@filemtime($f) < $limite) @unlink($f);
-        }
-    }
+    function o14cCleanup(): void { diskCacheCleanup('o14c', O14_CACHE_TTL_MIN); }
 }
 
 if (!function_exists('o14cServeGz')) {
-    function o14cServeGz(string $gz): void {
-        header('Content-Type: application/json; charset=utf-8');
-        header('Vary: Accept-Encoding');
-        $ae = $_SERVER['HTTP_ACCEPT_ENCODING'] ?? '';
-        // Servir el gz CRUDO solo si (a) el cliente acepta gzip y (b) el server NO re-comprime
-        // (zlib.output_compression / mod_deflate via ob_gzhandler). Si el server re-comprimiera,
-        // mandar Content-Encoding:gzip + bytes ya-gzipeados = doble compresión = basura en el
-        // navegador. En ese caso servimos JSON plano y dejamos que el server comprima.
-        $z = ini_get('zlib.output_compression');
-        $zlibOn = ($z && strtolower((string)$z) !== 'off' && (string)$z !== '0');
-        $recomprime = $zlibOn || in_array('ob_gzhandler', ob_list_handlers(), true);
-        if (stripos($ae, 'gzip') !== false && !$recomprime) {
-            header('Content-Encoding: gzip');
-            echo $gz;
-        } else {
-            echo gzdecode($gz);
-        }
-    }
+    function o14cServeGz(string $gz): void { diskCacheServeGz($gz); }
 }
 
 if (!function_exists('o14cCurrentStamp')) {
@@ -92,13 +37,7 @@ if (!function_exists('o14cCurrentStamp')) {
         return $r ? $r['s'] : null;
     }
 
-    function o14cDiskFresh($conn, string $key): bool {
-        if (!is_file(o14cPayloadPath($key)) || !is_file(o14cStampPath($key))) return false;
-        $stampDisco = @file_get_contents(o14cStampPath($key));
-        if ($stampDisco === false) return false;
-        $stampDb = o14cCurrentStamp($conn, $key);
-        return $stampDb !== null && $stampDisco === $stampDb;
-    }
+    function o14cDiskFresh($conn, string $key): bool { return diskCacheFresh('o14c', $key, o14cCurrentStamp($conn, $key)); }
 
     function o14cBuildPayloadC($conn, string $key, string $desde, string $hasta): array {
         // Query verbatim de informe_o14.php tab=c cacheMode SIN filtro (whereFiltros='', params=[key]).

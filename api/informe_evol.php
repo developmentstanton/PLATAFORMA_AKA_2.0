@@ -43,6 +43,7 @@ function getMulti($key) { $v = $_GET[$key] ?? []; if (!is_array($v)) $v = ($v ==
 
 require __DIR__ . '/../conexion/conexion_integracion.php';
 require __DIR__ . '/lib_refs.php';
+require_once __DIR__ . '/lib_evol_disk.php';
 if ($dbConnect === false) { http_response_code(500); echo json_encode(['ok'=>false,'error'=>'Conexión DB fallida']); exit; }
 
 function run($c,$sql,$p=[]) { $s=sqlsrv_query($c,$sql,$p); if($s===false) return ['error'=>sqlsrv_errors()];
@@ -94,7 +95,41 @@ if ($cacheMode) {
     $ekey = evolCacheKey($proveedor, $desdeMes, $hastaMes);
     if (!ensureEvolCacheBase($dbConnect, $ekey, $desdeMes, $hastaMes)) jsonFail(['error'=>sqlsrv_errors()], $dbConnect);
     evolCacheCleanup($dbConnect);
+    evolCleanup();
     [$whereFiltros, $paramsFiltros] = construirFiltrosCache();
+}
+
+// ===== Corto-circuito de cache en disco: SOLO tab=data cache-mode SIN filtros REF/BOD. =====
+// Hit -> sirve gz + exit. Miss -> flock + double-check + build + write (con ok-gate, NO cachea
+// errores transitorios de evolBuildPayload) + serve + exit. Lock-fail -> cae al camino de filas
+// de abajo (intacto, lento pero correcto). Filtrado/otros tabs NO tocan este bloque.
+if ($tab === 'data' && $cacheMode) {
+    $evolSinFiltros = true;
+    foreach (array_merge($FILTROS_REF, $FILTROS_BOD) as $k=>$col) { if (getMulti($k)) { $evolSinFiltros=false; break; } }
+    if ($evolSinFiltros && getMulti('negocio')) $evolSinFiltros = false;  // negocio es un filtro aparte (construirFiltrosCache)
+    if ($evolSinFiltros) {
+        if (evolDiskFresh($dbConnect, $ekey)) {
+            $gz = evolReadPayload($ekey);
+            if ($gz !== null) { sqlsrv_close($dbConnect); evolServeGz($gz); exit; }
+        }
+        $lockPath = diskCachePath('evol',$ekey) . '.lock';
+        $lk = @fopen($lockPath,'c');
+        if ($lk && flock($lk, LOCK_EX)) {
+            if (evolDiskFresh($dbConnect, $ekey)) { $gz=evolReadPayload($ekey);
+                if ($gz!==null){ flock($lk,LOCK_UN); fclose($lk); sqlsrv_close($dbConnect); evolServeGz($gz); exit; } }
+            $stamp = evolCurrentStamp($dbConnect, $ekey);
+            $payload = evolBuildPayload($dbConnect, $proveedorSesion, $ekey, $desdeMes, $hastaMes);
+            $json = json_encode($payload, JSON_UNESCAPED_UNICODE);
+            $okPayload = (($payload['ok'] ?? false) === true);
+            if ($okPayload && $stamp !== null) evolWritePayload($ekey, $json, $stamp);  // NO cachear errores transitorios
+            flock($lk,LOCK_UN); fclose($lk); sqlsrv_close($dbConnect);
+            if ($okPayload) { evolServeGz(gzencode($json,6)); }
+            else { http_response_code(500); header('Content-Type: application/json; charset=utf-8'); echo $json; }
+            exit;
+        }
+        if ($lk) fclose($lk);
+        // lock-fail -> cae al camino de filas de abajo (intacto)
+    }
 }
 
 // Filtros de dimensión (podan #refs). En tab=filtros/cache NO se podan (catálogo/universo completo).
