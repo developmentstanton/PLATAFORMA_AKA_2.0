@@ -89,6 +89,20 @@
 				}
 				sqlsrv_close($dbConnect);
 
+				// Login-prewarm: dispara en 2o plano el calentamiento de caches del proveedor
+				// (fire-and-forget; NO bloquea el login; su fallo no rompe nada).
+				$provPre = $_SESSION['proveedor'] ?? '';
+				if ($provPre !== '') {
+					$phpExe = 'C:\\xampp\\php\\php.exe';        // AJUSTAR en WMS-LAB si difiere
+					$script = __DIR__ . '\\sql\\prewarm_login.php';
+					$log    = __DIR__ . '\\sql\\prewarm_login.log';
+					if (@is_file($phpExe) && @is_file($script)) {
+						$cmd = 'start "" /B ' . escapeshellarg($phpExe) . ' ' . escapeshellarg($script)
+						     . ' ' . escapeshellarg($provPre) . ' >> ' . escapeshellarg($log) . ' 2>&1';
+						$hp = @popen($cmd, 'r'); if ($hp !== false) pclose($hp);
+					}
+				}
+
 				header("Location: dashboard.php");
 				exit;
 			} else {
