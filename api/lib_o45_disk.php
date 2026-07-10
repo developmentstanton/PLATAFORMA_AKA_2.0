@@ -11,6 +11,12 @@ if (!function_exists('o45CacheKey')) {
 
     // Stamp GLOBAL de fuente: avanza cuando el ETL nocturno carga inv_actual/Ventas_Detal.
     // ISNULL para que nunca sea NULL por una fuente vacia (si la query falla -> null -> rebuild).
+    // NOTA de cobertura: el dataset lee 6 tablas, pero el stamp solo mira inv_actual_PBI +
+    // Ventas_Detal_PBI. Es suficiente porque: (a) historico_inventarios/historico_hold/
+    // Ventas_Detal_Acum son append-only para un [desde,hasta] fijo y la key rota a diario
+    // (hasta=ayer); (b) _hold_actual_PBI es el "stock/hold del corte actual" cuyo staleness
+    // intradia el spec acepta explicitamente; (c) inv_actual_PBI.FECHA avanzando de noche es
+    // proxy fiable de "el ETL nocturno completo" (todas cargan en el mismo job nocturno).
     function o45CurrentStamp($conn): ?string {
         $sql = "SELECT ISNULL(CONVERT(varchar(19),(SELECT MAX(FECHA) FROM INTEGRACION.dbo.inv_actual_PBI  WITH (NOLOCK)),120),'') + '|'
                      + ISNULL(CONVERT(varchar(19),(SELECT MAX(FECHA) FROM INTEGRACION.dbo.Ventas_Detal_PBI WITH (NOLOCK)),120),'') s";
