@@ -415,3 +415,80 @@ function evolRunParidadFull($dbConnect): int {
     echo "PARIDAD EVOL OK\n";
     return 0;
 }
+
+// ------------------------------------------------------------------
+// E2E (Task 4): prueba el CABLEADO del corto-circuito de disco en api/informe_evol.php tab=data
+// sin filtro. No re-verifica la lógica de negocio de evolBuildPayload (eso ya lo hace
+// verificar_evol_disco.php --paridad / Task 3); verifica que el endpoint REAL, servido dos
+// veces, produce el mismo payload por el camino disco (?tab=data) y por el camino vivo
+// (?tab=data&nocache=1) -- y que el archivo de disco efectivamente se escribió (prueba de que
+// el corto-circuito corrió, no un fall-through silencioso al camino de filas de abajo). Reusa
+// evolCallEndpoint/evolNormalizeForCompare/evolDiffPayloads/evolIsStalenessOnly/evolPurgeKey/
+// evolDefaultDesdeMes/evolDefaultHastaMes de este mismo archivo (mismo oráculo que --paridad).
+// Llamado desde tests/verificar_evol_disco.php --e2e (requiere lib_disk_cache.php/
+// lib_evol_cache.php/lib_evol_disk.php ya requeridos por el llamador).
+// ------------------------------------------------------------------
+function evolRunE2E(): int {
+    require __DIR__ . '/../conexion/conexion_integracion.php';
+    require __DIR__ . '/../api/lib_refs.php';
+    if ($dbConnect === false) { echo "SKIP: sin DB\n"; return 0; }
+    $conn = $dbConnect;
+    $fail = 0;
+    $chk = function ($cond, $msg) use (&$fail) { echo ($cond ? "OK  " : "FAIL") . "  $msg\n"; if (!$cond) $fail++; };
+    $prov = 'BH BRANDS SAS';
+    $key  = evolCacheKey($prov, evolDefaultDesdeMes(), evolDefaultHastaMes());
+
+    // --- setup: purgar DB key + borrar cualquier disco existente para forzar un MISS limpio ---
+    evolPurgeKey($conn, $prov);
+    @unlink(diskCachePath('evol', $key)); @unlink(diskCacheStampPath('evol', $key));
+    $chk(!is_file(diskCachePath('evol', $key)), "setup: sin .json.gz previo para $prov");
+
+    // --- llamada 1: disco (MISS -> materialize -> escribe -> sirve) ---
+    $t0 = microtime(true);
+    $rDisco = evolCallEndpoint($prov, 'tab=data');
+    $tDisco = round((microtime(true) - $t0) * 1000);
+    $chk(is_array($rDisco) && ($rDisco['ok'] ?? false) === true, "disco (tab=data): ok:true ({$tDisco}ms)");
+    $chk(is_file(diskCachePath('evol', $key)), "disco: diskCachePath('evol',key) existe tras la llamada (corto-circuito ejecuto, no fall-through)");
+    $chk(is_file(diskCacheStampPath('evol', $key)), 'disco: .stamp existe tras la llamada');
+
+    // --- llamada 2: vivo (oráculo, nocache=1) ---
+    $rVivo = evolCallEndpoint($prov, 'tab=data&nocache=1');
+    $chk(is_array($rVivo) && ($rVivo['ok'] ?? false) === true, 'vivo (tab=data&nocache=1): ok:true');
+
+    // --- paridad disco vs vivo (mismo oráculo/normalizador que --paridad), tolerando staleness
+    //     de stock/mesesInv/tiendas/indice del mes actual (ver evolIsStalenessOnly arriba) ---
+    if (is_array($rDisco) && is_array($rVivo)) {
+        $mesActual = $rDisco['mesActual'] ?? date('Y-m');
+        $normA = evolNormalizeForCompare($rDisco);
+        $normB = evolNormalizeForCompare($rVivo);
+        if ($normA === $normB) {
+            $chk(true, 'paridad disco vs vivo: payloads normalizados IDENTICOS');
+        } else {
+            $diffs = evolDiffPayloads($normA, $normB);
+            if (evolIsStalenessOnly($diffs, $mesActual)) {
+                echo "  [INFO] diffs solo en stock/mesesInv/tiendas/indice del mes actual (firma de staleness, tolerado): " . count($diffs) . " campos\n";
+                $chk(true, 'paridad disco vs vivo: solo staleness de stock del mes actual (tolerado)');
+            } else {
+                $chk(false, 'paridad disco vs vivo: DIFF ESTRUCTURAL');
+                foreach (array_slice($diffs, 0, 15) as $d) echo "     $d\n";
+            }
+        }
+    }
+
+    // --- llamada 3: disco de nuevo, debe ser un HIT (rápido, sin re-materializar) ---
+    $t2 = microtime(true);
+    $rDisco2 = evolCallEndpoint($prov, 'tab=data');
+    $tDisco2 = round((microtime(true) - $t2) * 1000);
+    $chk(is_array($rDisco2) && ($rDisco2['ok'] ?? false) === true, "disco 2a llamada (HIT esperado): ok:true ({$tDisco2}ms)");
+
+    // --- llamada filtrada: el camino filtrado (no-sin-filtros) debe seguir funcionando (NO pasa
+    //     por el corto-circuito de disco -- va por el camino de filas WHERE sobre evol_cache_base) ---
+    $rFiltrado = evolCallEndpoint($prov, 'tab=data&grupo=AKA');
+    $chk(is_array($rFiltrado) && ($rFiltrado['ok'] ?? false) === true, "filtrado (tab=data&grupo=AKA): ok:true");
+
+    // --- cleanup ---
+    @unlink(diskCachePath('evol', $key)); @unlink(diskCacheStampPath('evol', $key));
+
+    echo $fail ? "\n$fail FALLO(S)\n" : "\nPARIDAD E2E OK\n";
+    return $fail ? 1 : 0;
+}
