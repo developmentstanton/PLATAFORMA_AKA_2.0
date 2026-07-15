@@ -93,16 +93,13 @@ if ($cacheMode) {
     require_once __DIR__ . '/lib_evol_cache.php';
     // $desdeMes/$hastaMes YA normalizados arriba (:19-22): la key y el contenido cacheado son 1:1.
     $ekey = evolCacheKey($proveedor, $desdeMes, $hastaMes);
-    if (!ensureEvolCacheBase($dbConnect, $ekey, $desdeMes, $hastaMes)) jsonFail(['error'=>sqlsrv_errors()], $dbConnect);
-    evolCacheCleanup($dbConnect);
-    evolCleanup();
     [$whereFiltros, $paramsFiltros] = construirFiltrosCache();
 }
 
-// ===== Corto-circuito de cache en disco: SOLO tab=data cache-mode SIN filtros REF/BOD. =====
-// Hit -> sirve gz + exit. Miss -> flock + double-check + build + write (con ok-gate, NO cachea
-// errores transitorios de evolBuildPayload) + serve + exit. Lock-fail -> cae al camino de filas
-// de abajo (intacto, lento pero correcto). Filtrado/otros tabs NO tocan este bloque.
+// ===== Corto-circuito de cache en disco: SOLO tab=data cache-mode SIN filtros REF/BOD/negocio. =====
+// DISCO-PRIMERO: el hit sirve gz SIN materializar evol_cache_base (patrón o45). Miss -> flock +
+// double-check + ensure(force) + build + write (ok-gate) + serve. Lock-fail -> cae al camino de
+// filas de abajo (que materializa la base con ensure normal).
 if ($tab === 'data' && $cacheMode) {
     $evolSinFiltros = true;
     foreach (array_merge($FILTROS_REF, $FILTROS_BOD) as $k=>$col) { if (getMulti($k)) { $evolSinFiltros=false; break; } }
@@ -117,7 +114,11 @@ if ($tab === 'data' && $cacheMode) {
         if ($lk && flock($lk, LOCK_EX)) {
             if (evolDiskFresh($dbConnect, $ekey)) { $gz=evolReadPayload($ekey);
                 if ($gz!==null){ flock($lk,LOCK_UN); fclose($lk); sqlsrv_close($dbConnect); evolServeGz($gz); exit; } }
-            $stamp = evolCurrentStamp($dbConnect, $ekey);
+            // Miss real: capturar stamp de fuente ANTES de materializar (como o45), luego forzar
+            // rebuild de la base (la fuente cambió), construir el payload y cachearlo.
+            $stamp = evolCurrentStamp($dbConnect);
+            if (!ensureEvolCacheBase($dbConnect, $ekey, $desdeMes, $hastaMes, true)) { flock($lk,LOCK_UN); fclose($lk); jsonFail(['error'=>sqlsrv_errors()], $dbConnect); }
+            evolCacheCleanup($dbConnect); evolCleanup();
             $payload = evolBuildPayload($dbConnect, $proveedorSesion, $ekey, $desdeMes, $hastaMes);
             $json = json_encode($payload, JSON_UNESCAPED_UNICODE);
             $okPayload = (($payload['ok'] ?? false) === true);
@@ -130,6 +131,14 @@ if ($tab === 'data' && $cacheMode) {
         if ($lk) fclose($lk);
         // lock-fail -> cae al camino de filas de abajo (intacto)
     }
+}
+
+// ===== Materializar evol_cache_base para los caminos cache-mode que LEEN de ella (filtrado, o
+// no-filtro que cayó por lock-fail). El hit/miss sin filtro de arriba ya hizo exit. nocache NO
+// entra aquí (construye #base vivo abajo). =====
+if ($cacheMode) {
+    if (!ensureEvolCacheBase($dbConnect, $ekey, $desdeMes, $hastaMes)) jsonFail(['error'=>sqlsrv_errors()], $dbConnect);
+    evolCacheCleanup($dbConnect); evolCleanup();
 }
 
 // Filtros de dimensión (podan #refs). En tab=filtros/cache NO se podan (catálogo/universo completo).
