@@ -28,7 +28,7 @@ $mUlt=end($p['meses']);
 $sum=0; foreach($p['negocios'] as $n) $sum += ($n['valores']['ventas'][$mUlt] ?? 0);
 ck($sum === ($p['totalGeneral']['valores']['ventas'][$mUlt] ?? -1), "suma ventas negocios ($sum) == totalGeneral mes $mUlt");
 // frescura
-$stamp=evolCurrentStamp($conn,$ekey);
+$stamp=evolCurrentStamp($conn);
 ck($stamp!==null, "evolCurrentStamp no-null ($stamp)");
 evolWritePayload($ekey, json_encode($p,JSON_UNESCAPED_UNICODE), $stamp);
 ck(evolDiskFresh($conn,$ekey)===true, 'evolDiskFresh true tras escribir con stamp vigente');

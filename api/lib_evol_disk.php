@@ -4,12 +4,26 @@ require_once __DIR__ . '/lib_disk_cache.php';
 require_once __DIR__ . '/lib_evol_cache.php'; // evolCacheKey/ensure/EVOL_CACHE_TTL_MIN
 
 if (!function_exists('evolCurrentStamp')) {
-    function evolCurrentStamp($conn, string $ekey): ?string {
-        $st = sqlsrv_query($conn, "SELECT TOP 1 CONVERT(varchar(30),creado,126) s FROM INTEGRACION.dbo.evol_cache_base WITH (READPAST) WHERE cache_key=? ORDER BY creado DESC", [$ekey]);
-        if ($st===false) return null; $r=sqlsrv_fetch_array($st,SQLSRV_FETCH_ASSOC); sqlsrv_free_stmt($st);
-        return $r ? $r['s'] : null;
+    // Stamp GLOBAL de fuente (mismo enfoque que o45CurrentStamp): avanza cuando el ETL nocturno
+    // carga las 3 fuentes VIVAS de evol. ISNULL para que nunca sea NULL por una fuente vacía
+    // (si la query falla -> null -> diskCacheFresh=false -> rebuild).
+    // NOTA de cobertura: el dataset lee más tablas (Ventas_Detal_Acum, historico_inventarios/
+    // hold/mov_inv, _hold_actual), pero el stamp solo mira inv_actual + Ventas_Detal + mov_inv_actual
+    // porque: (a) las históricas/Acum son append-only para un [desde,hasta] fijo y su recarga
+    // siempre viene en el mismo ETL nocturno; (b) _hold_actual/stock del corte vivo tiene staleness
+    // intradía que el diseño ya acepta (evolIsStalenessOnly); (c) esas 3 avanzando de noche son
+    // proxy fiable del ETL completo. El prebuild nocturno corre con onlyIfStale=false (fuerza
+    // rebuild), respaldo para cualquier recarga histórica.
+    function evolCurrentStamp($conn): ?string {
+        $sql = "SELECT ISNULL(CONVERT(varchar(19),(SELECT MAX(FECHA) FROM INTEGRACION.dbo.inv_actual_PBI     WITH (NOLOCK)),120),'') + '|'
+                     + ISNULL(CONVERT(varchar(19),(SELECT MAX(FECHA) FROM INTEGRACION.dbo.Ventas_Detal_PBI   WITH (NOLOCK)),120),'') + '|'
+                     + ISNULL(CONVERT(varchar(19),(SELECT MAX(FECHA) FROM INTEGRACION.dbo.mov_inv_actual_PBI WITH (NOLOCK)),120),'') s";
+        $st = sqlsrv_query($conn, $sql);
+        if ($st === false) return null;
+        $r = sqlsrv_fetch_array($st, SQLSRV_FETCH_ASSOC); sqlsrv_free_stmt($st);
+        return $r ? (string)$r['s'] : null;
     }
-    function evolDiskFresh($conn, string $ekey): bool { return diskCacheFresh('evol', $ekey, evolCurrentStamp($conn,$ekey)); }
+    function evolDiskFresh($conn, string $ekey): bool { return diskCacheFresh('evol', $ekey, evolCurrentStamp($conn)); }
     function evolReadPayload(string $ekey): ?string { return diskCacheRead('evol', $ekey); }
     function evolWritePayload(string $ekey, string $json, string $stamp): bool { return diskCacheWrite('evol', $ekey, $json, $stamp); }
     function evolCleanup(): void { diskCacheCleanup('evol', EVOL_CACHE_TTL_MIN); }
