@@ -1,0 +1,22 @@
+-- Curación proveedor_items = valor EXACTO de ITEMS.PROVEEDOR por aliado. RDS compartida.
+UPDATE usuarios_portal_aka SET proveedor_items='BRAHMA CONCEPT'                  WHERE nombre_usuario='Brahma Concept';
+UPDATE usuarios_portal_aka SET proveedor_items='C.I HERMECO'                     WHERE nombre_usuario='C.I Hermeco';
+UPDATE usuarios_portal_aka SET proveedor_items='COLOMBIANA DE TENIS SA'          WHERE nombre_usuario='Colombiana de Tenis';
+UPDATE usuarios_portal_aka SET proveedor_items='CUEROS VELEZ'                     WHERE nombre_usuario='Cueros Velez';
+UPDATE usuarios_portal_aka SET proveedor_items='DISANDINA S.A.'                   WHERE nombre_usuario='Disandina';
+UPDATE usuarios_portal_aka SET proveedor_items='DYNAMO DISTRIBUTION S.A'          WHERE nombre_usuario='Dynamo_new_era';
+UPDATE usuarios_portal_aka SET proveedor_items='DYNAMO DISTRIBUTION S.A'          WHERE nombre_usuario='Dynamo_vans';
+UPDATE usuarios_portal_aka SET proveedor_items='ESTUDIO DE MODA'                  WHERE nombre_usuario='Estudio de Moda';
+UPDATE usuarios_portal_aka SET proveedor_items='FASHION FITNESS COLOMBIA S.A.S.' WHERE nombre_usuario='Fashion Fitness Colombia sas';
+UPDATE usuarios_portal_aka SET proveedor_items='GUAUTA SHOES'                     WHERE nombre_usuario='Guauta shoes';
+UPDATE usuarios_portal_aka SET proveedor_items='KRONOTIME'                        WHERE nombre_usuario='Krono Time Sas';
+UPDATE usuarios_portal_aka SET proveedor_items='MC CAWLEYS S.A.S.'               WHERE nombre_usuario='Mc Cawleys';
+UPDATE usuarios_portal_aka SET proveedor_items='ULTRA SPORT L&A S.A.S.'          WHERE nombre_usuario='Ultra Sport';
+UPDATE usuarios_portal_aka SET proveedor_items='MYL DE COLOMBIA'                  WHERE nombre_usuario='M&L de Colombia';
+UPDATE usuarios_portal_aka SET proveedor_items='SHOEMASTERS S.A.S'               WHERE nombre_usuario='Shoes Master';
+UPDATE usuarios_portal_aka SET proveedor_items='BELTRANY SAS'                     WHERE nombre_usuario='Beltrany sas';
+UPDATE usuarios_portal_aka SET proveedor_items='BH BRANDS SAS'                    WHERE nombre_usuario='BH Brands';
+UPDATE usuarios_portal_aka SET proveedor_items='D&E OLAM SAS'                     WHERE nombre_usuario='D&E Olam Sas';
+UPDATE usuarios_portal_aka SET proveedor_items='INTERTENIS S.A.S'                WHERE nombre_usuario='Intertenis';
+UPDATE usuarios_portal_aka SET proveedor_items='PARANA DISTRIBUCIONES SAS'       WHERE nombre_usuario='Parana';
+UPDATE usuarios_portal_aka SET proveedor_items='PLANETA SPORT 6 SAS'             WHERE nombre_usuario='Planeta Sport 6';

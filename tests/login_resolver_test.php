@@ -12,17 +12,21 @@ if (!function_exists('login_resolver_proveedor')) {
     echo "FALLO: login_resolver_proveedor() no existe\nRESULTADO: FALLO\n"; exit(1);
 }
 
-// Caso 1 — EL BUG: usuario en ventas (ITEMS) pero NO en el maestro t202 → debe caer al fallback.
-$r = login_resolver_proveedor($dbConnect, 'Intertenis');
-chk($r['proveedor'] === 'INTERTENIS S.A.S', "Intertenis debe resolver a 'INTERTENIS S.A.S' (got ".var_export($r['proveedor'],true).")");
-chk($r['fuente'] === 'items', "Intertenis debe resolverse por fallback ITEMS (got ".var_export($r['fuente'],true).")");
-chk($r['nit'] === null, "Intertenis sin NIT (no está en maestro) (got ".var_export($r['nit'],true).")");
+// Caso 1 — CURADO: aliado con proveedor_items → fuente 'curado', nombre exacto de ITEMS.
+$r = login_resolver_proveedor($dbConnect, 'Brahma Concept');
+chk($r['proveedor'] === 'BRAHMA CONCEPT', "Brahma Concept curado → 'BRAHMA CONCEPT' (got ".var_export($r['proveedor'],true).")");
+chk($r['fuente'] === 'curado', "Brahma Concept debe resolverse por curado (got ".var_export($r['fuente'],true).")");
 
-// Caso 2 — CONTROL: proveedor que SÍ está en el maestro t202 cía 7 → razón + NIT, fuente t202.
-$b = login_resolver_proveedor($dbConnect, 'Beltrany');
-chk($b['proveedor'] === 'BELTRANY SAS', "Beltrany debe resolver a 'BELTRANY SAS' por t202 (got ".var_export($b['proveedor'],true).")");
-chk($b['fuente'] === 't202', "Beltrany debe resolverse por t202 (got ".var_export($b['fuente'],true).")");
-chk($b['nit'] === '901038888', "Beltrany NIT 901038888 (got ".var_export($b['nit'],true).")");
+// Caso 2 — CURADO con NIT: Beltrany tiene proveedor_items + link2(NIT).
+$b = login_resolver_proveedor($dbConnect, 'Beltrany sas');
+chk($b['proveedor'] === 'BELTRANY SAS', "Beltrany curado → 'BELTRANY SAS' (got ".var_export($b['proveedor'],true).")");
+chk($b['fuente'] === 'curado', "Beltrany debe resolverse por curado (got ".var_export($b['fuente'],true).")");
+chk($b['nit'] === '901038888', "Beltrany NIT 901038888 desde link2 (got ".var_export($b['nit'],true).")");
+
+// Caso 2b — FALLBACK intacto: un nombre que NO es usuario del portal pero SÍ está en el
+// maestro t202 cía 7 → debe resolver por t202 (prueba que el paso 0 no rompe el fallback).
+$f = login_resolver_proveedor($dbConnect, 'BELTRANY');
+chk($f['fuente'] === 't202', "'BELTRANY' (no-usuario-portal) debe caer a t202 (got ".var_export($f['fuente'],true).")");
 
 // Caso 3 — guion bajo: el usuario usa '_' donde el nombre lleva espacio (REPLACE _→espacio).
 $u = login_resolver_proveedor($dbConnect, 'Intertenis');
