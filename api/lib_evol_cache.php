@@ -58,6 +58,14 @@ if (!function_exists('ensureEvolCacheBase')) {
      * $desdeMes/$hastaMes son 'YYYY-MM' — mismo contrato que informe_evol.php ($_GET['desde']/
      * ['hasta']).
      *
+     * $force (por defecto false): si es true, saltea el fast-path de frescura pre-lock para que
+     * la base se reconstruya aunque su TTL no haya vencido (útil tras cambios de fuente). En el
+     * path $force=false, el double-check post-lock es INCONDICIONAL — otro request que haya
+     * materializado mientras esperábamos el lock SIEMPRE será reusado, evitando pases redundantes.
+     * Callers que pasen $force=true deben serializar por clave externamente (ej. flock del
+     * endpoint) para evitar rebuilds redundantes entre llamadas concurrentes; la corrección está
+     * garantizada por el sp_getapplock exclusivo de todas formas.
+     *
      * Concurrencia: mismo patrón que ensureO14CacheBase/ensureG00Cache* — sp_getapplock
      * (@LockMode='Exclusive', @LockOwner='Transaction') sobre un recurso namespaced
      * ('evolcache:' + $key) dentro de una transacción real (sqlsrv_begin_transaction), con
@@ -65,9 +73,11 @@ if (!function_exists('ensureEvolCacheBase')) {
      * esperábamos, no se repite el trabajo, solo se hace commit (libera el lock) y se devuelve
      * true.
      */
-    function ensureEvolCacheBase($conn, $key, $desdeMes, $hastaMes): bool {
-        // Fast path: sin tocar transacción/lock si ya hay cache fresco.
-        if (evolCacheFresco($conn, $key)) return true;
+    function ensureEvolCacheBase($conn, $key, $desdeMes, $hastaMes, bool $force=false): bool {
+        // Fast path: sin tocar transacción/lock si ya hay cache fresco. Con $force (miss de disco
+        // por cambio de fuente) se salta el fast-path para que la base coincida con la fuente nueva,
+        // aunque su TTL de 120 min no haya vencido.
+        if (!$force && evolCacheFresco($conn, $key)) return true;
 
         if (sqlsrv_begin_transaction($conn) === false) return false;
 
@@ -86,15 +96,26 @@ if (!function_exists('ensureEvolCacheBase')) {
             return false;
         }
 
+        // Con $force, borrar el cache ANTES del double-check para forzar rebuild incluso si está fresco
+        // (otro request que materialize después será detectado por el double-check).
+        if ($force) {
+            $del = sqlsrv_query($conn, "DELETE FROM INTEGRACION.dbo.evol_cache_base WHERE cache_key=?", [$key]);
+            if ($del === false) { sqlsrv_rollback($conn); return false; }
+            sqlsrv_free_stmt($del);
+        }
+
         // Double-check: otro request pudo haber materializado mientras esperábamos el lock.
         if (evolCacheFresco($conn, $key)) {
             sqlsrv_commit($conn); // libera el applock
             return true;
         }
 
-        $del = sqlsrv_query($conn, "DELETE FROM INTEGRACION.dbo.evol_cache_base WHERE cache_key=?", [$key]);
-        if ($del === false) { sqlsrv_rollback($conn); return false; }
-        sqlsrv_free_stmt($del);
+        // Si no force, borrar ahora (si force, ya se borró arriba antes del double-check).
+        if (!$force) {
+            $del = sqlsrv_query($conn, "DELETE FROM INTEGRACION.dbo.evol_cache_base WHERE cache_key=?", [$key]);
+            if ($del === false) { sqlsrv_rollback($conn); return false; }
+            sqlsrv_free_stmt($del);
+        }
 
         // === Derivación de rango/cortes: COPIA VERBATIM de informe_evol.php:17-37 (sin el parseo
         // de $_GET — $desdeMes/$hastaMes ya llegan como 'YYYY-MM' desde el caller). ===

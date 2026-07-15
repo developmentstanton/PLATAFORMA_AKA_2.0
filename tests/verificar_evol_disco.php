@@ -17,6 +17,7 @@ require __DIR__ . '/../conexion/conexion_integracion.php';
 require __DIR__ . '/../api/lib_refs.php';
 if ($dbConnect===false){ echo "SKIP sin DB\n"; exit(0); }
 $conn=$dbConnect; $fail=0; function ck($c,$m){ global $fail; echo ($c?"OK  ":"FAIL")."  $m\n"; if(!$c)$fail++; }
+if (!function_exists('run')) { function run($c,$sql,$p=[]){ $s=sqlsrv_query($c,$sql,$p); if($s===false) return ['error'=>sqlsrv_errors()]; $r=[]; while($x=sqlsrv_fetch_array($s,SQLSRV_FETCH_ASSOC))$r[]=$x; sqlsrv_free_stmt($s); return $r; } }
 $prov='BH BRANDS SAS'; $desde=(date('Y')-1).'-01'; $hasta=date('Y-m');
 buildRefsFromMat($conn,$prov);
 $ekey=evolCacheKey($prov,$desde,$hasta);
@@ -28,11 +29,19 @@ $mUlt=end($p['meses']);
 $sum=0; foreach($p['negocios'] as $n) $sum += ($n['valores']['ventas'][$mUlt] ?? 0);
 ck($sum === ($p['totalGeneral']['valores']['ventas'][$mUlt] ?? -1), "suma ventas negocios ($sum) == totalGeneral mes $mUlt");
 // frescura
-$stamp=evolCurrentStamp($conn,$ekey);
+$stamp=evolCurrentStamp($conn);
 ck($stamp!==null, "evolCurrentStamp no-null ($stamp)");
 evolWritePayload($ekey, json_encode($p,JSON_UNESCAPED_UNICODE), $stamp);
 ck(evolDiskFresh($conn,$ekey)===true, 'evolDiskFresh true tras escribir con stamp vigente');
 file_put_contents(diskCacheStampPath('evol',$ekey),'STALE');
 ck(evolDiskFresh($conn,$ekey)===false, 'evolDiskFresh false con stamp de disco desfasado');
 @unlink(diskCachePath('evol',$ekey)); @unlink(diskCacheStampPath('evol',$ekey));
+// --- Task 2: $force reconstruye aunque la base esté fresca (TTL vigente) ---
+ensureEvolCacheBase($conn,$ekey,$desde,$hasta);            // deja base fresca
+$c1 = run($conn,"SELECT CONVERT(varchar(30),MAX(creado),126) c FROM INTEGRACION.dbo.evol_cache_base WHERE cache_key=?",[$ekey]);
+$creado1 = $c1[0]['c'] ?? null;
+$okFresh = ensureEvolCacheBase($conn,$ekey,$desde,$hasta,true);   // force -> reconstruye
+$c2 = run($conn,"SELECT CONVERT(varchar(30),MAX(creado),126) c FROM INTEGRACION.dbo.evol_cache_base WHERE cache_key=?",[$ekey]);
+$creado2 = $c2[0]['c'] ?? null;
+ck($okFresh===true && $creado2!==null && $creado2!==$creado1, "ensureEvolCacheBase(force=true) reconstruye base fresca ($creado1 -> $creado2)");
 echo $fail?"\n$fail FALLO(S)\n":"\nEVOL PAYLOAD OK\n"; exit($fail?1:0);
