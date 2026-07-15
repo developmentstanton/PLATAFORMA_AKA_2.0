@@ -59,9 +59,12 @@ if (!function_exists('ensureEvolCacheBase')) {
      * ['hasta']).
      *
      * $force (por defecto false): si es true, saltea el fast-path de frescura pre-lock para que
-     * la base se reconstruya aunque su TTL no haya vencido (útil tras cambios de fuente). El
-     * double-check post-lock es INCONDICIONAL — otro request que haya materializado mientras
-     * esperábamos el lock SIEMPRE será reusado, evitando pases redundantes.
+     * la base se reconstruya aunque su TTL no haya vencido (útil tras cambios de fuente). En el
+     * path $force=false, el double-check post-lock es INCONDICIONAL — otro request que haya
+     * materializado mientras esperábamos el lock SIEMPRE será reusado, evitando pases redundantes.
+     * Callers que pasen $force=true deben serializar por clave externamente (ej. flock del
+     * endpoint) para evitar rebuilds redundantes entre llamadas concurrentes; la corrección está
+     * garantizada por el sp_getapplock exclusivo de todas formas.
      *
      * Concurrencia: mismo patrón que ensureO14CacheBase/ensureG00Cache* — sp_getapplock
      * (@LockMode='Exclusive', @LockOwner='Transaction') sobre un recurso namespaced

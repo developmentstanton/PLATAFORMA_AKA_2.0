@@ -40,4 +40,6 @@ $cnt2=sqlsrv_query($conn,"SELECT COUNT(*) n FROM INTEGRACION.dbo.evol_cache_base
 $row2=sqlsrv_fetch_array($cnt2,SQLSRV_FETCH_ASSOC); sqlsrv_free_stmt($cnt2);
 ckp((int)$row2['n']===0, 'DISCO-PRIMERO: evol_cache_base sigue vacía tras servir (base NO materializada)');
 
+@unlink(diskCachePath('evol',$ekey)); @unlink(diskCacheStampPath('evol',$ekey));
+
 echo $fail?"\n$fail FALLO(S)\n":"\nEVOL DISCO-PRIMERO OK\n"; exit($fail?1:0);
