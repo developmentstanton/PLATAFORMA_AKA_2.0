@@ -34,4 +34,10 @@ $r2 = evolCallEndpoint($prov, 'tab=data');
 ckp(is_array($r2) && ($r2['ok']??false)===true, 'DISCO-PRIMERO: endpoint tab=data ok:true con base vacía (sirvió de disco)');
 ckp(json_encode($r2)===json_encode($r1), 'DISCO-PRIMERO: mismo payload que el calentamiento (hit real de disco)');
 
+// DISCO-PRIMERO (prueba directa): la base debe seguir VACÍA — si el endpoint la hubiera
+// materializado (código viejo: ensure incondicional antes del disco), COUNT sería > 0.
+$cnt2=sqlsrv_query($conn,"SELECT COUNT(*) n FROM INTEGRACION.dbo.evol_cache_base WHERE cache_key=?",[$ekey]);
+$row2=sqlsrv_fetch_array($cnt2,SQLSRV_FETCH_ASSOC); sqlsrv_free_stmt($cnt2);
+ckp((int)$row2['n']===0, 'DISCO-PRIMERO: evol_cache_base sigue vacía tras servir (base NO materializada)');
+
 echo $fail?"\n$fail FALLO(S)\n":"\nEVOL DISCO-PRIMERO OK\n"; exit($fail?1:0);
