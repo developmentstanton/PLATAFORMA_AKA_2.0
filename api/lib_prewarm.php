@@ -27,7 +27,7 @@ if (!function_exists('warmProveedor')) {
         $ed=(date('Y')-1).'-01'; $eh=date('Y-m'); $ek=evolCacheKey($proveedor,$ed,$eh);
         if ($onlyIfStale && evolDiskFresh($conn,$ek)) $out['evol']='skipped';
         elseif (!ensureEvolCacheBase($conn,$ek,$ed,$eh)) $out['evol']='failed-ensure';
-        else { $st=evolCurrentStamp($conn,$ek); $p=evolBuildPayload($conn,$proveedor,$ek,$ed,$eh);
+        else { $st=evolCurrentStamp($conn); $p=evolBuildPayload($conn,$proveedor,$ek,$ed,$eh);
             $out['evol']=(($p['ok']??false)===true && $st!==null && evolWritePayload($ek,json_encode($p,JSON_UNESCAPED_UNICODE),$st))?'warmed':'failed'; }
 
         // --- o45: 2025-01-01 .. ayer (o45 no tiene ensure; el build ES la materializacion) ---
