@@ -65,9 +65,11 @@ if (!function_exists('ensureEvolCacheBase')) {
      * esperábamos, no se repite el trabajo, solo se hace commit (libera el lock) y se devuelve
      * true.
      */
-    function ensureEvolCacheBase($conn, $key, $desdeMes, $hastaMes): bool {
-        // Fast path: sin tocar transacción/lock si ya hay cache fresco.
-        if (evolCacheFresco($conn, $key)) return true;
+    function ensureEvolCacheBase($conn, $key, $desdeMes, $hastaMes, bool $force=false): bool {
+        // Fast path: sin tocar transacción/lock si ya hay cache fresco. Con $force (miss de disco
+        // por cambio de fuente) se salta el fast-path para que la base coincida con la fuente nueva,
+        // aunque su TTL de 120 min no haya vencido.
+        if (!$force && evolCacheFresco($conn, $key)) return true;
 
         if (sqlsrv_begin_transaction($conn) === false) return false;
 
@@ -87,7 +89,7 @@ if (!function_exists('ensureEvolCacheBase')) {
         }
 
         // Double-check: otro request pudo haber materializado mientras esperábamos el lock.
-        if (evolCacheFresco($conn, $key)) {
+        if (!$force && evolCacheFresco($conn, $key)) {
             sqlsrv_commit($conn); // libera el applock
             return true;
         }
