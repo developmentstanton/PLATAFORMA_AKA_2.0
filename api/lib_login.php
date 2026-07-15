@@ -21,6 +21,26 @@
 function login_resolver_proveedor($conn, string $usuario): array {
     $busqueda = str_replace('_', ' ', $usuario);
 
+    // 0) Nombre canónico CURADO (usuarios_portal_aka.proveedor_items). Prioridad máxima:
+    //    los informes filtran ITEMS.PROVEEDOR por match exacto, y la razón social de t202
+    //    a veces no coincide (ej. 'BRAHMA CONCEPT S A S' vs 'BRAHMA CONCEPT'). Si el aliado
+    //    tiene proveedor_items curado, ese es el valor exacto de ITEMS.PROVEEDOR.
+    //    Se usa $usuario (nombre_usuario exacto), NO $busqueda.
+    $sqlCurado = "SELECT TOP 1 RTRIM(proveedor_items) AS prov, RTRIM(link2) AS nit
+                  FROM usuarios_portal_aka WHERE nombre_usuario = ?";
+    $stCur = sqlsrv_query($conn, $sqlCurado, array($usuario));
+    if ($stCur !== false) {
+        $rowCur = sqlsrv_fetch_array($stCur, SQLSRV_FETCH_ASSOC);
+        sqlsrv_free_stmt($stCur);
+        if ($rowCur && trim((string)$rowCur['prov']) !== '') {
+            return array(
+                'proveedor' => trim((string)$rowCur['prov']),
+                'nit'       => (!empty($rowCur['nit'])) ? trim((string)$rowCur['nit']) : null,
+                'fuente'    => 'curado',
+            );
+        }
+    }
+
     // 1) Maestro de proveedores SIESA (razón + NIT)
     $sqlProv = "SELECT TOP 1 RTRIM(p.f202_descripcion_sucursal) AS razon, RTRIM(t.f200_nit) AS nit
                 FROM stanton.dbo.t202_mm_proveedores p
