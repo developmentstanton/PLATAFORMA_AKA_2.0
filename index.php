@@ -93,13 +93,21 @@
 				// (fire-and-forget; NO bloquea el login; su fallo no rompe nada).
 				$provPre = $_SESSION['proveedor'] ?? '';
 				if ($provPre !== '') {
-					$phpExe = 'C:\\xampp\\php\\php.exe';        // AJUSTAR en WMS-LAB si difiere
+					// La ruta de php se RESUELVE (antes estaba quemada a C:\xampp, que no existe en
+					// WMS-LAB: el spawn no se disparaba nunca y en silencio). Ver api/lib_php_exe.php.
+					@require_once __DIR__ . '/api/lib_php_exe.php';
+					$phpExe = function_exists('resolverPhpExe') ? resolverPhpExe() : null;
 					$script = __DIR__ . '\\sql\\prewarm_login.php';
 					$log    = __DIR__ . '\\sql\\prewarm_login.log';
-					if (@is_file($phpExe) && @is_file($script)) {
+					if ($phpExe !== null && @is_file($script)) {
 						$cmd = 'start "" /B ' . escapeshellarg($phpExe) . ' ' . escapeshellarg($script)
 						     . ' ' . escapeshellarg($provPre) . ' >> ' . escapeshellarg($log) . ' 2>&1';
 						$hp = @popen($cmd, 'r'); if ($hp !== false) pclose($hp);
+					} else {
+						// Dejar rastro: el fallo silencioso es lo que hizo que esto pasara 6 días
+						// muerto en producción sin que nadie lo notara. Sigue sin romper el login.
+						@file_put_contents($log, date('Y-m-d H:i:s') . " [login-prewarm] NO se disparó: "
+							. ($phpExe === null ? 'no se resolvió php.exe' : "falta $script") . "\n", FILE_APPEND);
 					}
 				}
 
