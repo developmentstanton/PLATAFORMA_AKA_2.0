@@ -7,6 +7,14 @@ if (!function_exists('evolCurrentStamp')) {
     // Stamp GLOBAL de fuente (mismo enfoque que o45CurrentStamp): avanza cuando el ETL nocturno
     // carga las 3 fuentes VIVAS de evol. ISNULL para que nunca sea NULL por una fuente vacía
     // (si la query falla -> null -> diskCacheFresh=false -> rebuild).
+    //
+    // VENTANA (arreglo 2026-07-16): `FECHA <= ayer` = el MISMO tope que el payload
+    // (informe_evol.php:37 clampea $hastaF a $ayer; el BETWEEN de compras/ventas nunca ve el día en
+    // curso). Con MAX(FECHA) global, las filas del día de mov_inv_actual_PBI (950 el 2026-07-16)
+    // movían el stamp a media mañana e invalidaban TODO el cache en disco para reconstruir un
+    // payload IDÉNTICO (~40s), y además tiraban a la basura el prebuild nocturno. Sigue avanzando
+    // cada medianoche —correcto: la ventana se corre y el contenido sí cambia, y la key de evol
+    // (proveedor+rango de meses) no rota sola. Ver tests/stamp_ventana_test.php.
     // NOTA de cobertura: el dataset lee más tablas (Ventas_Detal_Acum, historico_inventarios/
     // hold/mov_inv, _hold_actual), pero el stamp solo mira inv_actual + Ventas_Detal + mov_inv_actual
     // porque: (a) las históricas/Acum son append-only para un [desde,hasta] fijo y su recarga
@@ -15,10 +23,11 @@ if (!function_exists('evolCurrentStamp')) {
     // proxy fiable del ETL completo. El prebuild nocturno corre con onlyIfStale=false (fuerza
     // rebuild), respaldo para cualquier recarga histórica.
     function evolCurrentStamp($conn): ?string {
-        $sql = "SELECT ISNULL(CONVERT(varchar(19),(SELECT MAX(FECHA) FROM INTEGRACION.dbo.inv_actual_PBI     WITH (NOLOCK)),120),'') + '|'
-                     + ISNULL(CONVERT(varchar(19),(SELECT MAX(FECHA) FROM INTEGRACION.dbo.Ventas_Detal_PBI   WITH (NOLOCK)),120),'') + '|'
-                     + ISNULL(CONVERT(varchar(19),(SELECT MAX(FECHA) FROM INTEGRACION.dbo.mov_inv_actual_PBI WITH (NOLOCK)),120),'') s";
-        $st = sqlsrv_query($conn, $sql);
+        $ayer = date('Y-m-d', strtotime('-1 day'));   // tope idéntico al $ayer de informe_evol.php:34
+        $sql = "SELECT ISNULL(CONVERT(varchar(19),(SELECT MAX(FECHA) FROM INTEGRACION.dbo.inv_actual_PBI     WITH (NOLOCK) WHERE FECHA <= ?),120),'') + '|'
+                     + ISNULL(CONVERT(varchar(19),(SELECT MAX(FECHA) FROM INTEGRACION.dbo.Ventas_Detal_PBI   WITH (NOLOCK) WHERE FECHA <= ?),120),'') + '|'
+                     + ISNULL(CONVERT(varchar(19),(SELECT MAX(FECHA) FROM INTEGRACION.dbo.mov_inv_actual_PBI WITH (NOLOCK) WHERE FECHA <= ?),120),'') s";
+        $st = sqlsrv_query($conn, $sql, [$ayer, $ayer, $ayer]);
         if ($st === false) return null;
         $r = sqlsrv_fetch_array($st, SQLSRV_FETCH_ASSOC); sqlsrv_free_stmt($st);
         return $r ? (string)$r['s'] : null;
