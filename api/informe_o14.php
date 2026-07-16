@@ -19,6 +19,10 @@ header('Content-Type: application/json; charset=utf-8');
 if (!isset($_SESSION['usuario'])) { http_response_code(401); echo json_encode(['ok'=>false,'error'=>'No autenticado']); exit; }
 
 $proveedorSesion = $_SESSION['proveedor'] ?? '';
+// Soltar el lock de sesión: si no, este endpoint pone en fila a las demás llamadas del dashboard
+// (se disparan juntas). Ver informe_evol.php:15 y tests/evol_session_lock_test.php.
+// NO leer $_SESSION después de esta línea.
+session_write_close();
 $proveedor = $proveedorSesion !== '' ? $proveedorSesion : '__SIN_PROVEEDOR__';
 $tab   = $_GET['tab']   ?? 'b';
 

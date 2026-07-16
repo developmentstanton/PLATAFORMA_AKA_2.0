@@ -30,6 +30,10 @@ if (!isset($_SESSION['usuario'])) {
 
 $proveedorSesion = $_SESSION['proveedor'] ?? '';
 $proveedor = $proveedorSesion !== '' ? $proveedorSesion : '__SIN_PROVEEDOR__';
+// Soltar el lock de sesión: si no, este endpoint pone en fila a las demás llamadas del dashboard
+// (se disparan juntas). Ver informe_evol.php:15 y tests/evol_session_lock_test.php.
+// NO leer $_SESSION después de esta línea.
+session_write_close();
 
 $desdeIn = $_GET['desde'] ?? '';
 $hastaIn = $_GET['hasta'] ?? '';

@@ -13,6 +13,10 @@ if (!isset($_SESSION['usuario'])) { http_response_code(401); echo json_encode(['
 
 $proveedorSesion = $_SESSION['proveedor'] ?? '';
 $proveedor = $proveedorSesion !== '' ? $proveedorSesion : '__SIN_PROVEEDOR__';
+// Soltar el lock de sesión: si no, este endpoint pone en fila a las demás llamadas del dashboard
+// (se disparan juntas). Ver informe_evol.php:15 y tests/evol_session_lock_test.php.
+// NO leer $_SESSION después de esta línea.
+session_write_close();
 $tab   = $_GET['tab'] ?? 'data';
 
 // ===== Cache diario del catálogo de filtros: se consulta AQUÍ, antes de conectar y de construir

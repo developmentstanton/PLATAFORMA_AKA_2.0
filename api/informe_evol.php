@@ -12,6 +12,12 @@ if (!isset($_SESSION['usuario'])) { http_response_code(401); echo json_encode(['
 
 $proveedorSesion = $_SESSION['proveedor'] ?? '';
 $proveedor = $proveedorSesion !== '' ? $proveedorSesion : '__SIN_PROVEEDOR__';
+// El manejador de sesiones de PHP mantiene un lock EXCLUSIVO sobre el archivo de sesión durante
+// toda la petición: el dashboard dispara tab=filtros y tab=data juntas y quedaban en fila (medido
+// en WMS-LAB: data 547ms sola -> 42s detrás de filtros). Ya está leído todo lo que se necesita de
+// $_SESSION y ningún endpoint de api/ escribe en ella -> soltar el lock aquí. Ver
+// tests/evol_session_lock_test.php. NO leer $_SESSION después de esta línea.
+session_write_close();
 $tab = $_GET['tab'] ?? 'data';
 
 // ===== Cache diario del catálogo de filtros: se consulta AQUÍ, antes de conectar y de construir
