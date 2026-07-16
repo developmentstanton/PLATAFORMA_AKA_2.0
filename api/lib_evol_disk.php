@@ -3,6 +3,15 @@
 require_once __DIR__ . '/lib_disk_cache.php';
 require_once __DIR__ . '/lib_evol_cache.php'; // evolCacheKey/ensure/EVOL_CACHE_TTL_MIN
 
+// TTL del barrido de DISCO. Ojo: NO es EVOL_CACHE_TTL_MIN (120 min), que es la vida de
+// evol_cache_base en la BD — otra cosa, con otro dueño. Reusar aquel borraba archivos que
+// evolDiskFresh() daba por FRESCOS: desde que evol usa stamp de fuente su cache vale todo el día,
+// así que el miss de cualquier proveedor barría los .json.gz de los demás con >2h y los obligaba a
+// reconstruir un payload idéntico (~40s). 1500 min (~25h) = mismo criterio que O45_DISK_TTL_MIN:
+// el archivo del día sobrevive hasta el próximo ETL y solo se barre lo realmente abandonado.
+// Ver tests/disk_ttl_test.php.
+if (!defined('EVOL_DISK_TTL_MIN')) define('EVOL_DISK_TTL_MIN', 1500);
+
 if (!function_exists('evolCurrentStamp')) {
     // Stamp GLOBAL de fuente (mismo enfoque que o45CurrentStamp): avanza cuando el ETL nocturno
     // carga las 3 fuentes VIVAS de evol. ISNULL para que nunca sea NULL por una fuente vacía
@@ -35,7 +44,7 @@ if (!function_exists('evolCurrentStamp')) {
     function evolDiskFresh($conn, string $ekey): bool { return diskCacheFresh('evol', $ekey, evolCurrentStamp($conn)); }
     function evolReadPayload(string $ekey): ?string { return diskCacheRead('evol', $ekey); }
     function evolWritePayload(string $ekey, string $json, string $stamp): bool { return diskCacheWrite('evol', $ekey, $json, $stamp); }
-    function evolCleanup(): void { diskCacheCleanup('evol', EVOL_CACHE_TTL_MIN); }
+    function evolCleanup(): void { diskCacheCleanup('evol', EVOL_DISK_TTL_MIN); }
     function evolServeGz(string $gz): void { diskCacheServeGz($gz); }
 
     function evolFetch($conn,$sql,$p){ $s=sqlsrv_query($conn,$sql,$p); if($s===false) return ['error'=>sqlsrv_errors()];
