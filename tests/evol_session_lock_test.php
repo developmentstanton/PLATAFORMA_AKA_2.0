@@ -36,6 +36,28 @@ function mkreq(string $url, string $sid) {
 
 echo "BLOQUEO DE SESIÓN — evol\nproveedor = $prov\nbase      = $base\n\n";
 
+// --- Premisa del test: la petición "rápida" DEBE ser un hit de disco. Si su cache está frío o
+// stale, reconstruye (~30s) y el test culparía al lock de algo que no es el lock. Así que se
+// calienta y se mide SOLA antes de medir nada en concurrencia. Esto ademas da la línea base
+// (la "Prueba B": la misma URL sola vs dentro de la ráfaga).
+$urlRapida = $base . '?tab=data&desde=2025-01&hasta=2026-07';
+function pedir(string $url, string $sid): array {
+    $ch = mkreq($url, $sid); $t = microtime(true);
+    $body = curl_exec($ch); $ms = (int) round((microtime(true) - $t) * 1000);
+    $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE); curl_close($ch);
+    return [$ms, $code, (string) $body];
+}
+[$msWarm, , ] = pedir($urlRapida, $sid);                 // 1ª: puede ser un miss legítimo -> calienta
+[$msSola, $codeSola, ] = pedir($urlRapida, $sid);        // 2ª: ya debe salir de disco
+printf("calentamiento : %6d ms\nsola (línea base, debe ser un hit de disco) : %6d ms  http=%d\n\n",
+    $msWarm, $msSola, $codeSola);
+if ($codeSola !== 200 || $msSola > $UMBRAL_MS) {
+    echo "FALLO (premisa): la petición cacheada tarda {$msSola} ms SOLA, sin nadie con quien competir.\n";
+    echo "El cache en disco de evol no está sirviendo, así que este test no puede medir el lock.\n";
+    echo "Revisar frescura del stamp / que el archivo exista antes de interpretar esto como un bloqueo.\n";
+    exit(1);
+}
+
 $mh = curl_multi_init();
 // LENTA (nocache=1 -> construye #base vivo, ~30s): entra primero y se queda con el lock.
 $lenta = mkreq($base . '?tab=data&nocache=1&desde=2025-01&hasta=2026-07', $sid);
@@ -75,7 +97,9 @@ $d = json_decode($cuerpo, true);
 $fallos = [];
 if ($http !== 200)                              $fallos[] = "la rápida devolvió HTTP $http";
 if (!is_array($d) || !isset($d['negocios']))    $fallos[] = 'la rápida no devolvió un payload de evol válido';
-if ($msRapida > $UMBRAL_MS) $fallos[] = sprintf('la rápida tardó %d ms (umbral %d ms): quedó en fila detrás de la lenta (%d ms) — la sesión sigue bloqueando', $msRapida, $UMBRAL_MS, $msLenta);
+// La premisa ya garantizó que sola tarda $msSola (<$UMBRAL_MS): si ahora tarda mucho más, la única
+// diferencia es que hay otra petición de la MISMA sesión en vuelo -> es el lock, no un cache frío.
+if ($msRapida > $UMBRAL_MS) $fallos[] = sprintf('la rápida tardó %d ms, pero sola tarda %d ms (umbral %d): quedó en fila detrás de la lenta (%d ms) — la sesión sigue bloqueando', $msRapida, $msSola, $UMBRAL_MS, $msLenta);
 
 if ($fallos) { foreach ($fallos as $f) echo "FALLO: $f\n"; exit(1); }
 
