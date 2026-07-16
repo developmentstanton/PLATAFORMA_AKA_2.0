@@ -1,0 +1,12 @@
+# Los .bat DEBEN llegar al disco con saltos CRLF.
+#
+# Por que: cmd.exe parsea mal los bloques multilinea -- if ( ... ), for ... do ( ... ) -- cuando el
+# archivo tiene saltos LF, y falla de forma silenciosa y dificil de ver. El 2026-07-16 el prebuild
+# nocturno de WMS-LAB llevaba 6 dias muriendo cada madrugada con errorlevel 1 y sin escribir su log:
+# la copia desplegada de prebuild_all.bat habia perdido los CRLF (y de paso el escape de unos
+# parentesis) al editarse a mano fuera de git. El repo estaba bien; se rompio en el camino.
+#
+# Con esto, git normaliza al hacer checkout en cualquier maquina y el escalon de staging deja de
+# poder introducir el bug por accidente. Ver tests/bat_sintaxis_test.php.
+*.bat text eol=crlf
+*.cmd text eol=crlf

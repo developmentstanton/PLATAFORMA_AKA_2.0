@@ -19,8 +19,25 @@ header('Content-Type: application/json; charset=utf-8');
 if (!isset($_SESSION['usuario'])) { http_response_code(401); echo json_encode(['ok'=>false,'error'=>'No autenticado']); exit; }
 
 $proveedorSesion = $_SESSION['proveedor'] ?? '';
+// Soltar el lock de sesión: si no, este endpoint pone en fila a las demás llamadas del dashboard
+// (se disparan juntas). Ver informe_evol.php:15 y tests/evol_session_lock_test.php.
+// NO leer $_SESSION después de esta línea.
+session_write_close();
 $proveedor = $proveedorSesion !== '' ? $proveedorSesion : '__SIN_PROVEEDOR__';
 $tab   = $_GET['tab']   ?? 'b';
+
+// ===== Cache diario del catálogo de filtros: se consulta AQUÍ, antes de conectar y de construir
+// #base (:142-206). Vivía dentro del bloque tab=filtros de abajo, DESPUÉS del build, así que el hit
+// costaba lo mismo que el miss. Un hit no necesita BD: es leer un .json. La escritura sigue abajo,
+// donde se arma $out. Mismo arreglo que informe_evol.php:22. Ver tests/filtros_cache_test.php.
+// OJO: o14 valida por 'sku' (no 'combos') — su payload trae ambos. =====
+$filtrosCacheFile = __DIR__ . '/../cache/o14_filtros_' . md5($proveedor) . '.json';
+if ($tab === 'filtros' && is_file($filtrosCacheFile)
+    && date('Y-m-d', filemtime($filtrosCacheFile)) === date('Y-m-d')) {
+    $cached = json_decode((string) @file_get_contents($filtrosCacheFile), true);
+    if (is_array($cached) && isset($cached['sku'])) { echo json_encode($cached, JSON_UNESCAPED_UNICODE); exit; }
+}
+
 $cia   = trim($_GET['cia']   ?? '');
 // desde/hasta delimitan SOLO la ventana de Ventas (siembra/disp/hold son foto actual, sin fecha).
 // Default: histórico desde 2025-01-01 → cruza Ventas_Detal_Acum_PBI + Ventas_Detal_PBI (ver $inclAcum).
@@ -250,12 +267,8 @@ if ($tab === 'b' || $tab === 'c' || $tab === 'reco') {
 // ====================================================================
 if ($tab === 'filtros') {
     $cacheDir = __DIR__ . '/../cache';
+    // El hit ya salió arriba (:28-35). Aquí solo se llega en miss -> construir y cachear.
     if (!is_dir($cacheDir)) @mkdir($cacheDir, 0755, true);
-    $cacheFile = $cacheDir . '/o14_filtros_' . md5($proveedor) . '.json';
-    if (file_exists($cacheFile) && date('Y-m-d', filemtime($cacheFile)) === date('Y-m-d')) {
-        $cached = json_decode(file_get_contents($cacheFile), true);
-        if (is_array($cached) && isset($cached['sku'])) { sqlsrv_close($dbConnect); echo json_encode($cached, JSON_UNESCAPED_UNICODE); exit; }
-    }
     $rowsC = run($dbConnect, "
         SELECT DISTINCT
             r.MARCA, r.TIPO, r.CATEGORIA, r.SUBCATEGORIA, r.GENERO, r.PUBLICO_OBJETIVO, b.referencia,
@@ -282,7 +295,7 @@ if ($tab === 'filtros') {
         'referencia'=>trim((string)$r['referencia']), 'color'=>trim((string)$r['color']), 'talla'=>trim((string)$r['talla']),
     ], $rowsS);
     $out = ['ok'=>true, 'tab'=>'filtros', 'combos'=>$combos, 'sku'=>$sku];
-    @file_put_contents($cacheFile, json_encode($out));
+    @file_put_contents($filtrosCacheFile, json_encode($out));
     sqlsrv_close($dbConnect);
     echo json_encode($out, JSON_UNESCAPED_UNICODE);
     exit;

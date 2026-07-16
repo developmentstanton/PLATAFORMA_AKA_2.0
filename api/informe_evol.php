@@ -12,7 +12,24 @@ if (!isset($_SESSION['usuario'])) { http_response_code(401); echo json_encode(['
 
 $proveedorSesion = $_SESSION['proveedor'] ?? '';
 $proveedor = $proveedorSesion !== '' ? $proveedorSesion : '__SIN_PROVEEDOR__';
+// El manejador de sesiones de PHP mantiene un lock EXCLUSIVO sobre el archivo de sesión durante
+// toda la petición: el dashboard dispara tab=filtros y tab=data juntas y quedaban en fila (medido
+// en WMS-LAB: data 547ms sola -> 42s detrás de filtros). Ya está leído todo lo que se necesita de
+// $_SESSION y ningún endpoint de api/ escribe en ella -> soltar el lock aquí. Ver
+// tests/evol_session_lock_test.php. NO leer $_SESSION después de esta línea.
+session_write_close();
 $tab = $_GET['tab'] ?? 'data';
+
+// ===== Cache diario del catálogo de filtros: se consulta AQUÍ, antes de conectar y de construir
+// #base (:157-241). Vivía dentro del bloque tab=filtros de abajo, DESPUÉS del build, así que el
+// hit costaba lo mismo que el miss (~19s en WMS-LAB) y solo ahorraba el SELECT DISTINCT final.
+// Un hit no necesita BD: es leer un .json. La escritura sigue abajo, donde se arma $out. =====
+$filtrosCacheFile = __DIR__ . '/../cache/evol_filtros_' . md5($proveedor) . '.json';
+if ($tab === 'filtros' && is_file($filtrosCacheFile)
+    && date('Y-m-d', filemtime($filtrosCacheFile)) === date('Y-m-d')) {
+    $cached = json_decode((string) @file_get_contents($filtrosCacheFile), true);
+    if (is_array($cached) && isset($cached['combos'])) { echo json_encode($cached, JSON_UNESCAPED_UNICODE); exit; }
+}
 
 // === Eje de meses (Año-Mes). Default: enero del año pasado .. mes actual. Tope = mes actual. ===
 $mesActual = date('Y-m');
@@ -267,12 +284,8 @@ if ($tab === 'data') {
 
 // ===== tab=filtros: catálogo del universo del proveedor (idéntico a O45, cache evol_filtros_*) =====
 if ($tab === 'filtros') {
+    // El hit ya salió arriba (:16-24). Aquí solo se llega en miss -> construir y cachear.
     $cacheDir = __DIR__ . '/../cache'; if (!is_dir($cacheDir)) @mkdir($cacheDir, 0755, true);
-    $cacheFile = $cacheDir . '/evol_filtros_' . md5($proveedor) . '.json';
-    if (file_exists($cacheFile) && date('Y-m-d', filemtime($cacheFile)) === date('Y-m-d')) {
-        $cached = json_decode(file_get_contents($cacheFile), true);
-        if (is_array($cached) && isset($cached['combos'])) { sqlsrv_close($dbConnect); echo json_encode($cached, JSON_UNESCAPED_UNICODE); exit; }
-    }
     $rowsC = run($dbConnect, "
         SELECT DISTINCT r.MARCA, r.TIPO, r.CATEGORIA, r.SUBCATEGORIA, r.GENERO, r.PUBLICO_OBJETIVO, b.referencia,
             b.negocio, ISNULL(bo.GRUPO,'') AS GRUPO, rtrim(b.bodega) AS COD, ISNULL(bo.NOMBRE,'') AS NOMBRE
@@ -288,7 +301,7 @@ if ($tab === 'filtros') {
         'grupo'=>trim((string)$r['GRUPO']), 'tienda'=>trim((string)$r['NOMBRE']), 'tienda_cod'=>trim((string)$r['COD']),
     ], $rowsC);
     $out = ['ok'=>true, 'tab'=>'filtros', 'combos'=>$combos];
-    @file_put_contents($cacheFile, json_encode($out));
+    @file_put_contents($filtrosCacheFile, json_encode($out));
     sqlsrv_close($dbConnect); echo json_encode($out, JSON_UNESCAPED_UNICODE); exit;
 }
 

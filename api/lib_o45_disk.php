@@ -17,10 +17,16 @@ if (!function_exists('o45CacheKey')) {
     // (hasta=ayer); (b) _hold_actual_PBI es el "stock/hold del corte actual" cuyo staleness
     // intradia el spec acepta explicitamente; (c) inv_actual_PBI.FECHA avanzando de noche es
     // proxy fiable de "el ETL nocturno completo" (todas cargan en el mismo job nocturno).
+    // VENTANA (arreglo 2026-07-16): `FECHA <= ayer` = el MISMO tope que el payload ($hasta de
+    // informe_o45.php es ayer). Hoy estas 2 fuentes solo cargan de noche, así que el MAX global y el
+    // acotado coinciden; el clamp cierra el latente: el día que Ventas_Detal_PBI reciba ventas del
+    // mismo día, el MAX global invalidaría todo el cache de o45 para reconstruir un payload idéntico
+    // —que es exactamente lo que le pasaba a evol con mov_inv_actual_PBI. Ver tests/stamp_ventana_test.php.
     function o45CurrentStamp($conn): ?string {
-        $sql = "SELECT ISNULL(CONVERT(varchar(19),(SELECT MAX(FECHA) FROM INTEGRACION.dbo.inv_actual_PBI  WITH (NOLOCK)),120),'') + '|'
-                     + ISNULL(CONVERT(varchar(19),(SELECT MAX(FECHA) FROM INTEGRACION.dbo.Ventas_Detal_PBI WITH (NOLOCK)),120),'') s";
-        $st = sqlsrv_query($conn, $sql);
+        $ayer = date('Y-m-d', strtotime('-1 day'));
+        $sql = "SELECT ISNULL(CONVERT(varchar(19),(SELECT MAX(FECHA) FROM INTEGRACION.dbo.inv_actual_PBI  WITH (NOLOCK) WHERE FECHA <= ?),120),'') + '|'
+                     + ISNULL(CONVERT(varchar(19),(SELECT MAX(FECHA) FROM INTEGRACION.dbo.Ventas_Detal_PBI WITH (NOLOCK) WHERE FECHA <= ?),120),'') s";
+        $st = sqlsrv_query($conn, $sql, [$ayer, $ayer]);
         if ($st === false) return null;
         $r = sqlsrv_fetch_array($st, SQLSRV_FETCH_ASSOC); sqlsrv_free_stmt($st);
         return $r ? (string)$r['s'] : null;
