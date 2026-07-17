@@ -32,10 +32,22 @@ if (!function_exists('warmProveedor')) {
 
         // --- evol: (Y-1)-01 .. Y-m ---
         $ed=(date('Y')-1).'-01'; $eh=date('Y-m'); $ek=evolCacheKey($proveedor,$ed,$eh);
-        if ($onlyIfStale && evolDiskFresh($conn,$ek)) $out['evol']='skipped';
-        elseif (!ensureEvolCacheBase($conn,$ek,$ed,$eh)) $out['evol']='failed-ensure';
+        if ($onlyIfStale && evolDiskFresh($conn,$ek)) { $out['evol']='skipped'; $out['evol_filtros']='skipped'; }
+        elseif (!ensureEvolCacheBase($conn,$ek,$ed,$eh)) { $out['evol']='failed-ensure'; $out['evol_filtros']='failed-ensure'; }
         else { $st=evolCurrentStamp($conn); $p=evolBuildPayload($conn,$proveedor,$ek,$ed,$eh);
-            $out['evol']=(($p['ok']??false)===true && $st!==null && evolWritePayload($ek,json_encode($p,JSON_UNESCAPED_UNICODE),$st))?'warmed':'failed'; }
+            $out['evol']=(($p['ok']??false)===true && $st!==null && evolWritePayload($ek,json_encode($p,JSON_UNESCAPED_UNICODE),$st))?'warmed':'failed';
+            // --- evol tab=filtros: derivar de cache_base (ya materializado arriba) y escribir el
+            // cache diario que sirve el endpoint (informe_evol.php:28). Evita el miss de ~204s del
+            // 1er aliado. Combos vacio -> proveedor sin datos -> 'vacio' (no fallo, no escribe). ---
+            $cf = evolBuildFiltros($conn, $ek);
+            if (isset($cf['error'])) $out['evol_filtros']='failed';
+            elseif (empty($cf))      $out['evol_filtros']='vacio';
+            else {
+                $ffile = __DIR__ . '/../cache/evol_filtros_' . md5($proveedor) . '.json';
+                $okW = @file_put_contents($ffile, json_encode(['ok'=>true,'tab'=>'filtros','combos'=>$cf], JSON_UNESCAPED_UNICODE)) !== false;
+                $out['evol_filtros'] = $okW ? 'warmed' : 'failed';
+            }
+        }
 
         // --- o45: 2025-01-01 .. ayer (o45 no tiene ensure; el build ES la materializacion) ---
         $od='2025-01-01'; $oh=date('Y-m-d',strtotime('-1 day')); $ok=o45CacheKey($proveedor,$od,$oh);
