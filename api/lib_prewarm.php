@@ -20,8 +20,15 @@ if (!function_exists('warmProveedor')) {
         $d='2025-01-01'; $h=date('Y-m-d'); $k=o14CacheKey($proveedor,$d,$h);
         if ($onlyIfStale && o14cDiskFresh($conn,$k)) $out['o14c']='skipped';
         elseif (!ensureO14CacheBase($conn,$k,$d,$h)) $out['o14c']='failed-ensure';
-        else { $st=o14cCurrentStamp($conn,$k); $p=o14cBuildPayloadC($conn,$k,$d,$h);
-            $out['o14c']=(($p['ok']??false)===true && $st!==null && o14cWritePayload($k,json_encode($p,JSON_UNESCAPED_UNICODE),$st))?'warmed':'failed'; }
+        else { $st=o14cCurrentStamp($conn,$k); $p=o14cBuildPayloadC($conn,$k,$d,$h); $okP=(($p['ok']??false)===true);
+            // Proveedor SIN DATOS != fallo: o14_cache_base sin filas -> arbol vacio (grupos=[]) y
+            // stamp NULL (no hay 'creado'). El payload es ok, no hay nada que cachear ni que fechar.
+            // 'vacio' para que prebuild_all no lo cuente como FALLO (evita LastTaskResult=1 eterno por
+            // usuarios de prueba o aliados nuevos sin movimientos). La condicion es TRIPLE a proposito:
+            // si el stamp fuera NULL por un ERROR de query pero el proveedor SI tiene grupos, cae a
+            // 'failed' y no se cachea (protege de envenenar). Ver tests/prewarm_vacio_test.php.
+            if ($okP && $st===null && empty($p['grupos'])) $out['o14c']='vacio';
+            else $out['o14c']=($okP && $st!==null && o14cWritePayload($k,json_encode($p,JSON_UNESCAPED_UNICODE),$st))?'warmed':'failed'; }
 
         // --- evol: (Y-1)-01 .. Y-m ---
         $ed=(date('Y')-1).'-01'; $eh=date('Y-m'); $ek=evolCacheKey($proveedor,$ed,$eh);
