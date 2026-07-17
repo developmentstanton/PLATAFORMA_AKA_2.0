@@ -24,7 +24,7 @@ if ($dry){ foreach($provs as $p) echo "  - $p\n"; sqlsrv_close($dbConnect); exit
 $okN=0;$failN=0;
 foreach($provs as $prov){ $tp=microtime(true); $r=warmProveedor($dbConnect,$prov,false);
     $bad=in_array('failed',$r,true)||in_array('failed-refs',$r,true)||in_array('failed-ensure',$r,true);
-    printf("  %s %-28s o14c=%s evol=%s o45=%s %.1fs\n",$bad?'FALLO':'OK  ',$prov,$r['o14c'],$r['evol'],$r['o45'],microtime(true)-$tp);
+    printf("  %s %-28s o14c=%s evol=%s evol_filtros=%s o45=%s %.1fs\n",$bad?'FALLO':'OK  ',$prov,$r['o14c'],$r['evol'],$r['evol_filtros']??'-',$r['o45'],microtime(true)-$tp);
     $bad?$failN++:$okN++; }
 printf("[prebuild_all] fin: OK=%d FALLO=%d en %.1fs\n",$okN,$failN,microtime(true)-$t0);
 sqlsrv_close($dbConnect); exit($failN?1:0);
