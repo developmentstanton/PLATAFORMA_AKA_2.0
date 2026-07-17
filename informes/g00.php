@@ -149,7 +149,7 @@
     table.disp-table tr.g00-tipo td:first-child { padding-left: 26px; color: var(--text-light); font-weight: 500; }
     table.disp-table tr.g00-marca-row { cursor: pointer; }
     table.disp-table tr.g00-marca-row:hover td { background: #faf9fe; }
-    .g00-caret { display: inline-block; width: 14px; color: var(--text-light); font-size: 10px; }
+    .g00-caret { display: inline-block; width: 14px; color: var(--text-light); font-size: 13px; font-weight: 700; text-align: center; }
     table.disp-table .pos { color: var(--success); }
     table.disp-table .neg { color: var(--danger); }
     /* Bordes divisores de sección (2px) entre bloques de información de las tablas G00 */
@@ -773,7 +773,7 @@
             labelCell = '<td>'+esc(label)+'</td>';
         } else if (opts.hasChildren) {             // tienda con negocios: arranca colapsada
             trOpen = '<tr class="'+cls+' g00-marca-row g00-collapsed" data-tienda="'+opts.idx+'" onclick="g00ToggleTienda('+opts.idx+',this)">';
-            labelCell = '<td><span class="g00-caret">▸</span>'+esc(label)+'</td>';
+            labelCell = '<td><span class="g00-caret">+</span>'+esc(label)+'</td>';
         } else {                                   // total o tienda sin negocios
             trOpen = '<tr class="'+cls+'">';
             labelCell = '<td>'+esc(label)+'</td>';
@@ -793,7 +793,7 @@
         document.querySelectorAll('#g00-tabla-tienda tr[data-tparent="'+idx+'"]')
             .forEach(r => { r.style.display = collapsed ? 'none' : ''; });
         const caret = el.querySelector('.g00-caret');
-        if (caret) caret.textContent = collapsed ? '▸' : '▾';
+        if (caret) caret.textContent = collapsed ? '+' : '−';
     };
 
     // ============ LOAD: PERIODOS ============
@@ -840,7 +840,7 @@
         const disp = lvl === 1 ? '' : 'display:none;';
         const cls = (lvl === 4 ? 'g00-tipo' : '') + (hasChildren ? ' g00-marca-row g00-collapsed' : '');
         const onclk = hasChildren ? ' onclick="g00TogglePeriodo(' + id + ',this)"' : '';
-        const caret = hasChildren ? '<span class="g00-caret">▸</span>' : '';
+        const caret = hasChildren ? '<span class="g00-caret">+</span>' : '';
         return '<tr class="' + cls.trim() + '" data-rid="' + id + '" data-pid="' + (pid==null?'':pid) + '" data-lvl="' + lvl + '" style="' + disp + '"' + onclk + '>'
             + '<td style="' + pad + '">' + caret + esc(label) + '</td>'
             + '<td class="num">' + fmtInt(m.ub) + '</td><td class="num">' + share(m.ub, tot.ub) + '</td>'
@@ -888,13 +888,13 @@
     }
     window.g00TogglePeriodo = function (id, el) {
         const collapsed = el.classList.toggle('g00-collapsed');
-        const caret = el.querySelector('.g00-caret'); if (caret) caret.textContent = collapsed ? '▸' : '▾';
+        const caret = el.querySelector('.g00-caret'); if (caret) caret.textContent = collapsed ? '+' : '−';
         const tbl = document.getElementById('g00-tabla-periodos');
         if (collapsed) {
             const hideKids = (pid) => {
                 tbl.querySelectorAll('tr[data-pid="' + pid + '"]').forEach(r => {
                     r.style.display = 'none'; r.classList.add('g00-collapsed');
-                    const c = r.querySelector('.g00-caret'); if (c) c.textContent = '▸';
+                    const c = r.querySelector('.g00-caret'); if (c) c.textContent = '+';
                     hideKids(r.getAttribute('data-rid'));
                 });
             };
@@ -1014,7 +1014,7 @@
             labelCell = '<td>'+esc(r.label)+'</td>';
         } else if (opts.hasChildren) {             // fila marca con hijos: arranca colapsada, clic despliega
             trOpen = '<tr class="'+cls+' g00-marca-row g00-collapsed" data-marca="'+opts.idx+'" onclick="g00ToggleMarca('+opts.idx+',this)">';
-            labelCell = '<td><span class="g00-caret">▸</span>'+esc(r.label)+'</td>';
+            labelCell = '<td><span class="g00-caret">+</span>'+esc(r.label)+'</td>';
         } else {                                   // total o marca sin hijos
             trOpen = '<tr class="'+cls+'">';
             labelCell = '<td>'+esc(r.label)+'</td>';
@@ -1037,7 +1037,7 @@
         document.querySelectorAll('#g00-tabla-marca tr[data-parent="'+idx+'"]')
             .forEach(r => { r.style.display = collapsed ? 'none' : ''; });
         const caret = el.querySelector('.g00-caret');
-        if (caret) caret.textContent = collapsed ? '▸' : '▾';
+        if (caret) caret.textContent = collapsed ? '+' : '−';
     };
 
     function renderTablaMensual(rows, anioA, anioB, tdas) {
@@ -1120,7 +1120,7 @@
             labelCell = '<td>'+esc(r.label)+'</td>';
         } else if (kind === 'parent') {
             trOpen = '<tr class="'+cls+' g00-marca-row g00-collapsed"'+imgAttr+' onclick="g00ToggleArbol(\''+opts.prefix+'\','+meta.idx+',this)">';
-            labelCell = '<td><span class="g00-caret">▸</span>'+esc(r.label)+'</td>';
+            labelCell = '<td><span class="g00-caret">+</span>'+esc(r.label)+'</td>';
         } else {   // leaf (padre sin hijos) o total
             trOpen = '<tr class="'+cls+'"'+imgAttr+'>';
             labelCell = '<td>'+esc(r.label)+'</td>';
@@ -1143,7 +1143,7 @@
         document.querySelectorAll('tr[data-'+prefix+'parent="'+idx+'"]')
             .forEach(r => { r.style.display = collapsed ? 'none' : ''; });
         const caret = el.querySelector('.g00-caret');
-        if (caret) caret.textContent = collapsed ? '▸' : '▾';
+        if (caret) caret.textContent = collapsed ? '+' : '−';
     };
     // ===== Preview de imagen del zapato al hover en la tabla "Resumen Ventas Por Negocio" =====
     (function initNegocioImgHover() {
