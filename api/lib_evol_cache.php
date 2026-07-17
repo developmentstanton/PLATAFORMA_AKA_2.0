@@ -284,3 +284,36 @@ if (!function_exists('evolCacheCleanup')) {
         if ($st !== false) sqlsrv_free_stmt($st);
     }
 }
+
+if (!function_exists('evolBuildFiltros')) {
+    /**
+     * Catálogo de filtros de evol DERIVADO de evol_cache_base (ya materializado por
+     * ensureEvolCacheBase). Mismo CONJUNTO de combos que el build vivo del endpoint
+     * (informe_evol.php tab=filtros, que usa #base) — verificado por
+     * tests/evol_filtros_paridad_test.php. Devuelve array de combos, o ['error'=>...] si el
+     * SELECT falla (para que el caller aplique ok-gate). Las 11 claves y el filtro CEDI son
+     * EXACTAMENTE los del endpoint; no cambiar sin actualizar el test de paridad.
+     */
+    function evolBuildFiltros($conn, string $ekey): array {
+        $sql = "SELECT DISTINCT marca, tipo, categoria, subcategoria, genero, publico_objetivo,
+                    referencia, negocio, ISNULL(grupo,'') AS grupo, rtrim(bodega) AS cod,
+                    ISNULL(nombre,'') AS nombre
+                FROM INTEGRACION.dbo.evol_cache_base WITH (NOLOCK)
+                WHERE cache_key = ? AND bodega <> 'CEDI'";
+        $st = sqlsrv_query($conn, $sql, [$ekey]);
+        if ($st === false) return ['error' => sqlsrv_errors()];
+        $combos = [];
+        while ($r = sqlsrv_fetch_array($st, SQLSRV_FETCH_ASSOC)) {
+            $combos[] = [
+                'marca'=>trim((string)$r['marca']), 'tipo'=>trim((string)$r['tipo']),
+                'categoria'=>trim((string)$r['categoria']), 'subcategoria'=>trim((string)$r['subcategoria']),
+                'genero'=>trim((string)$r['genero']), 'publico'=>trim((string)$r['publico_objetivo']),
+                'referencia'=>trim((string)$r['referencia']), 'negocio'=>trim((string)$r['negocio']),
+                'grupo'=>trim((string)$r['grupo']), 'tienda'=>trim((string)$r['nombre']),
+                'tienda_cod'=>trim((string)$r['cod']),
+            ];
+        }
+        sqlsrv_free_stmt($st);
+        return $combos;
+    }
+}
