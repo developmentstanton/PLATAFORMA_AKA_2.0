@@ -98,7 +98,7 @@
   .o14-matriz td.blocktot, .o14-matriz th.blocktot { background:#efecfa; font-weight:700; border-left:2px solid #cfc8ee; }
   .o14-matriz tr.o14-total td { font-weight:800; background:#e0dbf2; color:var(--primary); border-top:2px solid var(--primary); border-bottom:2px solid var(--primary); }
   .o14-matriz tr.o14-total td.blocktot { background:#cfc7ec; border-left:2px solid var(--primary); }
-  .o14-arbol .o14-tw { display:inline-block; width:12px; color:var(--primary); font-size:9px; }
+  .o14-arbol .o14-tw { display:inline-block; width:12px; color:var(--primary); font-size:12px; font-weight:700; text-align:center; }
   .o14-matriz tr.o14-row-grupo td { background:#e3def3; font-weight:800; color:var(--primary); }
   .o14-matriz tr.o14-row-grupo td.dim { cursor:pointer; }
   .o14-matriz tr.o14-grupo-total td { border-top:1px solid var(--primary); }
@@ -116,7 +116,7 @@
   .o14-reco-card { margin-bottom:18px; }
   .o14-reco-card .card-title { font-weight:700; color:var(--primary); margin-bottom:8px; font-size:13px; }
   .o14-matriz tr.o14-reco-toggle td.dim { cursor:pointer; }
-  .o14-reco-tw { display:inline-block; width:12px; color:var(--primary); font-size:9px; }
+  .o14-reco-tw { display:inline-block; width:12px; color:var(--primary); font-size:12px; font-weight:700; text-align:center; }
   .o14-reco-note { font-size:11px; font-weight:500; color:var(--text-light); margin-left:6px; }
   #o14-img-pop { position:fixed; display:none; z-index:9999; pointer-events:none; background:#fff; border:1px solid var(--border); border-radius:8px; box-shadow:0 6px 20px rgba(45,43,78,0.25); padding:4px; }
   #o14-img-pop img { max-width:260px; max-height:320px; width:auto; height:auto; display:block; border-radius:4px; }
@@ -333,12 +333,12 @@
       const gexp=arbolState.g[gi].exp;
       medidas.forEach(m=>{ for(const t in gv[m]) gtot[m][t]=(gtot[m][t]||0)+gv[m][t]; });
       // Header de grupo: toggle + nombre, SIN números (solo para colapsar).
-      h+='<tr class="o14-row-grupo" data-g="'+gi+'"><td class="dim" onclick="o14ToggleGrupo('+gi+')"><span class="o14-tw">'+(gexp?'▼':'▶')+'</span> '+esc(gr.grupo)+'</td><td colspan="'+nCols+'"></td></tr>';
+      h+='<tr class="o14-row-grupo" data-g="'+gi+'"><td class="dim" onclick="o14ToggleGrupo('+gi+')"><span class="o14-tw">'+(gexp?'−':'+')+'</span> '+esc(gr.grupo)+'</td><td colspan="'+nCols+'"></td></tr>';
       gr.almacenes.forEach((a,ai)=>{
         const av=sumValores(a.negocios, medidas);
         const aexp=arbolState.g[gi].a[ai];
         const aHide=gexp?'':' style="display:none"';
-        h+='<tr class="o14-row-alm" data-g="'+gi+'" data-a="'+ai+'"'+aHide+'><td class="dim" style="padding-left:22px" onclick="o14ToggleAlm('+gi+','+ai+')"><span class="o14-tw">'+(aexp?'▼':'▶')+'</span> '+esc(a.bodega)+' · '+esc(a.nombre)+'</td>'+rowCells(av,tallas,medidas,false)+'</tr>';
+        h+='<tr class="o14-row-alm" data-g="'+gi+'" data-a="'+ai+'"'+aHide+'><td class="dim" style="padding-left:22px" onclick="o14ToggleAlm('+gi+','+ai+')"><span class="o14-tw">'+(aexp?'−':'+')+'</span> '+esc(a.bodega)+' · '+esc(a.nombre)+'</td>'+rowCells(av,tallas,medidas,false)+'</tr>';
         a.negocios.forEach(n=>{
           const nHide=(gexp&&aexp)?'':' style="display:none"';
           h+='<tr class="o14-row-neg" data-g="'+gi+'" data-a="'+ai+'"'+nHide+'><td class="dim" style="padding-left:42px">'+esc(n.negocio)+'</td>'+rowCells(n.valores,tallas,medidas,true)+'</tr>';
@@ -377,7 +377,7 @@
     let h='<div class="card-title">'+esc(RECO_LABEL[medida])+' <span class="o14-reco-note">'+esc(RECO_NOTE[medida](gtot))+'</span>'+titleBtn+'</div>';
     h+='<div class="o14-matriz-wrap"><table class="o14-matriz" id="o14-reco-tbl-'+medida+'"><thead><tr><th class="dim">Negocio</th>';
     tallas.forEach(t=> h+='<th>'+esc(t)+'</th>'); h+='<th class="blocktot">Tot</th></tr></thead><tbody>';
-    h+='<tr class="o14-total o14-reco-toggle" onclick="o14RecoToggle(\''+medida+'\')"><td class="dim"><span class="o14-reco-tw" id="o14-reco-caret-'+medida+'">▶</span> TOTAL</td>';
+    h+='<tr class="o14-total o14-reco-toggle" onclick="o14RecoToggle(\''+medida+'\')"><td class="dim"><span class="o14-reco-tw" id="o14-reco-caret-'+medida+'">+</span> TOTAL</td>';
     tallas.forEach(t=>{ const v=tot[t]||0; h+='<td>'+(v?nf(v):'')+'</td>'; }); h+='<td class="blocktot">'+nf(gtot)+'</td></tr>';
     filas.forEach(f=>{ const o=f.valores[medida]||{}; let rt=0; h+='<tr class="o14-reco-neg" data-negimg="'+esc(f.negocio)+'" style="display:none"><td class="dim">'+esc(f.negocio)+'</td>';
       tallas.forEach(t=>{ const v=o[t]||0; rt+=v; h+='<td>'+(v?nf(v):'')+'</td>'; }); h+='<td class="blocktot">'+nf(rt)+'</td></tr>'; });
@@ -423,7 +423,7 @@
     const rows=tbl.querySelectorAll('tr.o14-reco-neg'); if(!rows.length) return;
     const show = rows[0].style.display==='none';
     rows.forEach(r=>{ r.style.display = show?'':'none'; });
-    const caret=document.getElementById('o14-reco-caret-'+med); if(caret) caret.textContent = show?'▼':'▶';
+    const caret=document.getElementById('o14-reco-caret-'+med); if(caret) caret.textContent = show?'−':'+';
   };
 
   // Hover de foto del zapato sobre la columna Negocio (col 0) — en Recomendaciones y en Por negocio (igual que G00).

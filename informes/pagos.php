@@ -8,10 +8,6 @@
   #page-informes-pagos .g00-filters input[type="number"]:focus, #page-informes-pagos .g00-filters input[type="text"]:focus { border-color: var(--primary); }
   #page-informes-pagos table.disp-table th, #page-informes-pagos table.disp-table td { white-space:nowrap; font-size:11px; }
   #page-informes-pagos table.disp-table td.num { text-align:right; font-variant-numeric:tabular-nums; }
-  #page-informes-pagos .pg-neg { color: var(--danger,#e3342f); }
-  #page-informes-pagos .pg-total-col { background:#fdf3c7; font-weight:700; }
-  #page-informes-pagos #pg-tabla th:nth-child(2), #page-informes-pagos #pg-tabla td:nth-child(2) { border-right:2px solid var(--g00-divider,#adabb6); }
-  #page-informes-pagos #pg-tabla th:last-child, #page-informes-pagos #pg-tabla td:last-child { border-left:2px solid var(--g00-divider,#adabb6); }
   /* "Resumen de Pagos Generados": paleta verde (diferenciarla de la matriz) + todo centrado */
   #page-informes-pagos #pg-gen-tabla th,
   #page-informes-pagos #pg-gen-tabla td,
@@ -32,18 +28,12 @@
     </div>
   </div>
   <div class="card">
-    <div class="card-title">Resumen Proyectado de Pagos<button class="g00-btn-export" onclick="pgExport()">&#10515; Excel</button></div>
-    <div id="pg-aviso" style="display:none; margin:6px 0; padding:6px 10px; background:#fff3cd; color:#7a5b00; border:1px solid #ffe08a; border-radius:6px; font-size:12px;"></div>
-    <div style="overflow-x:auto;"><table id="pg-tabla" class="disp-table"></table></div>
-  </div>
-  <div class="card">
     <div class="card-title">Resumen de Pagos Generados<button class="g00-btn-export" onclick="pgGenExport()">&#10515; Excel</button></div>
     <div style="overflow-x:auto;"><table id="pg-gen-tabla" class="disp-table"></table></div>
   </div>
 </div>
 <script>
 (function(){
-  const MESES_PG = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
   const pgMoney = (n) => '$' + Math.round(n || 0).toLocaleString('es-CO');
   let pgData = null;
 
@@ -76,21 +66,11 @@
           return;
         }
         pgData = d;
-        const av = document.getElementById('pg-aviso');
         if (d.sin_nit) {
           pgHideLoading();
-          av.style.display = '';
-          av.textContent = 'Este proveedor no tiene NIT asociado en el maestro de proveedores, por lo que no hay información de pagos disponible.';
-          const vacio = '<tbody><tr><td style="text-align:center;color:var(--text-light);padding:20px;">Sin información de pagos</td></tr></tbody>';
-          document.getElementById('pg-tabla').innerHTML = vacio;
-          document.getElementById('pg-gen-tabla').innerHTML = vacio;
+          document.getElementById('pg-gen-tabla').innerHTML = '<tbody><tr><td style="text-align:center;color:var(--text-light);padding:20px;">Sin información de pagos</td></tr></tbody>';
           return;
         }
-        if (d.trm && d.trm.fallback) {
-          av.style.display = '';
-          av.textContent = '⚠ Tasa de cambio no disponible hoy (usando último valor del ' + (d.trm.fecha || '—') + '). Los montos en USD/EU pueden no estar actualizados.';
-        } else { av.style.display = 'none'; }
-        pgRender(d);
         pgGenLoad();
         filtrosUI.setPeriodo('informes-pagos', document.getElementById('pg-fdesde').value, document.getElementById('pg-fhasta').value);
         filtrosUI.render(document.getElementById('page-informes-pagos'));
@@ -99,93 +79,6 @@
         pgHideLoading();
         if (window.Swal) Swal.fire('Pagos', 'No se pudo cargar: ' + e.message, 'error');
       });
-  }
-
-  function pgBuildGroups(d) {
-    const meses = d.meses || [];
-    const filas = d.filas || [];
-    const anios = [...new Set(meses.map(m => m.anio))];
-    const grupos = {};
-    filas.forEach(f => {
-      if (!grupos[f.fecha_venc]) grupos[f.fecha_venc] = { dias: f.dias, cells: {} };
-      const k = f.anio_pago + '-' + f.mes_pago;
-      grupos[f.fecha_venc].cells[k] = (grupos[f.fecha_venc].cells[k] || 0) + f.en_pesos;
-    });
-    return { meses, anios, grupos };
-  }
-
-  function pgRender(d) {
-    const { meses, anios, grupos } = pgBuildGroups(d);
-    const fechas = Object.keys(grupos).sort();
-
-    if (fechas.length === 0) {
-      document.getElementById('pg-tabla').innerHTML = '<tbody><tr><td style="text-align:center;color:var(--text-light);padding:20px;">Sin datos</td></tr></tbody>';
-      return;
-    }
-
-    // Header
-    let h = '<thead><tr><th>Fecha vencimiento</th><th>RAZON_SOCIAL</th>';
-    anios.forEach(a => {
-      meses.filter(m => m.anio === a).forEach(m => {
-        h += '<th class="num">' + MESES_PG[m.mes - 1] + ' ' + a + '</th>';
-      });
-      h += '<th class="num pg-total-col">Total ' + a + '</th>';
-    });
-    h += '<th class="num pg-total-col">Total</th></tr></thead><tbody>';
-
-    const money = (v) => '<td class="num' + (v < 0 ? ' pg-neg' : '') + '">' + pgMoney(v) + '</td>';
-    const gtot = {};
-
-    fechas.forEach(fch => {
-      const g = grupos[fch];
-      let rowTot = 0;
-      h += '<tr><td>' + fch + '</td><td>' + (d.razon_social || '') + '</td>';
-      anios.forEach(a => {
-        let aTot = 0;
-        meses.filter(m => m.anio === a).forEach(m => {
-          const k = m.anio + '-' + m.mes;
-          const v = g.cells[k] || 0;
-          aTot += v;
-          gtot[k] = (gtot[k] || 0) + v;
-          h += money(v);
-        });
-        h += '<td class="num pg-total-col">' + pgMoney(aTot) + '</td>';
-        rowTot += aTot;
-      });
-      h += '<td class="num pg-total-col">' + pgMoney(rowTot) + '</td></tr>';
-    });
-
-    // Fila total general
-    let grand = 0;
-    h += '<tr class="g00-total"><td>Total</td><td></td>';
-    anios.forEach(a => {
-      let aTot = 0;
-      meses.filter(m => m.anio === a).forEach(m => {
-        const k = m.anio + '-' + m.mes;
-        const v = gtot[k] || 0;
-        aTot += v;
-        h += '<td class="num">' + pgMoney(v) + '</td>';
-      });
-      h += '<td class="num pg-total-col">' + pgMoney(aTot) + '</td>';
-      grand += aTot;
-    });
-    h += '<td class="num pg-total-col">' + pgMoney(grand) + '</td></tr>';
-    h += '</tbody>';
-    document.getElementById('pg-tabla').innerHTML = h;
-  }
-
-  function pgExport() {
-    if (!pgData) { window.expDataset('Resumen Proyectado de Pagos', 'Pagos', [], []); return; }
-    const d = pgData;
-    const { meses, grupos } = pgBuildGroups(d);
-    const header = ['RAZON_SOCIAL', 'Fecha vencimiento', 'Anio', 'Mes', 'En Pesos'];
-    const filas = [];
-    Object.keys(grupos).sort().forEach(fch => {
-      const g = grupos[fch];
-      meses.forEach(m => { const v = g.cells[m.anio + '-' + m.mes] || 0;
-        if (v) filas.push([d.razon_social || '', fch, m.anio, MESES_PG[m.mes - 1], v]); });
-    });
-    window.expDataset('Resumen Proyectado de Pagos', 'Pagos', header, filas, d.razon_social);
   }
 
   let pgFiltrosInit = false;
@@ -210,7 +103,7 @@
       const tiene = !!hijos[n.id];
       const pad = 'padding-left:' + (4 + (n.nivel-1)*18) + 'px;';
       const disp = n.nivel===1 ? '' : 'display:none;';
-      const caret = tiene ? '<span class="g00-caret">&#9656;</span>' : '';
+      const caret = tiene ? '<span class="g00-caret">+</span>' : '';
       const onclk = tiene ? ' onclick="pgGenToggle(' + n.id + ',this)"' : '';
       const cls = tiene ? 'g00-marca-row g00-collapsed' : '';
       h += '<tr class="' + cls + '" data-rid="' + n.id + '" data-pid="' + (n.pid===null?'':n.pid) + '" data-lvl="' + n.nivel + '" style="' + disp + '"' + onclk + '>'
@@ -232,11 +125,11 @@
       tabla.querySelectorAll('tr[data-pid="' + pid + '"]').forEach(tr => {
         tr.style.display = show ? '' : 'none';
         const rid = tr.getAttribute('data-rid');
-        if (!show) { tr.classList.add('g00-collapsed'); const c = tr.querySelector('.g00-caret'); if (c) c.innerHTML = '&#9656;'; setHijos(rid, false); }
+        if (!show) { tr.classList.add('g00-collapsed'); const c = tr.querySelector('.g00-caret'); if (c) c.innerHTML = '+'; setHijos(rid, false); }
       });
     }
     setHijos(id, !collapsed);
-    const caret = el.querySelector('.g00-caret'); if (caret) caret.innerHTML = collapsed ? '&#9656;' : '&#9662;';
+    const caret = el.querySelector('.g00-caret'); if (caret) caret.innerHTML = collapsed ? '+' : '&#8722;';
   };
 
   function pgGenExport() {
@@ -249,8 +142,6 @@
   window.pgGenLoad = pgGenLoad; window.pgGenExport = pgGenExport;
 
   window.pgLoad = pgLoad;
-  window.pgRender = pgRender;
-  window.pgExport = pgExport;
 
   window.pgOnEnter = function () {
     document.getElementById('pageTitle').textContent = 'ANÁLISIS DE PAGOS' + (window.PROVEEDOR_ACTUAL ? ' - ' + window.PROVEEDOR_ACTUAL : '');

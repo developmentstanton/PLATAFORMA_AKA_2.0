@@ -125,7 +125,7 @@
         const head = document.createElement('div');
         head.className = 'filtros-head';
         head.innerHTML =
-          '<button type="button" class="filtros-toggle"><span class="chev">▾</span> Filtros</button>' +
+          '<button type="button" class="filtros-toggle"><span class="chev"></span> Filtros</button>' +
           '<div class="filtros-chips"></div>';
         cont.insertBefore(head, cont.firstChild);
         const self = this;
@@ -218,9 +218,10 @@
         .filtros-head { display:flex; align-items:center; gap:10px; margin-bottom:8px; flex-wrap:wrap; }
         .filtros-toggle { cursor:pointer; user-select:none; background:none; border:none; font:inherit;
           font-weight:600; color:var(--primary); display:inline-flex; align-items:center; gap:6px; padding:2px 4px; }
-        .filtros-toggle .chev { transition:transform .15s ease; }
+        .filtros-toggle .chev { display:inline-block; width:1em; text-align:center; font-weight:700; }
+        .filtros-toggle .chev::before { content:'\2212'; }
         .g00-filters.filtros--colapsado .g00-filter-row { display:none; }
-        .g00-filters.filtros--colapsado .filtros-toggle .chev { transform:rotate(-90deg); }
+        .g00-filters.filtros--colapsado .filtros-toggle .chev::before { content:'+'; }
         .filtros-chips { display:none; gap:6px; flex-wrap:wrap; align-items:center; }
         .g00-filters.filtros--colapsado .filtros-chips { display:flex; }
         .filtros-chip { background:#eef2f7; border:1px solid var(--border); border-radius:999px;
