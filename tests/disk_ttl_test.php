@@ -1,6 +1,6 @@
 <?php
-// Regresión del TTL de limpieza del cache en disco (evol + o45): el barrido NO debe borrar archivos
-// que siguen FRESCOS por stamp, pero SÍ debe barrer los abandonados.
+// Regresión del TTL de limpieza del cache en disco (evol + o45 + o14c): el barrido NO debe borrar
+// archivos que siguen FRESCOS por stamp, pero SÍ debe barrer los abandonados.
 //
 // Bug (2026-07-16): evolCleanup() usaba EVOL_CACHE_TTL_MIN (120 min), que es la vida de
 // evol_cache_base en la BD — otra cosa. Al pasar evol a frescura por stamp de fuente (que dura
@@ -10,17 +10,26 @@
 // Demostrado: archivo fresco (evolDiskFresh=SI) + mtime -3h + evolCleanup() => BORRADO.
 // o45 ya tenía O45_DISK_TTL_MIN=1500 (~25h) justo para que el archivo del día sobreviva.
 //
+// MISMO BUG en o14c (2026-07-21, visto en producción): o14cCleanup() usaba O14_CACHE_TTL_MIN
+// (120 min), que es la vida de o14_cache_base en la BD. o14c fue el primer cache en disco que
+// escribimos, antes de extraer lib_disk_cache, y nunca se alineó con evol/o45. Efecto medido en
+// WMS-LAB: el prebuild nocturno calentó o14c para 19 aliados a las 04:10; el primer login del día
+// (13:08) corrió o14cCleanup() y borró los 19 — evol y o45 del mismo nocturno sobrevivieron. El
+// trabajo del nocturno para o14c se perdía TODOS los días y cada aliado pagaba el frío (~26s).
+//
 //   php tests/disk_ttl_test.php
 //
 // Sin BD: escribe entradas sintéticas con un stamp inventado y comprueba el contrato del barrido.
 
 require_once __DIR__ . '/../api/lib_evol_disk.php';
 require_once __DIR__ . '/../api/lib_o45_disk.php';
+require_once __DIR__ . '/../api/lib_o14c_payload.php';
 
 $HORA = 3600;
 $casos = [   // prefijo => [fn de limpieza, constante del TTL de DISCO]
     'evol' => ['evolCleanup', defined('EVOL_DISK_TTL_MIN') ? EVOL_DISK_TTL_MIN : EVOL_CACHE_TTL_MIN],
     'o45'  => ['o45Cleanup',  O45_DISK_TTL_MIN],
+    'o14c' => ['o14cCleanup', defined('O14C_DISK_TTL_MIN') ? O14C_DISK_TTL_MIN : O14_CACHE_TTL_MIN],
 ];
 
 $fallos = []; $limpiar = [];
@@ -63,5 +72,5 @@ foreach ($limpiar as [$p, $k]) { @unlink(diskCachePath($p, $k)); @unlink(diskCac
 
 echo str_repeat('=', 70) . "\n";
 if ($fallos) { foreach ($fallos as $f) echo "FALLO: $f\n"; exit(1); }
-echo "OK: el barrido respeta lo fresco y se lleva lo abandonado, en evol y o45.\n";
+echo "OK: el barrido respeta lo fresco y se lleva lo abandonado, en evol, o45 y o14c.\n";
 exit(0);

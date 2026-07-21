@@ -6,8 +6,14 @@
  * Frescura por .stamp (valor `creado` de o14_cache_base): compara timestamp-de-DB contra
  * timestamp-de-DB, sin cruzar el reloj del server PHP (Colombia) con el de la RDS (UTC).
  */
-require_once __DIR__ . '/lib_o14_cache.php'; // O14_CACHE_TTL_MIN, o14CacheKey/Fresco/ensure
+require_once __DIR__ . '/lib_o14_cache.php'; // o14CacheKey/Fresco/ensure
 require_once __DIR__ . '/lib_disk_cache.php'; // primitivas genéricas de cache en disco (gzip)
+
+// TTL del barrido de DISCO. NO confundir con O14_CACHE_TTL_MIN (120 min), que es la vida de
+// o14_cache_base en la BD: usarla aquí borraba payloads todavía frescos por stamp (ver
+// tests/disk_ttl_test.php). 1500 min (~25h) = mismo criterio que EVOL/O45_DISK_TTL_MIN: el
+// archivo que deja el prebuild nocturno sobrevive hasta el siguiente nocturno.
+if (!defined('O14C_DISK_TTL_MIN')) define('O14C_DISK_TTL_MIN', 1500);
 
 if (!function_exists('o14cCacheDir')) {
     function o14cCacheDir(): string { return diskCacheDir(); }
@@ -19,7 +25,7 @@ if (!function_exists('o14cCacheDir')) {
 
     function o14cReadPayload(string $key): ?string { return diskCacheRead('o14c', $key); }
 
-    function o14cCleanup(): void { diskCacheCleanup('o14c', O14_CACHE_TTL_MIN); }
+    function o14cCleanup(): void { diskCacheCleanup('o14c', O14C_DISK_TTL_MIN); }
 }
 
 if (!function_exists('o14cServeGz')) {
