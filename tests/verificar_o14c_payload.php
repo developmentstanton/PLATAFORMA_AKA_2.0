@@ -105,13 +105,15 @@ check(o14cReadPayload('noexiste' . getmypid()) === null, 'read de key inexistent
 @unlink(o14cPayloadPath($key)); @unlink(o14cStampPath($key));
 
 // --- cleanup barre .tmp.* huérfanos viejos (fuga de proceso muerto entre write y rename) ---
+// Se envejecen contra O14C_DISK_TTL_MIN (el TTL que gobierna el barrido de DISCO), NO contra
+// O14_CACHE_TTL_MIN, que es la vida de o14_cache_base en la BD — confundirlas fue el bug de 2026-07-21.
 $orphan = o14cCacheDir() . '/o14c_orphan' . getmypid() . '.json.gz.tmp.999';
 file_put_contents($orphan, 'x');
-touch($orphan, time() - (O14_CACHE_TTL_MIN + 5) * 60);
+touch($orphan, time() - (O14C_DISK_TTL_MIN + 5) * 60);
 // --- cleanup barre .lock viejos (uno por cache_key/dia, se acumulan) ---
 $lock = o14cCacheDir() . '/o14c_orphan' . getmypid() . '.json.gz.lock';
 file_put_contents($lock, '');
-touch($lock, time() - (O14_CACHE_TTL_MIN + 5) * 60);
+touch($lock, time() - (O14C_DISK_TTL_MIN + 5) * 60);
 o14cCleanup();
 check(!is_file($orphan), 'cleanup borra .tmp huerfano viejo');
 check(!is_file($lock), 'cleanup borra .lock viejo');
