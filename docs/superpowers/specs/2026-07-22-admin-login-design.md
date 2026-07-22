@@ -224,6 +224,29 @@ Las contraseñas están en **texto plano** en `contrasena_usuario varchar(25)`. 
 rompería el login de la v1.0 y el del portal v2.0, que comparten la misma tabla. Es un
 proyecto aparte con su propia migración. Aquí solo se hereda el esquema existente.
 
+### Limitación conocida y aceptada: el bloqueo por intentos es evadible
+
+Los contadores de fuerza bruta viven en `$_SESSION`, atados a la cookie `PHPSESSID`. Un
+atacante que **descarte la cookie entre intentos** obtiene una sesión nueva con el contador
+en cero cada vez, de modo que el límite de 5 intentos no lo detiene.
+
+Es el mismo diseño que ya tiene el login del portal (`index.php`), y se decidió mantener la
+paridad: es una aplicación interna en LAN y explotarlo exige acceso de red al servidor.
+Queda documentado, no oculto. Si en el futuro se quiere cerrar de verdad, la vía es un
+contador por `nombre_usuario` persistido en base de datos, inmune al descarte de cookies.
+
+### Trampa del archivo de conexión
+
+`conexion/conexion_integracion.php` no expone solo `$dbConnect`: declara en scope global
+`$servidor`, `$basedatos`, `$usuario`, `$password`, `$infoconn` y `$dbConnect`. Como
+`require` corre en el scope de quien incluye, **una variable local llamada `$usuario` queda
+pisada por el UID de SQL Server**, sin warning.
+
+Mordió al construir `logout.php`: los eventos `ADMIN_OUT` se registraban con el usuario de
+la base en vez del administrador. Por eso la variable se llama `$usuarioAdmin`. Cualquier
+página futura del módulo que incluya el conector debe evitar esos cinco nombres, o asignar
+sus locales **después** del `require`.
+
 ## Pruebas
 
 `tests/admin_auth_test.php` — contra la BD real, solo lectura. Ejecutable con

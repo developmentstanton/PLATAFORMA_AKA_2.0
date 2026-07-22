@@ -41,6 +41,15 @@ Paquete: `plataforma20_deploy_2026-07-21.zip` (export limpio de `origin/main`).
 - [ ] (Opcional, más limpio) Extraer a carpeta nueva y hacer swap, para eliminar archivos viejos
       ya borrados en git (ej. `prebuild_o14c.php/.bat` que se eliminaron). No crítico.
 
+> ⚠️ **`admin/` viaja en el paquete desde 2026-07-22.** El módulo administrativo se mergeó a
+> `main`, así que el export de `origin/main` lo incluye y quedará accesible en
+> `RUTA_APP\admin\`. Es una decisión tomada, no un descuido: el login exige credenciales
+> válidas **y** `link1 = 'Administrador'`, y el módulo todavía no tiene ninguna página con
+> funcionalidad (solo un shell vacío). Lo que sí suma es **una superficie de login extra**,
+> con las mismas limitaciones heredadas del portal: contraseñas en texto plano y bloqueo por
+> intentos evadible descartando cookies. Ver
+> `docs/superpowers/specs/2026-07-22-admin-login-design.md`.
+
 ## FASE 2 — Ajustes en WMS-LAB
 - [ ] `where php` → confirmar la ruta real de `php.exe` en WMS-LAB.
 - [ ] Si NO es `C:\xampp\php\php.exe`, ajustar `set PHP_EXE=...` en:
