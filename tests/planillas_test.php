@@ -83,6 +83,7 @@ if ($dbConnect === false) {
 } else {
     $marca = 'ZZ_TEST_PLANILLAS';
     $consTest = 0;
+    $limpiezaHecha = false;
 
     // Crear la fila de prueba y quedarnos con SU consecutivo
     $ins = sqlsrv_query($dbConnect,
@@ -97,6 +98,28 @@ if ($dbConnect === false) {
             if ($r && isset($r['consecutivo'])) { $consTest = (int)$r['consecutivo']; break; }
         } while (sqlsrv_next_result($ins));
         sqlsrv_free_stmt($ins);
+    }
+
+    if ($consTest > 0) {
+        // Red de seguridad: consecutivo_planillas_aka es una tabla VIVA de produccion (304
+        // filas reales que lee el portal de aliados) en la misma RDS de dev/staging/prod. Si
+        // algo aborta el script entre este INSERT y el DELETE explicito de mas abajo (una
+        // excepcion no atrapada, un error fatal de PHP como agotamiento de memoria -que ni
+        // siquiera un try/finally cubre-, un corte de red contra la RDS), la fila de prueba
+        // quedaria huerfana y visible en produccion. Ya paso una vez en desarrollo (consecutivo
+        // 323, hubo que borrarlo a mano). register_shutdown_function corre pase lo que pase.
+        // Conserva el mismo doble guard (consecutivo + nombre_cliente) y es idempotente: si la
+        // limpieza normal de mas abajo ya corrio, no hace nada.
+        register_shutdown_function(function () use ($dbConnect, $consTest, $marca, &$limpiezaHecha) {
+            if ($limpiezaHecha) return;
+            $del = @sqlsrv_query($dbConnect,
+                "DELETE FROM consecutivo_planillas_aka WHERE consecutivo = ? AND nombre_cliente = ?",
+                [$consTest, $marca]);
+            if ($del !== false) {
+                sqlsrv_free_stmt($del);
+                echo "  [shutdown] red de seguridad: limpiada fila huerfana consecutivo=$consTest\n";
+            }
+        });
     }
 
     chequear('se creo la fila de prueba', $consTest > 0, "consecutivo=$consTest");
@@ -153,12 +176,14 @@ if ($dbConnect === false) {
                 planillas_cambiar_estado($dbConnect, -999999, 'Aprobado', null) === false);
         }
 
-        // Limpieza: SIEMPRE, y solo nuestra fila (doble guard por marca)
+        // Limpieza: SIEMPRE, y solo nuestra fila (doble guard por marca).
+        // La red de seguridad registrada arriba solo actua si esto no llega a correr.
         $del = sqlsrv_query($dbConnect,
             "DELETE FROM consecutivo_planillas_aka WHERE consecutivo = ? AND nombre_cliente = ?",
             [$consTest, $marca]);
         chequear('se borro la fila de prueba', $del !== false);
         if ($del !== false) sqlsrv_free_stmt($del);
+        $limpiezaHecha = ($del !== false);
     }
 }
 
