@@ -74,6 +74,19 @@ function admin_autenticar($conn, string $usuario, string $clave): ?array
 function admin_exigir_sesion(): array
 ```
 
+El guard se apoya en dos auxiliares para poder probarse sin redirecciones ni BD:
+
+```php
+/** Decide sin efectos secundarios. @return 'ok'|'ausente'|'expirada' */
+function admin_estado_sesion(array $sesion, int $ahora): string
+
+/** Borra SOLO el namespace admin. Compartida por el guard y por logout.php. */
+function admin_cerrar_sesion_admin(): void
+
+/** Registra ADMIN_IN / ADMIN_OUT. Su fallo nunca rompe el flujo. */
+function admin_registrar_evento($conn, string $usuario, string $evento): void
+```
+
 ## Flujo de autenticación
 
 `admin/index.php` al recibir **GET**: si ya existe una sesión admin válida y no expirada,
