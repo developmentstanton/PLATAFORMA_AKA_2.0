@@ -1,0 +1,78 @@
+/* Shell del módulo administrativo. Misma paleta y tipografía que el portal. */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+	--primary: #4A4782;
+	--primary-dark: #3a3768;
+	--primary-light: #5c59a0;
+	--accent: #ff001e;
+	--text: #2d2b4e;
+	--text-light: #7b7894;
+	--gray-bg: #cacaca;
+	--barra-alto: 64px;
+	--menu-ancho: 220px;
+}
+
+body {
+	font-family: 'Space Grotesk', system-ui, sans-serif;
+	color: var(--text);
+	background: #f4f4f7;
+	min-height: 100vh;
+}
+
+/* --- Barra superior --- */
+.admin-barra {
+	position: fixed; top: 0; left: 0; right: 0; height: var(--barra-alto);
+	background: var(--primary); color: #fff;
+	display: flex; align-items: center; gap: 16px; padding: 0 20px;
+	z-index: 10;
+}
+.admin-barra img { height: 28px; width: auto; }
+.admin-barra .titulo {
+	font-size: 12px; letter-spacing: 3px; color: rgba(255,255,255,0.65);
+	text-transform: uppercase;
+}
+.admin-barra .espaciador { flex: 1; }
+.admin-barra .usuario { font-size: 14px; font-weight: 600; }
+.admin-barra .salir {
+	color: rgba(255,255,255,0.75); text-decoration: none;
+	font-size: 16px; padding: 6px 8px; transition: color 0.2s;
+}
+.admin-barra .salir:hover { color: var(--accent); }
+
+/* --- Menú lateral --- */
+.admin-menu {
+	position: fixed; top: var(--barra-alto); left: 0; bottom: 0; width: var(--menu-ancho);
+	background: #fff; border-right: 1px solid #e3e3ea; padding: 20px 0;
+	overflow-y: auto;
+}
+.admin-menu .encabezado {
+	font-size: 11px; letter-spacing: 2px; color: var(--text-light);
+	text-transform: uppercase; padding: 0 20px 12px;
+}
+.admin-menu a {
+	display: flex; align-items: center; gap: 10px;
+	padding: 10px 20px; color: var(--text); text-decoration: none;
+	font-size: 14px; font-weight: 500; border-left: 3px solid transparent;
+	transition: background 0.15s, border-color 0.15s;
+}
+.admin-menu a:hover { background: #f4f4f7; border-left-color: var(--accent); }
+.admin-menu a i { width: 18px; color: var(--primary-light); }
+.admin-menu .vacio {
+	padding: 10px 20px; font-size: 13px; color: var(--text-light); font-style: italic;
+}
+
+/* --- Contenido --- */
+.admin-contenido {
+	margin-left: var(--menu-ancho); padding: calc(var(--barra-alto) + 32px) 32px 32px;
+}
+.admin-contenido h1 { font-size: 26px; font-weight: 600; color: var(--primary); }
+.admin-contenido .subtitulo { color: var(--text-light); margin-top: 8px; font-size: 15px; }
+.admin-tarjeta {
+	background: #fff; border: 1px solid #e3e3ea; padding: 28px; margin-top: 24px;
+}
+
+@media (max-width: 720px) {
+	.admin-menu { display: none; }
+	.admin-contenido { margin-left: 0; padding: calc(var(--barra-alto) + 24px) 20px 24px; }
+}
