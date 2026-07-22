@@ -1,11 +1,6 @@
 <?php
-	// Cookies de sesión seguras (deben fijarse ANTES de session_start)
-	ini_set('session.cookie_httponly', 1);
-	ini_set('session.cookie_samesite', 'Strict');
-	ini_set('session.use_strict_mode', 1);
-	session_start();
-
 	require_once __DIR__ . '/lib_admin_auth.php';
+	admin_iniciar_sesion();
 
 	// Si ya hay sesión admin viva, no tiene sentido mostrar el formulario
 	if (admin_estado_sesion($_SESSION, time()) === 'ok') {

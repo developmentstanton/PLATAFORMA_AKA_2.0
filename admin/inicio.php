@@ -1,8 +1,4 @@
 <?php
-	ini_set('session.cookie_httponly', 1);
-	ini_set('session.cookie_samesite', 'Strict');
-	ini_set('session.use_strict_mode', 1);
-
 	require_once __DIR__ . '/lib_admin_auth.php';
 	$admin = admin_exigir_sesion();
 

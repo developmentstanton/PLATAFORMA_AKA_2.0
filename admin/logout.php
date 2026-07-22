@@ -1,7 +1,6 @@
 <?php
-	session_start();
-
 	require_once __DIR__ . '/lib_admin_auth.php';
+	admin_iniciar_sesion();
 
 	// Nombre distinto de $usuario a propósito: conexion_integracion.php declara su PROPIA
 	// variable global $usuario (la credencial UID de la conexión SQL) y, al incluirse en
@@ -21,4 +20,3 @@
 
 	header('Location: index.php');
 	exit;
-?>

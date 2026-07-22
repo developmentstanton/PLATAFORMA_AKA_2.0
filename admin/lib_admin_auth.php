@@ -78,13 +78,33 @@ function admin_cerrar_sesion_admin(): void {
 }
 
 /**
+ * Arranca la sesión del módulo con las banderas de cookie endurecidas.
+ *
+ * Es el ÚNICO punto donde el módulo llama a session_start(). La cookie PHPSESSID se
+ * comparte con el portal de aliados, que corre en producción: si se arranca o se
+ * regenera la sesión sin estas banderas, la cookie se re-emite con los defaults de
+ * php.ini (httponly y samesite vacíos en este servidor) y degrada la sesión del aliado
+ * que pueda estar abierta en la misma ventana. Tener los ini_set copiados a mano en
+ * cada página ya provocó justamente ese fallo en logout.php.
+ *
+ * Idempotente: si la sesión ya está activa no hace nada.
+ */
+function admin_iniciar_sesion(): void {
+    if (session_status() === PHP_SESSION_ACTIVE) return;
+    ini_set('session.cookie_httponly', 1);
+    ini_set('session.cookie_samesite', 'Strict');
+    ini_set('session.use_strict_mode', 1);
+    session_start();
+}
+
+/**
  * Guard de las páginas del módulo. Primera línea de todo archivo bajo admin/ que exija
  * autenticación. Si no hay sesión válida redirige a admin/index.php y termina.
  *
  * @return array Los datos del admin en sesión.
  */
 function admin_exigir_sesion(): array {
-    if (session_status() !== PHP_SESSION_ACTIVE) session_start();
+    admin_iniciar_sesion();
 
     $estado = admin_estado_sesion($_SESSION, time());
     if ($estado !== 'ok') {
