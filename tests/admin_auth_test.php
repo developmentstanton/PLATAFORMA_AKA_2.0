@@ -36,6 +36,11 @@ if (!$admin || !$aliado) {
     exit(1);
 }
 
+if (empty($admin['p']) || empty($aliado['p'])) {
+    fwrite(STDERR, "Las contraseñas de los fixtures no pueden estar vacias (caso 3 se saltaria el filtro de rol).\n");
+    exit(1);
+}
+
 $fallos = [];
 function chequear(string $caso, bool $ok, string $detalle = '') {
     global $fallos;
