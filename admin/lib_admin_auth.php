@@ -132,3 +132,31 @@ function admin_registrar_evento($conn, string $usuario, string $evento): void {
     $stmt = @sqlsrv_query($conn, $sql, array($usuario, $evento));
     if ($stmt !== false) sqlsrv_free_stmt($stmt);
 }
+
+/**
+ * Guard para endpoints JSON. Mismo criterio que admin_exigir_sesion(), pero en vez de
+ * redirigir responde 401 con JSON y termina.
+ *
+ * La diferencia importa: un fetch() no sigue el Location: de admin_exigir_sesion(); recibiría
+ * el HTML del login y reventaría al parsear JSON, dejando al usuario con un error críptico en
+ * vez de "tu sesión expiró".
+ *
+ * @return array Los datos del admin en sesión.
+ */
+function admin_exigir_sesion_json(): array {
+    admin_iniciar_sesion();
+
+    $estado = admin_estado_sesion($_SESSION, time());
+    if ($estado !== 'ok') {
+        if ($estado === 'expirada') {
+            admin_cerrar_sesion_admin();
+        }
+        http_response_code(401);
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['ok' => false, 'error' => 'sesion_expirada']);
+        exit;
+    }
+
+    $_SESSION['admin']['ultima_actividad'] = time();
+    return $_SESSION['admin'];
+}

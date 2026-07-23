@@ -2,10 +2,8 @@
 	require_once __DIR__ . '/lib_admin_auth.php';
 	$admin = admin_exigir_sesion();
 
-	// Punto de extensión: cada módulo futuro se agrega como una entrada aquí.
-	// Vacío muestra "Próximamente" en el menú.
 	$menu = array(
-		// array('etiqueta' => 'Usuarios', 'icono' => 'fa-users', 'url' => 'usuarios.php'),
+		array('etiqueta' => 'Planillas', 'icono' => 'fa-file-lines', 'url' => 'planillas.php'),
 	);
 ?>
 <!DOCTYPE html>
