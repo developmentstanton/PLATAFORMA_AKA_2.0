@@ -55,6 +55,22 @@ if ($dbConnect === false) {
 }
 
 try {
+    // Solo se pueden cambiar las planillas en 'Estudio': una decisión (Aprobado/Rechazado)
+    // es definitiva. Se consulta el estado actual para dar un mensaje claro; el UPDATE de
+    // planillas_cambiar_estado repite la condición en su WHERE como barrera atómica.
+    $actual = planillas_estado_actual($dbConnect, $consecutivo);
+    if ($actual === null) {
+        http_response_code(404);
+        echo json_encode(['ok' => false, 'error' => 'La planilla no existe.']);
+        exit;
+    }
+    if ($actual !== 'Estudio') {
+        http_response_code(409);
+        echo json_encode(['ok' => false,
+            'error' => 'Esta planilla ya está en «' . $actual . '»; solo se pueden cambiar las que están en Estudio.']);
+        exit;
+    }
+
     $ok = planillas_cambiar_estado($dbConnect, $consecutivo, $estado, $motivo);
 } catch (Throwable $e) {
     error_log('admin planillas estado: ' . $e->getMessage());
@@ -64,8 +80,10 @@ try {
 }
 
 if (!$ok) {
-    http_response_code(404);
-    echo json_encode(['ok' => false, 'error' => 'La planilla no existe.']);
+    // Llegar aquí con estado 'Estudio' confirmado arriba significa que otra petición la
+    // decidió en el intervalo (carrera). El cambio no se aplicó.
+    http_response_code(409);
+    echo json_encode(['ok' => false, 'error' => 'La planilla acaba de cambiar de estado. Recarga la página.']);
     exit;
 }
 

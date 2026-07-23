@@ -41,6 +41,9 @@
 			cursor: pointer; transition: background 0.15s; white-space: nowrap;
 		}
 		.btn-estado:hover { background: var(--accent); }
+		.btn-estado:disabled, .btn-estado:disabled:hover {
+			background: #cacaca; cursor: not-allowed; opacity: 0.6;
+		}
 		table.dataTable { font-size: 14px; }
 		.dt-empty { color: var(--text-light); font-style: italic; }
 		/* Sin menú lateral: el contenido ocupa todo el ancho (admin.css deja hueco para el menú). */
@@ -142,7 +145,14 @@ $(function () {
 			{ data: 'motivo', render: (d) => d ? esc(d) : '—' },
 			{
 				data: null, orderable: false, searchable: false,
-				render: (fila) => '<button class="btn-estado" data-cons="' + fila.consecutivo + '">Cambiar estado</button>'
+				// Solo se puede cambiar el estado de las planillas en 'Estudio'; una vez
+				// Aprobada o Rechazada la decisión es definitiva. El servidor lo reimpone.
+				render: (fila) => {
+					const editable = fila.estado === 'Estudio';
+					return '<button class="btn-estado" data-cons="' + esc(fila.consecutivo) + '"'
+						+ (editable ? '' : ' disabled title="Decisión definitiva: solo se cambian las planillas en estudio"')
+						+ '>Cambiar estado</button>';
+				}
 			}
 		],
 		language: {
@@ -171,7 +181,8 @@ $(function () {
 	$('#tablaPlanillas tbody').on('click', '.btn-estado', function () {
 		const cons = parseInt(this.dataset.cons, 10);
 		const fila = tabla.rows().data().toArray().find(f => f.consecutivo === cons);
-		if (fila) abrirDialogo(fila);
+		// Un botón deshabilitado no dispara click, pero por si acaso: solo 'Estudio' es editable.
+		if (fila && fila.estado === 'Estudio') abrirDialogo(fila);
 	});
 });
 

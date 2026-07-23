@@ -82,25 +82,63 @@ if ($dbConnect === false) {
     echo "  SALTA  no hay conexion a INTEGRACION\n";
 } else {
     $marca = 'ZZ_TEST_PLANILLAS';
-    $consTest = 0;
+    $creados = [];          // consecutivos de las filas de prueba que creamos nosotros
     $limpiezaHecha = false;
 
-    // Devuelve el IDENTITY a su sitio despues de limpiar nuestra fila de prueba.
+    // Crea una fila de prueba (nace en 'Estudio' por el DEFAULT) y devuelve SU consecutivo,
+    // tomado del OUTPUT INSERTED: es, con certeza, la fila que acabamos de insertar.
+    $crearFila = function () use ($dbConnect, $marca, &$creados) {
+        $ins = sqlsrv_query($dbConnect,
+            "SET NOCOUNT ON;
+             INSERT INTO consecutivo_planillas_aka (nombre_cliente, fecha, nit)
+             OUTPUT INSERTED.consecutivo AS consecutivo
+             VALUES (?, ?, ?)",
+            [$marca, date('Y-m-d'), null]);
+        $cons = 0;
+        if ($ins !== false) {
+            do {
+                $r = sqlsrv_fetch_array($ins, SQLSRV_FETCH_ASSOC);
+                if ($r && isset($r['consecutivo'])) { $cons = (int)$r['consecutivo']; break; }
+            } while (sqlsrv_next_result($ins));
+            sqlsrv_free_stmt($ins);
+        }
+        if ($cons > 0) $creados[] = $cons;
+        return $cons;
+    };
+
+    // Lee (estado, motivo) de una fila. Devuelve ['e'=>..,'m'=>..] o null si no existe.
+    $estadoMotivo = function ($cons) use ($dbConnect) {
+        $q = sqlsrv_query($dbConnect,
+            "SELECT RTRIM(estado) e, motivo m FROM consecutivo_planillas_aka WHERE consecutivo = ?", [$cons]);
+        $r = $q ? sqlsrv_fetch_array($q, SQLSRV_FETCH_ASSOC) : null;
+        if ($q) sqlsrv_free_stmt($q);
+        return $r ?: null;
+    };
+
+    // Limpieza + reseed del IDENTITY.
     //
-    // consecutivo es un IDENTITY y ademas un numero de NEGOCIO (correlativo visible, no una
-    // clave interna): cada INSERT lo consume PARA SIEMPRE aunque despues se borre la fila. Sin
-    // esto, cada corrida del test "quemaba" un consecutivo en la tabla viva; en desarrollo la
-    // tabla salto de 304 a 332 asi. Tras borrar nuestra fila, si nadie inserto despues de
-    // nosotros (IDENT_CURRENT sigue siendo NUESTRO consecutivo), reseedamos al MAX real para
-    // que la proxima carga de un aliado continue sin hueco. Si un aliado inserto en medio,
-    // IDENT_CURRENT ya no es el nuestro: no tocamos nada y se acepta un hueco de uno (reseedar
-    // ahi corromperia su numero). Concurrencia cubierta por esa guardia.
-    $reseedSiCorresponde = function () use ($dbConnect, &$consTest) {
-        if ($consTest <= 0) return;
+    // consecutivo_planillas_aka es una tabla VIVA de produccion (la lee el portal de aliados) en
+    // la misma RDS de dev/staging/prod, y consecutivo es un IDENTITY que ademas es un numero de
+    // NEGOCIO: cada INSERT lo consume PARA SIEMPRE aunque se borre la fila. Sin devolver el
+    // IDENTITY, cada corrida "quemaria" numeros (en desarrollo la tabla salto de 304 a 332 asi).
+    // Borra TODAS nuestras filas por la marca unica y, si nadie inserto despues de nosotros
+    // (IDENT_CURRENT == nuestra ultima fila), reseedea al MAX real para que la proxima carga de
+    // un aliado continue sin hueco. Si un aliado inserto en medio, no toca el IDENTITY (reseedar
+    // ahi corromperia su numero) y se acepta un hueco. Idempotente.
+    $limpiar = function () use ($dbConnect, $marca, &$creados, &$limpiezaHecha) {
+        if ($limpiezaHecha) return;
+        $del = @sqlsrv_query($dbConnect,
+            "DELETE FROM consecutivo_planillas_aka WHERE nombre_cliente = ?", [$marca]);
+        if ($del === false) return;
+        sqlsrv_free_stmt($del);
+        $limpiezaHecha = true;
+
+        $maxCreado = $creados ? max($creados) : 0;
+        if ($maxCreado <= 0) return;
         $q = @sqlsrv_query($dbConnect, "SELECT IDENT_CURRENT('consecutivo_planillas_aka') AS cur");
         $cur = $q ? (int)(sqlsrv_fetch_array($q, SQLSRV_FETCH_ASSOC)['cur'] ?? 0) : 0;
         if ($q) sqlsrv_free_stmt($q);
-        if ($cur !== $consTest) return;  // alguien inserto despues: no tocar
+        if ($cur !== $maxCreado) return;  // alguien inserto despues: no tocar
         $q2 = @sqlsrv_query($dbConnect, "SELECT ISNULL(MAX(consecutivo), 0) AS mx FROM consecutivo_planillas_aka");
         $mx = $q2 ? (int)(sqlsrv_fetch_array($q2, SQLSRV_FETCH_ASSOC)['mx'] ?? 0) : 0;
         if ($q2) sqlsrv_free_stmt($q2);
@@ -110,109 +148,63 @@ if ($dbConnect === false) {
         // devuelve false aunque el RESEED SI se ejecute; por eso se ignora el retorno.
         @sqlsrv_query($dbConnect, "DBCC CHECKIDENT('consecutivo_planillas_aka', RESEED, $mx)");
     };
+    // Red de seguridad: corre pase lo que pase (excepcion, fatal que ni un try/finally cubre).
+    register_shutdown_function(function () use ($limpiar) { $limpiar(); });
 
-    // Crear la fila de prueba y quedarnos con SU consecutivo
-    $ins = sqlsrv_query($dbConnect,
-        "SET NOCOUNT ON;
-         INSERT INTO consecutivo_planillas_aka (nombre_cliente, fecha, nit)
-         OUTPUT INSERTED.consecutivo AS consecutivo
-         VALUES (?, ?, ?)",
-        [$marca, date('Y-m-d'), null]);
-    if ($ins !== false) {
-        do {
-            $r = sqlsrv_fetch_array($ins, SQLSRV_FETCH_ASSOC);
-            if ($r && isset($r['consecutivo'])) { $consTest = (int)$r['consecutivo']; break; }
-        } while (sqlsrv_next_result($ins));
-        sqlsrv_free_stmt($ins);
+    // === Fila A: rechazar guarda el motivo, y despues la decision es DEFINITIVA ===
+    $consA = $crearFila();
+    chequear('se creo la fila A de prueba', $consA > 0, "consecutivo=$consA");
+    if ($consA > 0) {
+        chequear('la fila nueva nace en Estudio',
+            planillas_estado_actual($dbConnect, $consA) === 'Estudio');
+
+        $ok = planillas_cambiar_estado($dbConnect, $consA, 'Rechazado', PLANILLA_MOTIVOS[1]);
+        chequear('rechazar una planilla en Estudio devuelve true', $ok === true);
+        $r1 = $estadoMotivo($consA);
+        chequear('quedo en Rechazado', $r1 && $r1['e'] === 'Rechazado');
+        chequear('el motivo quedo guardado',
+            $r1 && trim((string)$r1['m']) === PLANILLA_MOTIVOS[1],
+            $r1 ? "motivo=[{$r1['m']}]" : '');
+
+        // BLOQUEO: ya no esta en Estudio -> no se puede volver a cambiar (regla nueva)
+        $ok2 = planillas_cambiar_estado($dbConnect, $consA, 'Aprobado', null);
+        chequear('cambiar una planilla ya Rechazada devuelve false', $ok2 === false,
+            $ok2 === false ? '' : 'DEJO REABRIR UNA DECISION DEFINITIVA');
+        $r1b = $estadoMotivo($consA);
+        chequear('sigue en Rechazado tras el intento bloqueado', $r1b && $r1b['e'] === 'Rechazado');
+        chequear('estado_actual refleja Rechazado',
+            planillas_estado_actual($dbConnect, $consA) === 'Rechazado');
     }
 
-    if ($consTest > 0) {
-        // Red de seguridad: consecutivo_planillas_aka es una tabla VIVA de produccion (304
-        // filas reales que lee el portal de aliados) en la misma RDS de dev/staging/prod. Si
-        // algo aborta el script entre este INSERT y el DELETE explicito de mas abajo (una
-        // excepcion no atrapada, un error fatal de PHP como agotamiento de memoria -que ni
-        // siquiera un try/finally cubre-, un corte de red contra la RDS), la fila de prueba
-        // quedaria huerfana y visible en produccion. Ya paso una vez en desarrollo (consecutivo
-        // 323, hubo que borrarlo a mano). register_shutdown_function corre pase lo que pase.
-        // Conserva el mismo doble guard (consecutivo + nombre_cliente) y es idempotente: si la
-        // limpieza normal de mas abajo ya corrio, no hace nada.
-        register_shutdown_function(function () use ($dbConnect, $consTest, $marca, &$limpiezaHecha, $reseedSiCorresponde) {
-            if ($limpiezaHecha) return;
-            $del = @sqlsrv_query($dbConnect,
-                "DELETE FROM consecutivo_planillas_aka WHERE consecutivo = ? AND nombre_cliente = ?",
-                [$consTest, $marca]);
-            if ($del !== false) {
-                sqlsrv_free_stmt($del);
-                $reseedSiCorresponde();  // no dejar quemado el consecutivo ni siquiera al abortar
-                echo "  [shutdown] red de seguridad: limpiada fila huerfana consecutivo=$consTest\n";
-            }
-        });
+    // === Fila B: aprobar descarta el motivo, y despues la decision es DEFINITIVA ===
+    $consB = $crearFila();
+    chequear('se creo la fila B de prueba', $consB > 0, "consecutivo=$consB");
+    if ($consB > 0) {
+        // aprobar CON un motivo pasado: debe descartarse a NULL
+        $ok = planillas_cambiar_estado($dbConnect, $consB, 'Aprobado', PLANILLA_MOTIVOS[0]);
+        chequear('aprobar una planilla en Estudio devuelve true', $ok === true);
+        $r2 = $estadoMotivo($consB);
+        chequear('quedo en Aprobado', $r2 && $r2['e'] === 'Aprobado');
+        chequear('al aprobar, el motivo se descarto a NULL', $r2 && $r2['m'] === null,
+            $r2 ? "motivo=[" . var_export($r2['m'], true) . "]" : '');
+
+        // BLOQUEO
+        $ok2 = planillas_cambiar_estado($dbConnect, $consB, 'Rechazado', PLANILLA_MOTIVOS[0]);
+        chequear('cambiar una planilla ya Aprobada devuelve false', $ok2 === false,
+            $ok2 === false ? '' : 'DEJO REABRIR UNA DECISION DEFINITIVA');
+        chequear('estado_actual refleja Aprobado',
+            planillas_estado_actual($dbConnect, $consB) === 'Aprobado');
     }
 
-    chequear('se creo la fila de prueba', $consTest > 0, "consecutivo=$consTest");
+    // === "No existe" ===
+    chequear('cambiar un consecutivo inexistente devuelve false',
+        planillas_cambiar_estado($dbConnect, -999999, 'Aprobado', null) === false);
+    chequear('estado_actual de un inexistente devuelve null',
+        planillas_estado_actual($dbConnect, -999999) === null);
 
-    if ($consTest > 0) {
-        // Guard: solo seguimos si la fila es realmente la nuestra
-        $chk = sqlsrv_query($dbConnect,
-            "SELECT nombre_cliente FROM consecutivo_planillas_aka WHERE consecutivo = ?", [$consTest]);
-        $rowChk = $chk ? sqlsrv_fetch_array($chk, SQLSRV_FETCH_ASSOC) : null;
-        if ($chk) sqlsrv_free_stmt($chk);
-        $esNuestra = $rowChk && trim((string)$rowChk['nombre_cliente']) === $marca;
-        chequear('la fila de prueba es la nuestra', $esNuestra);
-
-        if ($esNuestra) {
-            // a) Nace en 'Estudio' por el DEFAULT de la columna
-            $filas = planillas_listar($dbConnect);
-            $mia = null;
-            foreach ($filas as $f) { if ($f['consecutivo'] === $consTest) { $mia = $f; break; } }
-            chequear('planillas_listar devuelve la fila nueva', $mia !== null);
-            chequear('la fila nace en estado Estudio',
-                $mia !== null && $mia['estado'] === 'Estudio',
-                $mia !== null ? "estado={$mia['estado']}" : '');
-            chequear('la fecha viene como Y-m-d',
-                $mia !== null && preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)$mia['fecha']) === 1);
-            chequear('el motivo nace en NULL', $mia !== null && $mia['motivo'] === null);
-
-            // b) Rechazar guarda el motivo
-            $ok = planillas_cambiar_estado($dbConnect, $consTest, 'Rechazado', PLANILLA_MOTIVOS[1]);
-            chequear('cambiar a Rechazado devuelve true', $ok === true);
-            $q = sqlsrv_query($dbConnect,
-                "SELECT RTRIM(estado) e, motivo m FROM consecutivo_planillas_aka WHERE consecutivo = ?",
-                [$consTest]);
-            $r1 = $q ? sqlsrv_fetch_array($q, SQLSRV_FETCH_ASSOC) : null;
-            if ($q) sqlsrv_free_stmt($q);
-            chequear('quedo en Rechazado', $r1 && $r1['e'] === 'Rechazado');
-            chequear('el motivo quedo guardado',
-                $r1 && trim((string)$r1['m']) === PLANILLA_MOTIVOS[1],
-                $r1 ? "motivo=[{$r1['m']}]" : '');
-
-            // c) EL CASO QUE IMPORTA: aprobar limpia el motivo del rechazo anterior
-            $ok2 = planillas_cambiar_estado($dbConnect, $consTest, 'Aprobado', PLANILLA_MOTIVOS[0]);
-            chequear('cambiar a Aprobado devuelve true', $ok2 === true);
-            $q2 = sqlsrv_query($dbConnect,
-                "SELECT RTRIM(estado) e, motivo m FROM consecutivo_planillas_aka WHERE consecutivo = ?",
-                [$consTest]);
-            $r2 = $q2 ? sqlsrv_fetch_array($q2, SQLSRV_FETCH_ASSOC) : null;
-            if ($q2) sqlsrv_free_stmt($q2);
-            chequear('quedo en Aprobado', $r2 && $r2['e'] === 'Aprobado');
-            chequear('al aprobar, el motivo se limpio a NULL', $r2 && $r2['m'] === null,
-                $r2 ? "motivo=[" . var_export($r2['m'], true) . "]" : '');
-
-            // d) Un consecutivo inexistente devuelve false
-            chequear('consecutivo inexistente devuelve false',
-                planillas_cambiar_estado($dbConnect, -999999, 'Aprobado', null) === false);
-        }
-
-        // Limpieza: SIEMPRE, y solo nuestra fila (doble guard por marca).
-        // La red de seguridad registrada arriba solo actua si esto no llega a correr.
-        $del = sqlsrv_query($dbConnect,
-            "DELETE FROM consecutivo_planillas_aka WHERE consecutivo = ? AND nombre_cliente = ?",
-            [$consTest, $marca]);
-        chequear('se borro la fila de prueba', $del !== false);
-        if ($del !== false) sqlsrv_free_stmt($del);
-        $limpiezaHecha = ($del !== false);
-        if ($limpiezaHecha) $reseedSiCorresponde();  // devolver el IDENTITY: no quemar el consecutivo
-    }
+    // Limpieza explicita (la red de seguridad solo actua si esto no llega a correr).
+    $limpiar();
+    chequear('se limpiaron las filas de prueba', $limpiezaHecha === true);
 }
 
 echo str_repeat('=', 70) . "\n";

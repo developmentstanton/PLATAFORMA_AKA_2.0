@@ -97,15 +97,39 @@ function planillas_listar($conn): array {
 }
 
 /**
- * Aplica el cambio de estado sobre una planilla.
+ * Estado actual de una planilla, o null si el consecutivo no existe.
  *
- * Normaliza el motivo: solo se guarda cuando el estado es 'Rechazado'. Para cualquier otro
- * estado queda en NULL aunque el llamador haya pasado uno — así una planilla aprobada nunca
- * arrastra el motivo de un rechazo anterior.
+ * Se usa para decidir si una planilla todavía se puede editar: solo las que están en
+ * 'Estudio'. Una vez Aprobada o Rechazada, la decisión es definitiva.
+ */
+function planillas_estado_actual($conn, int $consecutivo): ?string {
+    $stmt = sqlsrv_query($conn,
+        "SELECT RTRIM(estado) AS estado FROM consecutivo_planillas_aka WHERE consecutivo = ?",
+        [$consecutivo]);
+    if ($stmt === false) {
+        throw new RuntimeException('Consulta de estado falló: ' . print_r(sqlsrv_errors(), true));
+    }
+    $row = sqlsrv_fetch_array($stmt, SQLSRV_FETCH_ASSOC);
+    sqlsrv_free_stmt($stmt);
+
+    return $row ? (string)$row['estado'] : null;
+}
+
+/**
+ * Aplica el cambio de estado, SOLO si la planilla está todavía en 'Estudio'.
  *
- * NO valida: eso es trabajo de planillas_validar(), que el endpoint corre antes.
+ * La condición `estado = 'Estudio'` viaja DENTRO del WHERE a propósito: una decisión
+ * (Aprobado/Rechazado) es definitiva, y ponerlo en el WHERE lo hace atómico — dos peticiones
+ * simultáneas no pueden ambas "ganar", ni se puede revertir una planilla ya decidida ni
+ * siquiera con un POST hecho a mano. El endpoint además consulta el estado actual antes, para
+ * dar un mensaje claro; este WHERE es la barrera de respaldo, no la única.
  *
- * @return bool false si el consecutivo no existe.
+ * Normaliza el motivo: solo se guarda cuando el estado es 'Rechazado'; para cualquier otro
+ * queda en NULL aunque el llamador pase uno.
+ *
+ * NO valida el formato: eso es trabajo de planillas_validar(), que el endpoint corre antes.
+ *
+ * @return bool false si el consecutivo no existe O ya no está en 'Estudio'.
  */
 function planillas_cambiar_estado($conn, int $consecutivo, string $estado, ?string $motivo): bool {
     $motivoFinal = null;
@@ -116,7 +140,7 @@ function planillas_cambiar_estado($conn, int $consecutivo, string $estado, ?stri
 
     $sql = "UPDATE consecutivo_planillas_aka
             SET estado = ?, motivo = ?
-            WHERE consecutivo = ?";
+            WHERE consecutivo = ? AND estado = 'Estudio'";
 
     $stmt = sqlsrv_query($conn, $sql, [$estado, $motivoFinal, $consecutivo]);
     if ($stmt === false) {
