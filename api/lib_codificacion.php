@@ -120,10 +120,10 @@ function cod_registrar_envio($conn, string $nombre, string $fecha, ?string $nit)
 
 /**
  * Lista las solicitudes (envíos) de un aliado, de la más reciente a la más antigua.
- * @return array filas ['consecutivo'=>int,'fecha'=>string('Y-m-d'|''),'nit'=>?string,'nombre'=>string,'estado'=>string]
+ * @return array filas ['consecutivo'=>int,'fecha'=>string('Y-m-d'|''),'nit'=>?string,'nombre'=>string,'estado'=>string,'motivo'=>?string]
  */
 function cod_listar_solicitudes($conn, string $nombre): array {
-    $sql = "SELECT consecutivo, fecha, nit, nombre_cliente, estado
+    $sql = "SELECT consecutivo, fecha, nit, nombre_cliente, estado, motivo
             FROM consecutivo_planillas_aka WITH (NOLOCK)
             WHERE nombre_cliente = ?
             ORDER BY consecutivo DESC";
@@ -133,13 +133,16 @@ function cod_listar_solicitudes($conn, string $nombre): array {
     }
     $rows = [];
     while ($r = sqlsrv_fetch_array($stmt, SQLSRV_FETCH_ASSOC)) {
-        $fecha = $r['fecha'];
+        $fecha  = $r['fecha'];
+        // El motivo solo viene cuando la planilla está Rechazada; en los demás estados es NULL.
+        $motivo = isset($r['motivo']) ? trim((string)$r['motivo']) : '';
         $rows[] = [
             'consecutivo' => (int)$r['consecutivo'],
             'fecha'       => ($fecha instanceof DateTime) ? $fecha->format('Y-m-d') : (string)$fecha,
             'nit'         => $r['nit'] !== null ? trim((string)$r['nit']) : null,
             'nombre'      => trim((string)$r['nombre_cliente']),
             'estado'      => trim((string)$r['estado']),
+            'motivo'      => ($motivo !== '') ? $motivo : null,
         ];
     }
     return $rows;

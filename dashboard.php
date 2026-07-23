@@ -938,9 +938,9 @@
                 <!-- LISTA SOLICITUDES -->
                 <div class="card" id="codTab-solicitudes" style="display:none;">
                     <table>
-                        <thead><tr><th># Solicitud</th><th>Fecha</th><th>NIT</th><th>Nombre del tercero</th><th>Estado</th></tr></thead>
+                        <thead><tr><th># Solicitud</th><th>Fecha</th><th>NIT</th><th>Nombre del tercero</th><th>Estado</th><th>Motivo</th></tr></thead>
                         <tbody id="codSolBody">
-                            <tr><td colspan="5" style="text-align:center;color:var(--text-light);padding:16px;">Cargando&hellip;</td></tr>
+                            <tr><td colspan="6" style="text-align:center;color:var(--text-light);padding:16px;">Cargando&hellip;</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -1231,17 +1231,17 @@
     function cargarSolicitudes(){
         const body = document.getElementById('codSolBody');
         if (!body) return;
-        body.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-light);padding:16px;">Cargando…</td></tr>';
+        body.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-light);padding:16px;">Cargando…</td></tr>';
         fetch('api/codificacion_solicitudes.php')
             .then(r => r.json())
             .then(d => {
-                if (!d.ok) { body.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--danger);padding:16px;">No se pudieron cargar las solicitudes.</td></tr>'; return; }
-                if (!d.solicitudes.length) { body.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-light);padding:16px;">No tienes solicitudes registradas.</td></tr>'; return; }
+                if (!d.ok) { body.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--danger);padding:16px;">No se pudieron cargar las solicitudes.</td></tr>'; return; }
+                if (!d.solicitudes.length) { body.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-light);padding:16px;">No tienes solicitudes registradas.</td></tr>'; return; }
                 body.innerHTML = d.solicitudes.map(s =>
-                    `<tr><td><strong>${parseInt(s.consecutivo,10)}</strong></td><td>${codSolFecha(s.fecha)}</td><td>${s.nit ? codSolEsc(s.nit) : '—'}</td><td>${codSolEsc(s.nombre)}</td><td>${codSolBadge(s.estado)}</td></tr>`
+                    `<tr><td><strong>${parseInt(s.consecutivo,10)}</strong></td><td>${codSolFecha(s.fecha)}</td><td>${s.nit ? codSolEsc(s.nit) : '—'}</td><td>${codSolEsc(s.nombre)}</td><td>${codSolBadge(s.estado)}</td><td>${s.motivo ? codSolEsc(s.motivo) : '—'}</td></tr>`
                 ).join('');
             })
-            .catch(() => { body.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--danger);padding:16px;">Error de conexión.</td></tr>'; });
+            .catch(() => { body.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--danger);padding:16px;">Error de conexión.</td></tr>'; });
     }
 
     // ===== Carga Masiva de Codificación =====
