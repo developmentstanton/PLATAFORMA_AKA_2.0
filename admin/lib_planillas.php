@@ -16,16 +16,18 @@ const PLANILLA_ESTADOS = ['Estudio', 'Aprobado', 'Rechazado'];
 /**
  * Motivos de rechazo que ofrece el select.
  *
- * LISTA PROVISIONAL: Rafael entregará la definitiva. Reemplazar los elementos de este
- * arreglo es todo lo que hace falta — no hay que tocar ni la interfaz ni los endpoints.
- * Ninguno puede pasar de 200 caracteres (el largo de la columna).
+ * Reemplazar los elementos de este arreglo es todo lo que hace falta para cambiar los
+ * motivos — no hay que tocar ni la interfaz ni los endpoints. El texto se compara y se
+ * guarda tal cual: cualquier cambio aquí debe respetarse al pie de la letra (mayúsculas,
+ * tildes, puntuación). Ninguno puede pasar de 200 caracteres (el largo de la columna).
  */
 const PLANILLA_MOTIVOS = [
-    'Codificación incompleta',
-    'Información del producto inconsistente',
-    'Archivo ilegible o dañado',
-    'Referencias duplicadas',
-    'No cumple con el formato requerido',
+    'PRODUCTOS SIN FOTO',
+    'CAMPOS DEL FORMATO SIN DILIGENCIAR',
+    'ERROR EN EL TIPO DE RECEPCION',
+    'CANTIDADES A RECIBIR EN CERO',
+    'NO CUMPLE LAS CONDICIONES ESTABLECIDAS DE LOS CAMPOS',
+    'NO CORRESPONDE LA INFORMACION DE LOS PRODUCTOS YA CODIFICADOS.',
 ];
 
 /**

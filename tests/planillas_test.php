@@ -85,6 +85,32 @@ if ($dbConnect === false) {
     $consTest = 0;
     $limpiezaHecha = false;
 
+    // Devuelve el IDENTITY a su sitio despues de limpiar nuestra fila de prueba.
+    //
+    // consecutivo es un IDENTITY y ademas un numero de NEGOCIO (correlativo visible, no una
+    // clave interna): cada INSERT lo consume PARA SIEMPRE aunque despues se borre la fila. Sin
+    // esto, cada corrida del test "quemaba" un consecutivo en la tabla viva; en desarrollo la
+    // tabla salto de 304 a 332 asi. Tras borrar nuestra fila, si nadie inserto despues de
+    // nosotros (IDENT_CURRENT sigue siendo NUESTRO consecutivo), reseedamos al MAX real para
+    // que la proxima carga de un aliado continue sin hueco. Si un aliado inserto en medio,
+    // IDENT_CURRENT ya no es el nuestro: no tocamos nada y se acepta un hueco de uno (reseedar
+    // ahi corromperia su numero). Concurrencia cubierta por esa guardia.
+    $reseedSiCorresponde = function () use ($dbConnect, &$consTest) {
+        if ($consTest <= 0) return;
+        $q = @sqlsrv_query($dbConnect, "SELECT IDENT_CURRENT('consecutivo_planillas_aka') AS cur");
+        $cur = $q ? (int)(sqlsrv_fetch_array($q, SQLSRV_FETCH_ASSOC)['cur'] ?? 0) : 0;
+        if ($q) sqlsrv_free_stmt($q);
+        if ($cur !== $consTest) return;  // alguien inserto despues: no tocar
+        $q2 = @sqlsrv_query($dbConnect, "SELECT ISNULL(MAX(consecutivo), 0) AS mx FROM consecutivo_planillas_aka");
+        $mx = $q2 ? (int)(sqlsrv_fetch_array($q2, SQLSRV_FETCH_ASSOC)['mx'] ?? 0) : 0;
+        if ($q2) sqlsrv_free_stmt($q2);
+        if ($mx <= 0) return;
+        // $mx es un entero leido de la propia tabla; seguro para interpolar. Ojo: el driver
+        // sqlsrv surfacea los mensajes informativos de DBCC como "error" (SQLSTATE 01000) y
+        // devuelve false aunque el RESEED SI se ejecute; por eso se ignora el retorno.
+        @sqlsrv_query($dbConnect, "DBCC CHECKIDENT('consecutivo_planillas_aka', RESEED, $mx)");
+    };
+
     // Crear la fila de prueba y quedarnos con SU consecutivo
     $ins = sqlsrv_query($dbConnect,
         "SET NOCOUNT ON;
@@ -110,13 +136,14 @@ if ($dbConnect === false) {
         // 323, hubo que borrarlo a mano). register_shutdown_function corre pase lo que pase.
         // Conserva el mismo doble guard (consecutivo + nombre_cliente) y es idempotente: si la
         // limpieza normal de mas abajo ya corrio, no hace nada.
-        register_shutdown_function(function () use ($dbConnect, $consTest, $marca, &$limpiezaHecha) {
+        register_shutdown_function(function () use ($dbConnect, $consTest, $marca, &$limpiezaHecha, $reseedSiCorresponde) {
             if ($limpiezaHecha) return;
             $del = @sqlsrv_query($dbConnect,
                 "DELETE FROM consecutivo_planillas_aka WHERE consecutivo = ? AND nombre_cliente = ?",
                 [$consTest, $marca]);
             if ($del !== false) {
                 sqlsrv_free_stmt($del);
+                $reseedSiCorresponde();  // no dejar quemado el consecutivo ni siquiera al abortar
                 echo "  [shutdown] red de seguridad: limpiada fila huerfana consecutivo=$consTest\n";
             }
         });
@@ -184,6 +211,7 @@ if ($dbConnect === false) {
         chequear('se borro la fila de prueba', $del !== false);
         if ($del !== false) sqlsrv_free_stmt($del);
         $limpiezaHecha = ($del !== false);
+        if ($limpiezaHecha) $reseedSiCorresponde();  // devolver el IDENTITY: no quemar el consecutivo
     }
 }
 
