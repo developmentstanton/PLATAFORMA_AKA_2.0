@@ -2,12 +2,6 @@
 	require_once __DIR__ . '/lib_admin_auth.php';
 	require_once __DIR__ . '/lib_planillas.php';
 	$admin = admin_exigir_sesion();
-
-	// Mismo menú que inicio.php. Con una sola entrada la duplicación es aceptable;
-	// se extrae a un archivo compartido cuando haya varias páginas.
-	$menu = array(
-		array('etiqueta' => 'Planillas', 'icono' => 'fa-file-lines', 'url' => 'planillas.php'),
-	);
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -49,6 +43,8 @@
 		.btn-estado:hover { background: var(--accent); }
 		table.dataTable { font-size: 14px; }
 		.dt-empty { color: var(--text-light); font-style: italic; }
+		/* Sin menú lateral: el contenido ocupa todo el ancho (admin.css deja hueco para el menú). */
+		.admin-contenido { margin-left: 0; }
 	</style>
 </head>
 <body>
@@ -60,16 +56,6 @@
 	<span class="usuario"><?php echo htmlspecialchars($admin['usuario']); ?></span>
 	<a href="logout.php" class="salir" title="Cerrar sesión"><i class="fa-solid fa-power-off"></i></a>
 </div>
-
-<nav class="admin-menu">
-	<div class="encabezado">Menú</div>
-	<?php foreach ($menu as $item) { ?>
-		<a href="<?php echo htmlspecialchars($item['url']); ?>">
-			<i class="fa-solid <?php echo htmlspecialchars($item['icono']); ?>"></i>
-			<?php echo htmlspecialchars($item['etiqueta']); ?>
-		</a>
-	<?php } ?>
-</nav>
 
 <main class="admin-contenido">
 	<h1>Planillas</h1>

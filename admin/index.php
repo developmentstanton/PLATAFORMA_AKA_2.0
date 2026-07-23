@@ -4,7 +4,7 @@
 
 	// Si ya hay sesión admin viva, no tiene sentido mostrar el formulario
 	if (admin_estado_sesion($_SESSION, time()) === 'ok') {
-		header('Location: inicio.php');
+		header('Location: planillas.php');
 		exit;
 	}
 
@@ -61,7 +61,7 @@
 					admin_registrar_evento($dbConnect, $admin['nombre_usuario'], 'ADMIN_IN');
 					sqlsrv_close($dbConnect);
 
-					header('Location: inicio.php');
+					header('Location: planillas.php');
 					exit;
 				}
 
