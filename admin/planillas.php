@@ -41,6 +41,13 @@
 			cursor: pointer; transition: background 0.15s; white-space: nowrap;
 		}
 		.btn-estado:hover { background: var(--accent); }
+		.btn-excel {
+			font-family: 'Space Grotesk', sans-serif; font-size: 13px; font-weight: 600;
+			background: var(--primary); color: #fff; border: none; padding: 8px 14px;
+			cursor: pointer; transition: background 0.15s; display: inline-flex;
+			align-items: center; gap: 7px;
+		}
+		.btn-excel:hover { background: #1d6f42; }   /* verde Excel al pasar el mouse */
 		.btn-estado:disabled, .btn-estado:disabled:hover {
 			background: #cacaca; cursor: not-allowed; opacity: 0.6;
 		}
@@ -73,6 +80,10 @@
 				<option value="Rechazado">Rechazado</option>
 				<option value="">Todos</option>
 			</select>
+			<span style="flex:1;"></span>
+			<button type="button" id="btnExcel" class="btn-excel">
+				<i class="fa-solid fa-file-excel"></i> Excel
+			</button>
 		</div>
 
 		<table id="tablaPlanillas" class="display" style="width:100%">
@@ -95,6 +106,7 @@
 <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/datatables.net@2.1.8/js/dataTables.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <script>
 const CSRF     = document.querySelector('meta[name="csrf-token"]').content;
 const ESTADOS  = <?php echo json_encode(PLANILLA_ESTADOS, JSON_UNESCAPED_UNICODE); ?>;
@@ -128,6 +140,35 @@ function sesionExpirada() {
 		confirmButtonColor: '#4A4782',
 		allowOutsideClick: false
 	}).then(() => { window.location.href = 'index.php?expired=1'; });
+}
+
+// Exporta a Excel las filas VISIBLES (respeta el filtro de estado y la búsqueda de la tabla).
+// Cliente 100%: los datos ya están en memoria, no toca la base. Mismo patrón (SheetJS) que
+// los informes del portal.
+function exportarExcel() {
+	if (typeof XLSX === 'undefined') {
+		Swal.fire({ icon:'error', title:'Exportar', text:'No se pudo cargar la librería de Excel.', confirmButtonColor:'#4A4782' });
+		return;
+	}
+	const filas = tabla.rows({ search: 'applied' }).data().toArray();
+	if (!filas.length) {
+		Swal.fire({ icon:'info', title:'Exportar', text:'No hay planillas para exportar.', confirmButtonColor:'#4A4782' });
+		return;
+	}
+	const encabezado = ['Consecutivo', 'Cliente', 'NIT', 'Fecha', 'Estado', 'Motivo'];
+	const datos = filas.map(f => [
+		f.consecutivo,
+		f.nombre_cliente || '',
+		f.nit || '',
+		f.fecha ? fechaCorta(f.fecha) : '',
+		f.estado || '',
+		f.motivo || ''
+	]);
+	const ws = XLSX.utils.aoa_to_sheet([encabezado, ...datos]);
+	const wb = XLSX.utils.book_new();
+	XLSX.utils.book_append_sheet(wb, ws, 'Planillas');
+	const hoy = new Date().toISOString().slice(0, 10);
+	XLSX.writeFile(wb, 'Planillas - ' + hoy + '.xlsx');
 }
 
 let tabla = null;
@@ -175,6 +216,8 @@ $(function () {
 		const v = this.value;
 		tabla.column(4).search(v ? '^' + v + '$' : '', true, false).draw();
 	});
+
+	$('#btnExcel').on('click', exportarExcel);
 
 	cargar();
 
