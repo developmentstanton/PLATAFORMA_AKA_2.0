@@ -17,6 +17,11 @@
 
 	$nombreUsuario = $_SESSION['usuario'];
 	$imagenUsuario = isset($_SESSION['imagen']) ? $_SESSION['imagen'] : '';
+
+	// Analisis de Pagos queda OCULTO, no eliminado: se le quita la entrada del menu lateral,
+	// pero la pagina, su include y api/informe_pagos.php siguen intactos y funcionando.
+	// Para volver a publicarlo basta con poner esto en true.
+	$MOSTRAR_PAGOS = false;
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -121,7 +126,6 @@
         if (!page) return;
         const cont = page.querySelector('.g00-filters');
         if (!cont || cont.querySelector('.filtros-head')) return; // idempotente
-        const pageId = page.id.replace(/^page-/, '');
         const head = document.createElement('div');
         head.className = 'filtros-head';
         head.innerHTML =
@@ -130,18 +134,25 @@
         cont.insertBefore(head, cont.firstChild);
         const self = this;
         head.querySelector('.filtros-toggle').addEventListener('click', function () {
-          self._toggle(page, cont, pageId);
+          self._toggle(page, cont);
         });
-        // Restaurar estado guardado
-        let saved = null;
-        try { saved = localStorage.getItem('filtros_colapsado_' + pageId); } catch (e) {}
-        if (saved === '1') cont.classList.add('filtros--colapsado');
+        // Arranca colapsado SIEMPRE: el informe es lo que el usuario viene a ver, no los filtros.
+        // El portal es una SPA (showPage cambia divs, no recarga), asi que lo que el usuario
+        // abra sigue abierto mientras navega; al recargar vuelve a colapsarse. Sin persistir nada.
+        cont.classList.add('filtros--colapsado');
+        this._renderChips(page);
       },
-      _toggle: function (page, cont, pageId) {
+      _toggle: function (page, cont) {
         cont.classList.toggle('filtros--colapsado');
-        const col = cont.classList.contains('filtros--colapsado');
-        try { localStorage.setItem('filtros_colapsado_' + pageId, col ? '1' : '0'); } catch (e) {}
-        if (col) this._renderChips(page);
+        if (cont.classList.contains('filtros--colapsado')) { this._renderChips(page); return; }
+        // Al expandir, la franja pierde el anclaje y vuelve a su sitio real en el documento,
+        // que con scroll abajo queda fuera de pantalla: el usuario abriria los filtros
+        // justamente para no verlos. Si se fue por encima del topbar, se la traemos.
+        const tope = parseFloat(getComputedStyle(document.documentElement)
+                                  .getPropertyValue('--topbar-h')) || 56;
+        if (cont.getBoundingClientRect().top < tope) {
+          cont.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
       },
       _renderChips: function (page) {
         const self = this;
@@ -228,6 +239,18 @@
           padding:2px 10px; font-size:11px; color:var(--text); white-space:nowrap; }
         .filtros-chip b { color:var(--primary); font-weight:600; }
         .filtros-chip.vacio { color:var(--text-light); background:transparent; }
+
+        /* Colapsada, la franja se ancla bajo el topbar (que ya es sticky en z-index 50) para que
+           el periodo y los filtros activos viajen con el scroll del informe. Expandida se despega
+           a proposito: en g00 mide ~180px y anclada se comeria media pantalla en un portatil.
+           El offset sale de --topbar-h, que publica el propio topbar: su alto cambia segun el
+           informe (variantes topbar--g00 y topbar--o14 son grids mas altos). */
+        .g00-filters.filtros--colapsado {
+            position: sticky; top: var(--topbar-h, 56px); z-index: 40;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        }
+        /* El topbar fijo tapa lo que scrollIntoView deja arriba del todo; este margen lo compensa. */
+        .g00-filters { scroll-margin-top: calc(var(--topbar-h, 56px) + 12px); }
         .filtrado-badge { font-size:12px; font-weight:600; color:var(--accent, #c0392b);
           margin-left:8px; vertical-align:middle; letter-spacing:.3px; }
         .tab .tab-filtrado { font-size:10px; font-weight:600; color:var(--accent, #c0392b); margin-left:6px; }
@@ -601,12 +624,14 @@
                     <span class="icon"><i class="fa-solid fa-location-dot"></i></span> Georeferenciaci&oacute;n
                 </div>
             </div>
+            <?php if ($MOSTRAR_PAGOS): ?>
             <div class="nav-section">
                 <div class="nav-section-title">PAGOS</div>
                 <div class="nav-item" onclick="showPage('informes-pagos', this)">
                     <span class="icon"><i class="fa-solid fa-money-bill-wave"></i></span> An&aacute;lisis de Pagos
                 </div>
             </div>
+            <?php endif; ?>
             <div class="nav-section">
                 <div class="nav-section-title">GESTI&Oacute;N</div>
                 <div class="nav-item" onclick="showPage('codificacion', this)">
@@ -1202,6 +1227,28 @@
         if (pageId === 'informes-pagos' && typeof pgOnEnter === 'function') pgOnEnter();
         if (pageId === 'documentos' && typeof cargarDocumentos === 'function') cargarDocumentos();
     }
+    // ===== Anclaje del topbar y cromo de filtros =====
+    (function () {
+        const topbar = document.getElementById('topbar');
+        if (topbar) {
+            // El alto del topbar cambia de un informe a otro (topbar--g00 y topbar--o14 son grids),
+            // asi que se mide y se publica en vez de quemar un numero en el CSS de la franja.
+            const publicarAlto = function () {
+                document.documentElement.style.setProperty('--topbar-h', topbar.offsetHeight + 'px');
+            };
+            publicarAlto();
+            if (window.ResizeObserver) new ResizeObserver(publicarAlto).observe(topbar);
+            else window.addEventListener('resize', publicarAlto);
+        }
+        // Monta la cabecera colapsable en TODOS los informes de entrada. Sin esto cada uno solo
+        // la recibe cuando su primer render() llega con datos, y hasta entonces se ve desplegada.
+        if (window.filtrosUI) {
+            document.querySelectorAll('.page').forEach(function (page) {
+                if (page.querySelector('.g00-filters')) window.filtrosUI.ensureChrome(page);
+            });
+        }
+    })();
+
     document.getElementById('modalCodificacion').addEventListener('click', function(e) {
         if (e.target === this) this.classList.remove('active');
     });
