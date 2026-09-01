@@ -72,6 +72,23 @@ try {
     exit;
 }
 
-// El envío llega en Task 7. Hasta entonces se cierra y se avisa con honestidad.
-echo json_encode(['ok' => true, 'correo_enviado' => false,
-    'aviso' => 'La verificación quedó guardada. El envío por correo aún no está habilitado.']);
+// La auditoría YA quedó cerrada. Lo que sigue es la notificación: si falla, se informa,
+// pero NO se revierte el cierre — el registro es el dato valioso.
+require_once __DIR__ . '/lib_verificacion_pdf.php';
+
+$rutaPdf = '';
+try {
+    $paquete = verif_armar_paquete($dbConnect, $auditoriaId);
+    $rutaPdf = sys_get_temp_dir() . '/' . $paquete['nombre_pdf'];
+    verif_pdf($paquete, $rutaPdf);
+    verif_enviar($paquete, verif_destinatarios($a['proveedor']), $rutaPdf);
+    verif_marcar_correo_enviado($dbConnect, $auditoriaId);
+    echo json_encode(['ok' => true, 'correo_enviado' => true]);
+} catch (Throwable $e) {
+    error_log('verificacion envio: ' . $e->getMessage());
+    echo json_encode(['ok' => true, 'correo_enviado' => false,
+        'aviso' => 'La verificación quedó guardada, pero el correo no se pudo enviar. '
+                 . 'Avisa a sistemas; el registro N.° ' . $auditoriaId . ' ya está en la base.']);
+} finally {
+    if ($rutaPdf !== '' && is_file($rutaPdf)) @unlink($rutaPdf);
+}

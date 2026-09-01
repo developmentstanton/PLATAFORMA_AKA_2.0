@@ -302,3 +302,54 @@ function verif_armar_paquete($conn, int $auditoriaId): array {
         'filas'       => $filas,
     ];
 }
+
+/**
+ * Envía el aviso con el PDF adjunto. ES IRREVERSIBLE — por eso vive separada de
+ * verif_armar_paquete() y ningún test la invoca con datos que puedan salir.
+ *
+ * Las dos guardas de arriba no son paranoia: una lista vacía significaría un envío a
+ * nadie (despliegue sin configurar) y un PDF ausente significaría avisar sin el contenido.
+ * En ambos casos es preferible fallar ruidosamente. Van ANTES de cualquier require: si se
+ * invirtiera el orden, un despliegue sin configurar abriría una conexión SMTP antes de
+ * descubrir que no tiene a quién escribirle.
+ *
+ * @throws RuntimeException si no hay destinatarios, si falta el PDF o si el SMTP falla.
+ */
+function verif_enviar(array $paquete, array $destinatarios, string $rutaPdf): void {
+    if (!$destinatarios) {
+        throw new RuntimeException('No hay destinatarios configurados (MAIL_AUDITORIA_TO).');
+    }
+    if (!is_file($rutaPdf)) {
+        throw new RuntimeException('No se encontró el PDF a adjuntar: ' . $rutaPdf);
+    }
+
+    require_once __DIR__ . '/../conexion/config_mail.php';
+    require_once __DIR__ . '/../PHPMailer/src/Exception.php';
+    require_once __DIR__ . '/../PHPMailer/src/PHPMailer.php';
+    require_once __DIR__ . '/../PHPMailer/src/SMTP.php';
+
+    $mail = new PHPMailer\PHPMailer\PHPMailer(true);
+    $mail->isSMTP();
+    $mail->Host       = MAIL_HOST;
+    $mail->SMTPAuth   = true;
+    $mail->Username   = MAIL_USER;
+    $mail->Password   = MAIL_PASS;
+    $mail->SMTPSecure = PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS;
+    $mail->Port       = MAIL_PORT;
+
+    $mail->setFrom(MAIL_USER, MAIL_FROM_NAME);
+    if (defined('MAIL_TEST_TO') && MAIL_TEST_TO !== '') {
+        // Mismo modo prueba que usa Codificación: si está definido, el correo va SOLO ahí.
+        $mail->addAddress(MAIL_TEST_TO);
+    } else {
+        foreach ($destinatarios as $d) $mail->addAddress($d);
+    }
+
+    $mail->isHTML(true);
+    $mail->CharSet = 'UTF-8';
+    $mail->Subject = $paquete['asunto'];
+    $mail->Body    = $paquete['cuerpo_html'];
+    $mail->addAttachment($rutaPdf, $paquete['nombre_pdf']);
+
+    $mail->send();
+}
