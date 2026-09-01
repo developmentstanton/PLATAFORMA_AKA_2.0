@@ -6,3 +6,8 @@ define('MAIL_USER', 'plataforma@tiendasaka.co');
 define('MAIL_PASS', 'REEMPLAZAR_CON_CLAVE_DE_APLICACION');
 define('MAIL_FROM_NAME', 'PLATAFORMA AKA');
 define('MAIL_BCC', ['jpmartin@stanton.co', 'masterdata2@stanton.co', 'directorplataformaaka@cauchosol.co']);
+
+// Destinatarios del aviso de Verificación (auditoría de aliados).
+// Lista vacía = verif_enviar() falla con error explícito: si se despliega sin configurar,
+// se nota de inmediato en vez de enviar a nadie en silencio.
+define('MAIL_AUDITORIA_TO', ['REEMPLAZAR@stanton.co']);

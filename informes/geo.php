@@ -31,7 +31,10 @@
 <style>
   #page-georreferenciacion .geo-tienda-group { min-width: 480px; flex: 2; }
   #page-georreferenciacion .geo-tienda-group .ts-control { min-width: 480px; }
-  #page-georreferenciacion .geo-wrap { position: relative; }
+  /* z-index:0 le da contexto de apilamiento propio al mapa: Leaflet usa paneles hasta 700 y
+     las .geo-box valen 1000, que sin esto se pintarian ENCIMA de la franja de filtros anclada
+     (40) y del topbar (50). Encerrados aqui, su orden interno no cambia. */
+  #page-georreferenciacion .geo-wrap { position: relative; z-index: 0; }
   #page-georreferenciacion #geo-map { width: 100%; height: calc(100vh - 230px); min-height: 460px; border-radius: 8px; }
   #page-georreferenciacion .geo-box { position: absolute; z-index: 1000; background: rgba(255,255,255,.93);
     border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,.25); font-size: 12px; color: var(--text); }
