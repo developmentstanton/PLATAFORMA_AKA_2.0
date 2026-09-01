@@ -13,6 +13,7 @@
 
 require_once __DIR__ . '/../conexion/conexion_integracion.php';
 require_once __DIR__ . '/../api/lib_verificacion.php';
+require_once __DIR__ . '/_verificacion_guardia_escritura.php';
 require_once __DIR__ . '/../api/lib_verificacion_pdf.php';
 
 if ($dbConnect === false) {
@@ -34,6 +35,9 @@ register_shutdown_function(function () use (&$creadas, &$temporales, $dbConnect,
         foreach ($temporales as $f) if (is_file($f)) @unlink($f);
     }
 });
+
+// Esta suite escribe en la tabla viva y gasta numeros de registro IDENTITY.
+verif_guardia_escritura($dbConnect);
 
 // Barrido previo: una corrida abortada deja una auditoria '__TEST__' en curso que
 // verif_abrir() recuperaria en vez de crear una nueva.

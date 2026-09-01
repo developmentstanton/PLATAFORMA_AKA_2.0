@@ -10,6 +10,7 @@
 
 require_once __DIR__ . '/../conexion/conexion_integracion.php';
 require_once __DIR__ . '/../api/lib_verificacion.php';
+require_once __DIR__ . '/_verificacion_guardia_escritura.php';
 
 if ($dbConnect === false) {
     fwrite(STDERR, "No hay conexion a INTEGRACION; el test no puede correr.\n");
@@ -23,6 +24,9 @@ register_shutdown_function(function () use (&$creadas, $dbConnect) {
         sqlsrv_query($dbConnect, "DELETE FROM verificacion_auditoria WHERE id = ?", [$id]);
     }
 });
+
+// Esta suite escribe en la tabla viva y gasta numeros de registro IDENTITY.
+verif_guardia_escritura($dbConnect);
 
 // Barrido previo (ver verificacion_persistencia_test.php): sin esto, una auditoria
 // '__TEST__' en curso de una corrida abortada se recupera en vez de crearse una nueva.
