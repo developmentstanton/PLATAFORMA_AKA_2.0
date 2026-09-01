@@ -27,8 +27,13 @@ if ($tokenSesion === '' || !hash_equals($tokenSesion, (string)($_POST['csrf_toke
 }
 
 $proveedor = trim((string)($_SESSION['proveedor'] ?? ''));
-$usuario   = trim((string)$_SESSION['usuario']);
 $auditor   = trim((string)($_POST['auditor'] ?? ''));
+
+// NO llamar a esta variable $usuario: conexion/conexion_integracion.php define $usuario
+// (el login de SQL Server) por filtrado de scope al incluirse, y el require de más abajo
+// la pisaría. usuario_portal acabaría guardando 'admistanton' en todas las auditorías, que
+// es justo lo contrario de lo que la columna existe para registrar.
+$usuarioPortal = trim((string)$_SESSION['usuario']);
 
 if ($proveedor === '') {
     http_response_code(409);
@@ -55,7 +60,7 @@ if ($dbConnect === false) {
 }
 
 try {
-    $a = verif_abrir($dbConnect, $proveedor, $usuario, $auditor);
+    $a = verif_abrir($dbConnect, $proveedor, $usuarioPortal, $auditor);
     $completa = verif_cargar($dbConnect, $a['id']);
 } catch (Throwable $e) {
     error_log('verificacion abrir: ' . $e->getMessage());

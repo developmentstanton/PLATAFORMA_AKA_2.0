@@ -22,12 +22,28 @@
 	// pero la pagina, su include y api/informe_pagos.php siguen intactos y funcionando.
 	// Para volver a publicarlo basta con poner esto en true.
 	$MOSTRAR_PAGOS = false;
+
+	// Modo auditoría. Auditoría Interna entra con las credenciales del aliado que revisa,
+	// así que la sesión no la distingue de un aliado real: sin este interruptor, el aliado
+	// vería un formulario de auditoría sobre sí mismo.
+	// NO es un control de seguridad — quien conozca el parámetro puede escribirlo. Es
+	// visibilidad. Lo que protege los endpoints es el guard de sesión y el CSRF.
+	if (isset($_GET['auditoria'])) {
+		$_SESSION['modo_auditoria'] = ($_GET['auditoria'] === '1');
+	}
+	$MODO_AUDITORIA = !empty($_SESSION['modo_auditoria']);
+
+	// El token ya existe desde index.php; se garantiza por si la sesión es vieja.
+	if (empty($_SESSION['csrf_token'])) {
+		$_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+	}
 ?>
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
     <title>AKA 2.0 — Portal de Aliados (Preview)</title>
     <link rel="shortcut icon" href="img/aka.ico" type="image/x-icon">
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -641,6 +657,14 @@
                     <span class="icon">&#9776;</span> Documentaci&oacute;n
                 </div>
             </div>
+            <?php if ($MODO_AUDITORIA): ?>
+            <div class="nav-section">
+                <div class="nav-section-title">VERIFICACI&Oacute;N</div>
+                <div class="nav-item" onclick="showPage('verificacion', this)">
+                    <span class="icon"><i class="fa-solid fa-clipboard-check"></i></span> Verificaci&oacute;n
+                </div>
+            </div>
+            <?php endif; ?>
         </nav>
         <div class="sidebar-footer">
             <?php if ($imagenUsuario): ?>
@@ -1004,6 +1028,11 @@
             <!-- ==================== ANÁLISIS DE PAGOS ==================== -->
             <?php include __DIR__ . '/informes/pagos.php'; ?>
 
+            <!-- ==================== VERIFICACIÓN (AUDITORÍA) ==================== -->
+            <?php if ($MODO_AUDITORIA): ?>
+            <?php include __DIR__ . '/informes/verificacion.php'; ?>
+            <?php endif; ?>
+
         </div>
     </div>
 </div>
@@ -1210,7 +1239,8 @@
             'informes-o45':'ÍNDICE DE VENTAS',
             'evolucion-historica':'EVOLUCIÓN HISTÓRICA',
             'georreferenciacion':'GEOREFERENCIACIÓN',
-            'informes-pagos':'ANÁLISIS DE PAGOS'
+            'informes-pagos':'ANÁLISIS DE PAGOS',
+            'verificacion':'VERIFICACIÓN DE PLATAFORMA'
         };
         document.getElementById('pageTitle').textContent = titles[pageId] || pageId;
         // Extras del topbar exclusivos de G00: se ocultan al cambiar de página (g00OnEnter los reactiva).
@@ -1226,6 +1256,7 @@
         if (pageId === 'georreferenciacion' && typeof geoOnEnter === 'function') geoOnEnter();
         if (pageId === 'informes-pagos' && typeof pgOnEnter === 'function') pgOnEnter();
         if (pageId === 'documentos' && typeof cargarDocumentos === 'function') cargarDocumentos();
+        if (pageId === 'verificacion' && typeof verifOnEnter === 'function') verifOnEnter();
     }
     // ===== Anclaje del topbar y cromo de filtros =====
     (function () {
