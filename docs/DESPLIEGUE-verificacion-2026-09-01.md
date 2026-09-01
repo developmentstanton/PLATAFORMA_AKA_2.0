@@ -86,18 +86,32 @@ uno de los tres.
 
 ## Verificación después de desplegar
 
+**Estas cuatro se pueden correr siempre**, incluso con auditorías reales en la base. No
+escriben nada y no envían correo:
+
 ```
 php tests/verificacion_validar_test.php
+php tests/verificacion_scope_test.php
+php tests/verificacion_envio_test.php
+php tests/verificacion_guard_test.php
+```
+
+Esperado: `RESULTADO: OK` en las cuatro.
+
+**Estas tres escriben en la tabla viva** y solo deben correrse mientras no haya auditorías
+reales (típicamente, antes de poner el módulo en uso):
+
+```
 php tests/verificacion_persistencia_test.php
 php tests/verificacion_paquete_test.php
 php tests/verificacion_pdf_test.php
-php tests/verificacion_guard_test.php
-php tests/verificacion_scope_test.php
-php tests/verificacion_envio_test.php
 ```
 
-Esperado: `RESULTADO: OK` en los siete. Ninguno envía correo; los que escriben en la base
-usan el proveedor `'__TEST__'` y limpian al terminar.
+Usan el proveedor `'__TEST__'` y limpian al terminar, **pero `id` es IDENTITY: cada
+inserción gasta un número de registro para siempre**, aunque la fila se borre. Correrlas con
+auditorías reales adentro dejaría huecos en la numeración que sale impresa en el PDF y en el
+correo — y una serie de registros de auditoría con saltos es justo lo que un auditor
+cuestiona. Por eso se **niegan a correr** solas en ese caso y dicen qué correr en su lugar.
 
 Comprobar que no quedó basura:
 ```
@@ -106,6 +120,20 @@ php -r "require 'conexion/conexion_integracion.php'; \
   echo sqlsrv_fetch_array($s,SQLSRV_FETCH_ASSOC)['n'], PHP_EOL;"
 ```
 Esperado: `0`.
+
+## Numeración de los registros
+
+`Registro N.` es el `id` de `verificacion_auditoria`, un `INT IDENTITY(1,1)`.
+
+Los contadores de las dos tablas se **reiniciaron a 0 el 2026-09-01**, después de las
+pruebas de desarrollo, de modo que **la primera auditoría real es la N.º 1**. La RDS es la
+misma para dev, staging y producción, así que ese reinicio ya vale para los tres.
+
+Si alguna vez hiciera falta repetirlo — solo con la tabla **vacía**:
+```sql
+DBCC CHECKIDENT('verificacion_auditoria', RESEED, 0);
+DBCC CHECKIDENT('verificacion_auditoria_detalle', RESEED, 0);
+```
 
 ---
 
