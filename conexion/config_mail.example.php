@@ -10,4 +10,9 @@ define('MAIL_BCC', ['jpmartin@stanton.co', 'masterdata2@stanton.co', 'directorpl
 // Destinatarios del aviso de Verificación (auditoría de aliados).
 // Lista vacía = verif_enviar() falla con error explícito: si se despliega sin configurar,
 // se nota de inmediato en vez de enviar a nadie en silencio.
-define('MAIL_AUDITORIA_TO', ['REEMPLAZAR@stanton.co']);
+define('MAIL_AUDITORIA_TO', ['rlancheros@stanton.co', 'ymontoya@stanton.co']);
+
+// Modo prueba, OPCIONAL y temporal. Mientras esté definido, TODO el correo va solo a esa
+// dirección y MAIL_AUDITORIA_TO se ignora — sirve para que el primer envío de un entorno
+// nuevo no llegue a los destinatarios definitivos. Quitarlo una vez verificado.
+// define('MAIL_TEST_TO', 'tu_correo@stanton.co');
