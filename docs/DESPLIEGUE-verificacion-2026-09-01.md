@@ -41,11 +41,16 @@ aparece en un `git diff` del servidor.
       Ese archivo **no se versiona**, así que la constante no llega sola: hay que
       escribirla a mano en cada entorno.
       ```php
-      define('MAIL_AUDITORIA_TO', ['correo1@stanton.co', 'correo2@stanton.co']);
+      define('MAIL_AUDITORIA_TO', ['rlancheros@stanton.co', 'ymontoya@stanton.co']);
       ```
       Con la lista vacía el módulo **funciona y guarda**, pero no envía: falla con
       "No hay destinatarios configurados" y lo dice en la respuesta. Es deliberado —
       preferible a mandar a nadie en silencio.
+
+      **Esos dos y nadie más.** El aviso de auditoría no lleva copia oculta a nadie.
+      `MAIL_BCC`, que está en el mismo archivo y que `api/codificacion_cargar.php` sí usa,
+      **NO aplica a este módulo**. `tests/verificacion_envio_test.php` lo comprueba sobre
+      el código fuente y falla si alguien agrega un `addBCC`.
 
 ---
 
