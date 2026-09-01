@@ -214,3 +214,91 @@ function verif_marcar_correo_enviado($conn, int $auditoriaId): void {
     }
     sqlsrv_free_stmt($stmt);
 }
+
+/**
+ * A quién se avisa cuando se cierra una auditoría.
+ *
+ * El proveedor centinela devuelve lista vacía SIEMPRE, y verif_enviar() trata la lista
+ * vacía como error. Así una fila de prueba es incapaz de producir un envío aunque alguien
+ * la empuje por el camino de producción: no depende de recordar apagar ninguna bandera.
+ *
+ * El require de config_mail.php va AQUÍ y no en verif_enviar(): PHP evalúa los argumentos
+ * antes de entrar a la función, así que en verif_enviar($p, verif_destinatarios(...), $r)
+ * esta función correría ANTES de que el require de allá definiera la constante, y
+ * devolvería [] siempre — incluso con los destinatarios bien configurados.
+ */
+function verif_destinatarios(string $proveedor): array {
+    if ($proveedor === VERIF_PROVEEDOR_TEST) return [];
+
+    $cfg = __DIR__ . '/../conexion/config_mail.php';
+    if (is_file($cfg)) require_once $cfg;
+
+    if (!defined('MAIL_AUDITORIA_TO')) return [];
+    return array_values(array_filter(array_map('trim', (array)MAIL_AUDITORIA_TO)));
+}
+
+/** El resultado, en el texto que ve una persona. Cadena vacía = sin marcar. */
+function verif_etiqueta(string $resultado): string {
+    switch ($resultado) {
+        case 'aprobado':    return 'Aprobado';
+        case 'no_aprobado': return 'No aprobado';
+        case 'no_aplica':   return 'No aplica';
+        default:            return '—';
+    }
+}
+
+/**
+ * Compone todo lo que hace falta para comunicar una auditoría. NO ENVÍA NADA.
+ *
+ * Existe separada de verif_enviar() a propósito: el envío es irreversible, así que lo
+ * que ejercitan los tests es solo esta mitad.
+ *
+ * @return array{auditoria:array, asunto:string, cuerpo_html:string, nombre_pdf:string, filas:array}
+ */
+function verif_armar_paquete($conn, int $auditoriaId): array {
+    $a = verif_cargar($conn, $auditoriaId);
+    if ($a === null) {
+        throw new RuntimeException('La auditoría ' . $auditoriaId . ' no existe.');
+    }
+
+    // Se recorre VERIF_INFORMES y no lo que trajo la base: así el orden es estable y un
+    // informe sin marcar aparece igual, en su sitio, en vez de desaparecer de la tabla.
+    $filas = [];
+    foreach (VERIF_INFORMES as $clave => $nombre) {
+        $p = $a['puntos'][$clave] ?? null;
+        $filas[] = [
+            'clave'       => $clave,
+            'nombre'      => $nombre,
+            'resultado'   => $p['resultado'] ?? '',
+            'etiqueta'    => verif_etiqueta($p['resultado'] ?? ''),
+            'observacion' => $p['observacion'] ?? null,
+        ];
+    }
+
+    $fecha = substr((string)($a['cerrado_en'] ?? $a['creado_en']), 0, 10);
+
+    // El nombre del adjunto se arma con el proveedor, que viene de la base: se le quita
+    // todo lo que no sea alfanumérico para que no pueda colarse un separador de ruta.
+    $slug = preg_replace('/[^A-Za-z0-9]+/', '_', $a['proveedor']);
+    $slug = trim((string)$slug, '_');
+    if ($slug === '') $slug = 'aliado';
+
+    $cuerpo = '<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#2d2b4e;">'
+        . '<p>Se diligenció el formulario de control de la Plataforma AKA 2.0.</p>'
+        . '<table cellpadding="6" style="border-collapse:collapse;font-size:14px;">'
+        . '<tr><td><b>Tercero auditado</b></td><td>' . htmlspecialchars($a['proveedor'], ENT_QUOTES, 'UTF-8') . '</td></tr>'
+        . '<tr><td><b>Auditor</b></td><td>' . htmlspecialchars($a['auditor'], ENT_QUOTES, 'UTF-8') . '</td></tr>'
+        . '<tr><td><b>Usuario del portal</b></td><td>' . htmlspecialchars($a['usuario_portal'], ENT_QUOTES, 'UTF-8') . '</td></tr>'
+        . '<tr><td><b>Fecha</b></td><td>' . htmlspecialchars($fecha, ENT_QUOTES, 'UTF-8') . '</td></tr>'
+        . '</table>'
+        . '<p>El detalle de los puntos de control y sus observaciones va en el PDF adjunto.</p>'
+        . '</div>';
+
+    return [
+        'auditoria'   => $a,
+        'asunto'      => 'VERIFICACIÓN DE PLATAFORMA — ' . $a['proveedor'] . ' — ' . $fecha,
+        'cuerpo_html' => $cuerpo,
+        'nombre_pdf'  => 'verificacion_' . $slug . '_' . str_replace('-', '', $fecha) . '.pdf',
+        'filas'       => $filas,
+    ];
+}
