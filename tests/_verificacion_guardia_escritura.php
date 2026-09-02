@@ -46,7 +46,8 @@ function verif_guardia_escritura($conn): void {
           . "  php tests/verificacion_validar_test.php\n"
           . "  php tests/verificacion_scope_test.php\n"
           . "  php tests/verificacion_envio_test.php\n"
-          . "  php tests/verificacion_guard_test.php\n\n"
+          . "  php tests/verificacion_guard_test.php\n"
+          . "  php tests/verificacion_titulo_test.php\n\n"
           . "Si aun asi hace falta, VERIF_PERMITIR_ESCRITURA=1 la salta.\n"
           . str_repeat('=', 70) . "\n");
         exit(1);

@@ -1242,7 +1242,15 @@
             'informes-pagos':'ANÁLISIS DE PAGOS',
             'verificacion':'VERIFICACIÓN DE PLATAFORMA'
         };
-        document.getElementById('pageTitle').textContent = titles[pageId] || pageId;
+        let titulo = titles[pageId] || pageId;
+        // La auditoría se diligencia con las credenciales del aliado auditado, así que el
+        // proveedor de la sesión ES el aliado al que se ingresó. Nombrarlo en el título deja
+        // a la vista sobre quién se está trabajando: el auditor entra a varios en la misma
+        // jornada y por fuera nada distingue una sesión de otra.
+        if (pageId === 'verificacion' && window.PROVEEDOR_ACTUAL) {
+            titulo += ' — ' + window.PROVEEDOR_ACTUAL;
+        }
+        document.getElementById('pageTitle').textContent = titulo;
         // Extras del topbar exclusivos de G00: se ocultan al cambiar de página (g00OnEnter los reactiva).
         document.getElementById('pageSubtitle').style.display = 'none';
         var _bf = document.getElementById('pageTitleFiltrado'); if (_bf) _bf.style.display = 'none';

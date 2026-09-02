@@ -11,6 +11,13 @@ const VERIF_PDF_LINEA = 4.2;
 /** Aire entre el texto y el borde de la celda, arriba y abajo. */
 const VERIF_PDF_PAD = 2.2;
 
+/** X donde arranca el bloque de encabezado, a la derecha del logo, en mm. */
+const VERIF_PDF_X_TITULO = 50.0;
+/** Tamaño de letra del nombre del aliado en la portada, en puntos. */
+const VERIF_PDF_TITULO_MAX = 13.0;
+/** Piso del encogido: por debajo de esto el nombre deja de ser legible impreso. */
+const VERIF_PDF_TITULO_MIN = 8.0;
+
 /**
  * FPDF trabaja en ISO-8859-1 con las fuentes básicas. El texto del portal es UTF-8, así
  * que hay que convertirlo o las tildes salen como basura. Lo que no exista en el destino
@@ -61,6 +68,38 @@ function verif_pdf_partir(FPDF $pdf, string $texto, float $ancho): array {
     return $lineas;
 }
 
+/**
+ * Ancho útil del bloque de encabezado: de donde arranca el título al margen derecho.
+ *
+ * FPDF guarda los márgenes como propiedades protegidas, así que el derecho se toma del
+ * valor que fija su propio constructor (1 cm). Si algún día se llamara a SetMargins() hay
+ * que cambiarlo también aquí.
+ */
+function verif_pdf_ancho_titulo(FPDF $pdf): float {
+    return $pdf->GetPageWidth() - VERIF_PDF_X_TITULO - 10.0;
+}
+
+/**
+ * Con qué tamaño de letra escribir el nombre del aliado para que quepa en un renglón.
+ *
+ * Va en su propia línea justamente para no competir por el ancho con el título, así que
+ * casi siempre devuelve el tamaño máximo. El encogido es una red por si aparece un nombre
+ * más largo que los que hay hoy: los reales llegan a treinta y pico de caracteres, pero eso
+ * es lo observado, no un límite de la base.
+ *
+ * Deja fijada la fuente con la que midió — quien llame puede escribir directamente.
+ */
+function verif_pdf_tam_titulo(FPDF $pdf, string $texto, float $ancho): float {
+    for ($tam = VERIF_PDF_TITULO_MAX; $tam > VERIF_PDF_TITULO_MIN; $tam -= 0.5) {
+        $pdf->SetFont('Helvetica', 'B', $tam);
+        if ($pdf->GetStringWidth($texto) <= $ancho) return $tam;
+    }
+    // Ni al mínimo cabe. Se prefiere un nombre que se desborde a la vista antes que uno
+    // impreso tan pequeño que nadie pueda leerlo.
+    $pdf->SetFont('Helvetica', 'B', VERIF_PDF_TITULO_MIN);
+    return VERIF_PDF_TITULO_MIN;
+}
+
 /** Pinta la fila de encabezado de la tabla. Se repite en cada página nueva. */
 function verif_pdf_encabezado(FPDF $pdf, array $anchos): void {
     $pdf->SetFont('Helvetica', 'B', 9);
@@ -91,16 +130,25 @@ function verif_pdf(array $paquete, string $rutaSalida): string {
     $logo = __DIR__ . '/../img/logo_aka.png';
     if (is_file($logo)) $pdf->Image($logo, 15, 12, 28);
 
-    $pdf->SetXY(50, 14);
+    $pdf->SetXY(VERIF_PDF_X_TITULO, 12);
     $pdf->SetFont('Helvetica', 'B', 15);
     $pdf->SetTextColor(74, 71, 130);            // var(--primary) del portal
     $pdf->Cell(0, 8, verif_pdf_txt('VERIFICACIÓN DE PLATAFORMA'), 0, 1);
-    $pdf->SetX(50);
+
+    // El aliado auditado, en su propia línea: es lo que identifica al documento cuando hay
+    // una pila de estos archivada. En la ficha de abajo sigue estando como dato; aquí está
+    // como título, que es para lo que se lee de lejos.
+    $aliado = verif_pdf_txt((string)$a['proveedor']);
+    $pdf->SetX(VERIF_PDF_X_TITULO);
+    verif_pdf_tam_titulo($pdf, $aliado, verif_pdf_ancho_titulo($pdf));
+    $pdf->Cell(0, 7, $aliado, 0, 1);
+
+    $pdf->SetX(VERIF_PDF_X_TITULO);
     $pdf->SetFont('Helvetica', '', 10);
     $pdf->SetTextColor(110, 110, 110);
     $pdf->Cell(0, 6, verif_pdf_txt('Portal de Aliados AKA 2.0 — Control de Auditoría Interna'), 0, 1);
 
-    $pdf->Ln(10);
+    $pdf->Ln(7);
     $pdf->SetTextColor(40, 40, 40);
 
     // --- Ficha ---
