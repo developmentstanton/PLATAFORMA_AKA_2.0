@@ -237,6 +237,42 @@ function verif_destinatarios(string $proveedor): array {
     return array_values(array_filter(array_map('trim', (array)MAIL_AUDITORIA_TO)));
 }
 
+/**
+ * Los correos que reciben COPIA VISIBLE del aviso (Coordinación de Inventarios).
+ *
+ * Hermana de verif_destinatarios(), con la misma guarda del proveedor centinela y el mismo
+ * motivo para hacer el require aquí. Pero con una diferencia deliberada: una lista vacía
+ * NO es un error. Sin destinatarios el aviso no le llega a nadie y hay que fallar; sin
+ * copia el aviso llega igual a quien debe, y quedarse sin enviar sería peor que ir sin
+ * copia. Por eso el que lanza la excepción es verif_enviar() y solo mira los destinatarios.
+ */
+function verif_copias(string $proveedor): array {
+    if ($proveedor === VERIF_PROVEEDOR_TEST) return [];
+
+    $cfg = __DIR__ . '/../conexion/config_mail.php';
+    if (is_file($cfg)) require_once $cfg;
+
+    if (!defined('MAIL_AUDITORIA_CC')) return [];
+    return array_values(array_filter(array_map('trim', (array)MAIL_AUDITORIA_CC)));
+}
+
+/**
+ * A quién se le escribe de verdad, ya separado en destinatarios y copias.
+ *
+ * Es una función pura y existe por eso: la regla que encierra no se puede comprobar de
+ * ninguna otra forma sin mandar un correo de verdad. En modo prueba el aviso va SOLO al
+ * buzón de ensayo Y LAS COPIAS SE DESCARTAN — si no, ensayar un cierre le escribiría a
+ * Coordinación de Inventarios, que es justo a quien no se quiere molestar al ensayar.
+ *
+ * @return array{to:string[], cc:string[]}
+ */
+function verif_envio_destinos(array $destinatarios, array $copias): array {
+    if (defined('MAIL_TEST_TO') && MAIL_TEST_TO !== '') {
+        return ['to' => [MAIL_TEST_TO], 'cc' => []];
+    }
+    return ['to' => array_values($destinatarios), 'cc' => array_values($copias)];
+}
+
 /** El resultado, en el texto que ve una persona. Cadena vacía = sin marcar. */
 function verif_etiqueta(string $resultado): string {
     switch ($resultado) {
@@ -313,9 +349,12 @@ function verif_armar_paquete($conn, int $auditoriaId): array {
  * invirtiera el orden, un despliegue sin configurar abriría una conexión SMTP antes de
  * descubrir que no tiene a quién escribirle.
  *
+ * $copias va al final y con valor por omisión: un despliegue sin MAIL_AUDITORIA_CC manda
+ * el aviso igual, solo que sin copia.
+ *
  * @throws RuntimeException si no hay destinatarios, si falta el PDF o si el SMTP falla.
  */
-function verif_enviar(array $paquete, array $destinatarios, string $rutaPdf): void {
+function verif_enviar(array $paquete, array $destinatarios, string $rutaPdf, array $copias = []): void {
     if (!$destinatarios) {
         throw new RuntimeException('No hay destinatarios configurados (MAIL_AUDITORIA_TO).');
     }
@@ -338,12 +377,13 @@ function verif_enviar(array $paquete, array $destinatarios, string $rutaPdf): vo
     $mail->Port       = MAIL_PORT;
 
     $mail->setFrom(MAIL_USER, MAIL_FROM_NAME);
-    if (defined('MAIL_TEST_TO') && MAIL_TEST_TO !== '') {
-        // Mismo modo prueba que usa Codificación: si está definido, el correo va SOLO ahí.
-        $mail->addAddress(MAIL_TEST_TO);
-    } else {
-        foreach ($destinatarios as $d) $mail->addAddress($d);
-    }
+
+    // Quién recibe qué lo decide verif_envio_destinos() y no este bloque: allá vive la
+    // regla del modo prueba y allá es donde los tests pueden mirarla. Aquí solo se copian
+    // las dos listas al mensaje, y no hay ninguna tercera vía de agregar a nadie.
+    $destinos = verif_envio_destinos($destinatarios, $copias);
+    foreach ($destinos['to'] as $d) $mail->addAddress($d);
+    foreach ($destinos['cc'] as $c) $mail->addCC($c);
 
     $mail->isHTML(true);
     $mail->CharSet = 'UTF-8';
