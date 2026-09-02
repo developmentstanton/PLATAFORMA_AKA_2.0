@@ -81,7 +81,8 @@ try {
     $paquete = verif_armar_paquete($dbConnect, $auditoriaId);
     $rutaPdf = sys_get_temp_dir() . '/' . $paquete['nombre_pdf'];
     verif_pdf($paquete, $rutaPdf);
-    verif_enviar($paquete, verif_destinatarios($a['proveedor']), $rutaPdf);
+    verif_enviar($paquete, verif_destinatarios($a['proveedor']), $rutaPdf,
+                 verif_copias($a['proveedor']));
     verif_marcar_correo_enviado($dbConnect, $auditoriaId);
     echo json_encode(['ok' => true, 'correo_enviado' => true]);
 } catch (Throwable $e) {

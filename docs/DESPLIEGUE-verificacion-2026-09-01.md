@@ -47,10 +47,26 @@ aparece en un `git diff` del servidor.
       "No hay destinatarios configurados" y lo dice en la respuesta. Es deliberado —
       preferible a mandar a nadie en silencio.
 
-      **Esos dos y nadie más.** El aviso de auditoría no lleva copia oculta a nadie.
-      `MAIL_BCC`, que está en el mismo archivo y que `api/codificacion_cargar.php` sí usa,
-      **NO aplica a este módulo**. `tests/verificacion_envio_test.php` lo comprueba sobre
-      el código fuente y falla si alguien agrega un `addBCC`.
+      **Copia OCULTA a nadie.** `MAIL_BCC`, que está en el mismo archivo y que
+      `api/codificacion_cargar.php` sí usa, **NO aplica a este módulo**.
+      `tests/verificacion_envio_test.php` lo comprueba sobre el código fuente y falla si
+      alguien agrega un `addBCC`.
+
+- [ ] **4. Definir `MAIL_AUDITORIA_CC` en el mismo `config_mail.php`** (añadido 2026-09-02).
+      ```php
+      define('MAIL_AUDITORIA_CC', ['coordinventarios@stanton.co']);
+      ```
+      Copia **visible** del mismo aviso, para Coordinación de Inventarios.
+
+      **Este es el paso que se pierde.** A diferencia de `MAIL_AUDITORIA_TO`, si esta
+      constante falta el módulo **no falla**: manda el aviso a los destinatarios de siempre,
+      sin copia y sin decir nada. Era la única forma de que un despliegue a medio configurar
+      no dejara de comunicar la auditoría, pero convierte el olvido en algo mudo.
+
+      La red es el test: `php tests/verificacion_envio_test.php` **falla** en un entorno
+      donde falte la constante. Correrlo después de tocar el `config_mail.php` del servidor
+      es lo que hace visible el olvido. Ese test no escribe en la base y se puede correr
+      en producción sin gastar números de registro.
 
 ---
 
@@ -59,12 +75,19 @@ aparece en un `git diff` del servidor.
 - [ ] Definir `MAIL_TEST_TO` con un correo propio. Mientras esté definido, **todo el correo
       va solo ahí**, sin importar `MAIL_AUDITORIA_TO`. Es el mismo interruptor que ya usa
       Codificación.
+      Ojo: en modo prueba **tampoco se manda la copia** a Coordinación. Es a propósito —
+      ensayar no puede escribirle a nadie real — pero significa que el CC **no se puede
+      verificar ensayando**: solo se ve en el primer envío de verdad.
 - [ ] Cerrar una verificación de prueba y **abrir el correo recibido**: que el asunto nombre
-      al aliado, que el PDF venga adjunto y que se abra y se lea bien.
+      al aliado, que el PDF venga adjunto y que se abra y se lea bien. En el PDF, que el
+      nombre del aliado salga bajo el título "VERIFICACIÓN DE PLATAFORMA".
 - [ ] **Quitar `MAIL_TEST_TO`** cuando esté verificado. Mientras siga definido, los
       destinatarios reales no reciben nada.
 - [ ] Confirmar que el `config_mail.php` real quedó con los destinatarios y **sin**
       `MAIL_TEST_TO`.
+- [ ] En el **primer envío real**, confirmar en el correo recibido que
+      `coordinventarios@stanton.co` aparece en el campo **CC**. Es el único momento en que
+      se puede comprobar.
 
 ---
 
