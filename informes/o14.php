@@ -585,8 +585,8 @@
     filtrosUI.render(document.getElementById('page-informes-o14'));
   };
 
-  // Exporta a .xlsx en formato tabular (datos planos, no la vista pivote por talla):
-  // una fila por (dimensiones, medida, talla, valor). B = por negocio; C = grupo/almacén/negocio.
+  // Exporta a .xlsx con la misma forma que el pivote de pantalla: cabecera de 2 niveles
+  // (la medida sobre su bloque, y debajo cada talla + Tot). B = por negocio; C = grupo/almacén/negocio.
   // Pestaña reco: exporta las 3 matrices de recomendación en 3 hojas separadas.
   window.o14Export = function(){
     if(currentTab !== 'b' && currentTab !== 'c'){
@@ -602,21 +602,50 @@
       XLSX.writeFile(wb, window.expFile('Alertas'));
       return;
     }
-    const data = lastData[currentTab];
-    if(!data){ window.expDataset('Siembra Stock Ventas', 'O14', [], []); return; }
+    // En C se exporta shownC (lo que está realmente pintado): si hay un negocio seleccionado,
+    // el árbol en pantalla viene filtrado y la hoja debe traer lo mismo.
+    const data = (currentTab === 'c') ? (shownC || lastData.c) : lastData[currentTab];
+    if(!data){ window.expDataset('Siembra Stock Ventas', 'O14', ['Negocio'], []); return; }
     const tallas = data.tallas||[], medidas = data.medidas||[];
     const mlabel = m => (MED_LABEL[m]||m);
+    // Cabecera de 2 filas: la medida encima de su bloque de tallas; debajo, cada talla + Tot.
+    const cabecera = dims => {
+      const h1 = dims.slice(), h2 = dims.map(()=>'');
+      medidas.forEach(m=>{ h1.push(mlabel(m)); tallas.forEach(()=>h1.push(''));
+        tallas.forEach(t=>h2.push(t)); h2.push('Tot'); });
+      return [h1, h2];
+    };
+    // Celdas medidas×tallas + Tot de una fila. Espeja rowCells(): el 0 va vacío, el Tot siempre sale.
+    const celdas = valores => { const out=[];
+      medidas.forEach(m=>{ let tot=0; tallas.forEach(t=>{ const v=(valores[m]||{})[t]||0; tot+=v; out.push(v||''); }); out.push(tot); });
+      return out; };
     let header, filas = [];
     if(currentTab === 'c'){
-      header = ['Grupo','Almacen','Negocio','Medida','Talla','Valor'];
-      (data.grupos||[]).forEach(gr=>{ (gr.almacenes||[]).forEach(a=>{ const alm=(a.bodega||'')+(a.nombre?(' · '+a.nombre):'');
-        (a.negocios||[]).forEach(n=>{ medidas.forEach(m=>{ const o=(n.valores||{})[m]||{};
-          tallas.forEach(t=>{ const v=o[t]||0; if(v) filas.push([gr.grupo, alm, n.negocio, mlabel(m), t, v]); }); }); }); }); });
+      // Árbol abierto en tres columnas en vez de una con sangría. Las filas de subtotal llevan su
+      // etiqueta un nivel más adentro, igual que la sangría de la pantalla: el total de un almacén
+      // deja Negocio vacío, el de un grupo va como 'Total <grupo>' en Almacén, y el general en Grupo.
+      header = cabecera(['Grupo','Almacén','Negocio']);
+      const gtot={}; medidas.forEach(m=>gtot[m]={});
+      (data.grupos||[]).forEach(gr=>{
+        const allNeg=[]; (gr.almacenes||[]).forEach(a=>(a.negocios||[]).forEach(n=>allNeg.push(n)));
+        const gv=sumValores(allNeg, medidas);
+        medidas.forEach(m=>{ for(const t in gv[m]) gtot[m][t]=(gtot[m][t]||0)+gv[m][t]; });
+        (gr.almacenes||[]).forEach(a=>{
+          const alm=(a.bodega||'')+(a.nombre?(' · '+a.nombre):'');
+          filas.push([gr.grupo, alm, ''].concat(celdas(sumValores(a.negocios||[], medidas))));
+          (a.negocios||[]).forEach(n=> filas.push([gr.grupo, alm, n.negocio].concat(celdas(n.valores||{}))));
+        });
+        filas.push([gr.grupo, 'Total '+gr.grupo, ''].concat(celdas(gv)));
+      });
+      filas.push(['TOTAL','',''].concat(celdas(gtot)));
     } else {
-      header = ['Negocio','Medida','Talla','Valor'];
-      (data.filas||[]).forEach(fila=>{ const neg=(fila.key&&fila.key.negocio)||'';
-        medidas.forEach(m=>{ const o=(fila.valores||{})[m]||{};
-          tallas.forEach(t=>{ const v=o[t]||0; if(v) filas.push([neg, mlabel(m), t, v]); }); }); });
+      header = cabecera(['Negocio']);
+      const tot={}; medidas.forEach(m=>tot[m]={});
+      (data.filas||[]).forEach(fila=>{ const v=fila.valores||{};
+        medidas.forEach(m=>{ const o=v[m]||{}; for(const t in o) tot[m][t]=(tot[m][t]||0)+o[t]; });
+        filas.push([(fila.key&&fila.key.negocio)||''].concat(celdas(v)));
+      });
+      filas.push(['TOTAL'].concat(celdas(tot)));
     }
     window.expDataset('Siembra Stock Ventas', 'O14', header, filas);
   };

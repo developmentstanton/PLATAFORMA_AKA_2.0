@@ -211,7 +211,7 @@
       const td = document.getElementById('topbarDates'); td.style.display = '';
       if (!document.getElementById('o45-vdesde')) {
         td.innerHTML =
-          '<div class="o14-vfilter"><span class="o14-vfilter-lbl">Ventas</span>'
+          '<div class="o14-vfilter"><span class="o14-vfilter-lbl">Fecha</span>'
           + '<label>Desde<input type="date" id="o45-vdesde" value="2025-01-01"></label>'
           + '<label>Hasta<input type="date" id="o45-vhasta" value="'+ayer+'" max="'+ayer+'"></label></div>';
       }

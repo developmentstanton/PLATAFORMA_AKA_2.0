@@ -28,14 +28,20 @@
 </div>
 
 <style>
-  #page-evolucion-historica .tab-bar { display: flex; justify-content: flex-end; }
+  #page-evolucion-historica .tab-bar { display: flex; justify-content: flex-end; margin-bottom: 10px; }
+  /* Compactacion de la franja de filtros: clon del bloque de #page-informes-g00, que era el unico
+     que existia; evol heredaba los valores anchos por defecto de .g00-filters. */
+  #page-evolucion-historica .g00-filters { padding: 8px 12px; gap: 6px; margin-bottom: 10px; }
+  #page-evolucion-historica .g00-filter-row { padding-bottom: 6px; }
   #page-evolucion-historica .evol-tienda-group { min-width: 480px; flex: 2; }
   #page-evolucion-historica .evol-tienda-group .ts-control { min-width: 480px; }
   #page-evolucion-historica table.evol-tabla { border-collapse: collapse; font-size: 11px; }
   #page-evolucion-historica table.evol-tabla th, #page-evolucion-historica table.evol-tabla td {
     border: 1px solid var(--border); padding: 2px 6px; text-align: right; white-space: nowrap; }
   #page-evolucion-historica table.evol-tabla thead th { background: #faf9ff; position: sticky; top: 0; z-index: 2; }
-  /* El wrap es el contenedor de scroll (alto limitado) => el thead sticky queda fijo al hacer scroll vertical */
+  /* El wrap es el contenedor de scroll (alto limitado) => el thead sticky queda fijo al hacer scroll vertical.
+     Este max-height es solo el arranque: ajustarAltoTabla() lo reescribe inline con el alto realmente
+     disponible, que cambia al colapsar o expandir los filtros. */
   #page-evolucion-historica .o14-matriz-wrap { max-height: calc(100vh - 320px); min-height: 280px; overflow: auto; }
   /* Inmovilizar las 2 primeras columnas: Negocio + Conceptos */
   #page-evolucion-historica table.evol-tabla td.neg, #page-evolucion-historica table.evol-tabla th.neg {
@@ -148,7 +154,27 @@
     negs.forEach(n=> h+=bloque(n.negocio, n.valores, n.totales, n.foto, false));
     if(d.totalGeneral) h+=bloque('TOTAL', d.totalGeneral.valores, d.totalGeneral.totales, null, true);
     h+='</tbody></table>'; cont.innerHTML=h;
+    ajustarAltoTabla();
   }
+
+  // La tabla llega desde donde arranca hasta el borde inferior de la ventana. Hay que recalcularlo
+  // porque la franja de filtros cambia de alto al colapsarla o expandirla, y el max-height fijo del
+  // CSS dejaba un hueco muerto abajo justo cuando mas sitio habia.
+  let altoTabla = '';
+  function ajustarAltoTabla(){
+    const wrap = document.getElementById('evol-tabla');
+    if(!wrap || !wrap.offsetParent) return;                 // el informe no esta visible
+    const top = wrap.getBoundingClientRect().top + window.scrollY;   // posicion en el documento, no en la ventana
+    const alto = Math.max(280, Math.round(window.innerHeight - top - 24)) + 'px';
+    if(alto !== altoTabla){ altoTabla = alto; wrap.style.maxHeight = alto; }
+  }
+  window.addEventListener('resize', ajustarAltoTabla);
+  // El colapso de los filtros lo maneja filtrosUI (dashboard.php); en vez de engancharse a su
+  // interno, se observa el alto de la franja.
+  (function observarFiltros(){
+    const f = document.querySelector('#page-evolucion-historica .g00-filters');
+    if(f && window.ResizeObserver) new ResizeObserver(ajustarAltoTabla).observe(f);
+  })();
 
   function showLoading(){ if(!window.Swal) return; const ter=(window.PROVEEDOR_ACTUAL||'');
     Swal.fire({title:'Cargando...',
@@ -166,15 +192,27 @@
     }).catch(()=>{ cont.innerHTML='<p style="padding:16px;color:var(--accent)">Error de red.</p>'; }).finally(hideLoading);
   };
 
-  // Excel en formato tabular (datos planos, no la vista pivote): una fila por (negocio, concepto, mes).
+  // Excel con la misma forma que el pivote de pantalla: Negocio | Conceptos | un mes por columna | Total.
+  // El negocio se repite en sus 6 filas de medidas (en pantalla es un rowspan) para que la hoja se pueda filtrar.
   window.evolExport = function(){
     const d = window.__evollast;
-    if(!d){ window.expDataset('Evolución Histórica', 'Evolucion', [], []); return; }
+    if(!d){ window.expDataset('Evolución Histórica', 'Evolucion', ['Negocio','Conceptos'], []); return; }
     const meses = d.meses||[], negs = d.negocios||[];
-    const header = ['Negocio','Concepto','Mes','Valor'];
+    const header = ['Negocio','Conceptos'].concat(meses.map(fmtMesHdr), ['Total']);
     const filas = [];
-    negs.forEach(n=>{ MEDIDAS.forEach(med=>{ const serie=(n.valores||{})[med.k]||{};
-      meses.forEach(m=>{ const v=serie[m]; if(v!==undefined && v!==null && v!=='') filas.push([n.negocio, med.t, fmtMesHdr(m), v]); }); }); });
+    // Un bloque = las 6 medidas de un negocio (o del TOTAL general). Espeja bloque() de renderMatriz.
+    const bloque = (label, valores, totales) => {
+      MEDIDAS.forEach(med=>{
+        const serie = (valores||{})[med.k]||{};
+        const fila = [label, med.t];
+        meses.forEach(m=>{ const v=serie[m]; fila.push(v===undefined||v===null?'':v); });
+        const tot = med.sum ? (totales||{})[med.k] : undefined;   // Total solo acumula en Ingreso y Total Ventas
+        fila.push(tot===undefined||tot===null?'':tot);
+        filas.push(fila);
+      });
+    };
+    negs.forEach(n=> bloque(n.negocio, n.valores, n.totales));
+    if(d.totalGeneral) bloque('TOTAL', d.totalGeneral.valores, d.totalGeneral.totales);
     window.expDataset('Evolución Histórica', 'Evolucion', header, filas);
   };
 
@@ -196,6 +234,7 @@
     if (!window.__evollast) evolLoad();
     filtrosUI.setPeriodo('evolucion-historica', val('evol-vdesde')||defDesde(), val('evol-vhasta')||defHasta());
     filtrosUI.render(document.getElementById('page-evolucion-historica'));
+    ajustarAltoTabla();
   };
 
   // Foto del zapato al pasar el mouse sobre la columna Negocio (col 0). Igual que O45.
