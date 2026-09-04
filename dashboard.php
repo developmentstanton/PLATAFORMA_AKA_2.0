@@ -74,7 +74,9 @@
         return false;
       }
       const hdr = (window.filtrosUI ? window.filtrosUI.excelHeaderRows() : []);
-      const ws = XLSX.utils.aoa_to_sheet([...hdr, header, ...filas]);
+      // header puede ser una fila (['A','B']) o varias ([['A',''],['','B']]), para cabeceras de 2 niveles.
+      const cab = Array.isArray(header[0]) ? header : [header];
+      const ws = XLSX.utils.aoa_to_sheet([...hdr, ...cab, ...filas]);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, String(hoja).replace(/[:\\\/?*\[\]]/g, ' ').slice(0, 31));
       XLSX.writeFile(wb, window.expFile(cuadro, proveedor));

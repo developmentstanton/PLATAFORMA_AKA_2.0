@@ -68,9 +68,9 @@ if (!function_exists('o14cCurrentStamp')) {
             SELECT
               (SELECT COUNT(DISTINCT cia+'|'+negocio) FROM INTEGRACION.dbo.o14_cache_base WHERE cache_key=?)                  negocios,
               (SELECT COUNT(DISTINCT cia+'|'+negocio) FROM INTEGRACION.dbo.o14_cache_base WHERE cache_key=? AND siembra>0)     negocios_con_siembra,
-              (SELECT COUNT(DISTINCT cia+'-'+bodega)  FROM INTEGRACION.dbo.o14_cache_base WHERE cache_key=? AND siembra>0)     tiendas_con_siembra,
-              (SELECT COUNT(DISTINCT cia+'-'+bodega)  FROM INTEGRACION.dbo.o14_cache_base WHERE cache_key=? AND disponible>0)  tiendas_con_inv,
-              (SELECT COUNT(DISTINCT cia+'-'+bodega)  FROM INTEGRACION.dbo.o14_cache_base WHERE cache_key=? AND ventas<>0)     tiendas_con_venta",
+              (SELECT COUNT(DISTINCT cia+'-'+bodega)  FROM INTEGRACION.dbo.o14_cache_base WHERE cache_key=? AND siembra>0    AND bodega<>'CEDI') tiendas_con_siembra,
+              (SELECT COUNT(DISTINCT cia+'-'+bodega)  FROM INTEGRACION.dbo.o14_cache_base WHERE cache_key=? AND disponible>0 AND bodega<>'CEDI') tiendas_con_inv,
+              (SELECT COUNT(DISTINCT cia+'-'+bodega)  FROM INTEGRACION.dbo.o14_cache_base WHERE cache_key=? AND ventas<>0    AND bodega<>'CEDI') tiendas_con_venta",
             [$key, $key, $key, $key, $key]);
         if ($cnt !== false) { $c = sqlsrv_fetch_array($cnt, SQLSRV_FETCH_ASSOC); sqlsrv_free_stmt($cnt);
             if ($c) $kpi = array_merge($kpi, array_map('intval', $c)); }

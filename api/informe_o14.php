@@ -80,16 +80,19 @@ function ensamblarTidy($agg, $keyField) {
     return [array_values($filas), $tallas, $kpi];
 }
 
-/** KPIs de conteo (red, incluido CEDI). Fuente parametrizable: #base (nocache) o el cache
- *  (o14_cache_base, alias `c`) con su WHERE de cache_key+filtros. $params se repite por subquery. */
+/** KPIs de conteo. Fuente parametrizable: #base (nocache) o el cache (o14_cache_base, alias `c`)
+ *  con su WHERE de cache_key+filtros. $params se repite por subquery.
+ *  Los conteos de TIENDAS descartan el CEDI: no es una tienda. La pestana B ya lo excluye de la
+ *  matriz y la C lo muestra dentro de su grupo real (lo necesita la cascada del recomendador),
+ *  pero en ninguna cuenta como tienda; si no, el KPI daba uno de mas que Ventas (g00). */
 function kpiCounts($c, $from = "#base", $where = "", $params = []) {
     $r = run($c, "
         SELECT
           (SELECT COUNT(DISTINCT cia+'|'+negocio) FROM $from WHERE 1=1 $where)                 negocios,
           (SELECT COUNT(DISTINCT cia+'|'+negocio) FROM $from WHERE 1=1 $where AND siembra>0)    negocios_con_siembra,
-          (SELECT COUNT(DISTINCT cia+'-'+bodega)   FROM $from WHERE 1=1 $where AND siembra>0)    tiendas_con_siembra,
-          (SELECT COUNT(DISTINCT cia+'-'+bodega)   FROM $from WHERE 1=1 $where AND disponible>0) tiendas_con_inv,
-          (SELECT COUNT(DISTINCT cia+'-'+bodega)   FROM $from WHERE 1=1 $where AND ventas<>0)    tiendas_con_venta",
+          (SELECT COUNT(DISTINCT cia+'-'+bodega)   FROM $from WHERE 1=1 $where AND siembra>0    AND bodega<>'CEDI') tiendas_con_siembra,
+          (SELECT COUNT(DISTINCT cia+'-'+bodega)   FROM $from WHERE 1=1 $where AND disponible>0 AND bodega<>'CEDI') tiendas_con_inv,
+          (SELECT COUNT(DISTINCT cia+'-'+bodega)   FROM $from WHERE 1=1 $where AND ventas<>0    AND bodega<>'CEDI') tiendas_con_venta",
         array_merge($params, $params, $params, $params, $params));
     if (isset($r['error']) || !$r) return [];
     return array_map('intval', $r[0]);
@@ -332,17 +335,17 @@ if ($tab === 'b') {
         $cnt = run($dbConnect, "
             SELECT
               (SELECT COUNT(DISTINCT cia+'|'+negocio) FROM INTEGRACION.dbo.o14_cache_base c WHERE c.cache_key=? $whereFiltros AND c.siembra>0)    negocios_con_siembra,
-              (SELECT COUNT(DISTINCT cia+'-'+bodega)   FROM INTEGRACION.dbo.o14_cache_base c WHERE c.cache_key=? $whereFiltros AND c.siembra>0)    tiendas_con_siembra,
-              (SELECT COUNT(DISTINCT cia+'-'+bodega)   FROM INTEGRACION.dbo.o14_cache_base c WHERE c.cache_key=? $whereFiltros AND c.disponible>0) tiendas_con_inv,
-              (SELECT COUNT(DISTINCT cia+'-'+bodega)   FROM INTEGRACION.dbo.o14_cache_base c WHERE c.cache_key=? $whereFiltros AND c.ventas<>0)    tiendas_con_venta",
+              (SELECT COUNT(DISTINCT cia+'-'+bodega)   FROM INTEGRACION.dbo.o14_cache_base c WHERE c.cache_key=? $whereFiltros AND c.siembra>0    AND c.bodega<>'CEDI') tiendas_con_siembra,
+              (SELECT COUNT(DISTINCT cia+'-'+bodega)   FROM INTEGRACION.dbo.o14_cache_base c WHERE c.cache_key=? $whereFiltros AND c.disponible>0 AND c.bodega<>'CEDI') tiendas_con_inv,
+              (SELECT COUNT(DISTINCT cia+'-'+bodega)   FROM INTEGRACION.dbo.o14_cache_base c WHERE c.cache_key=? $whereFiltros AND c.ventas<>0    AND c.bodega<>'CEDI') tiendas_con_venta",
             array_merge($pF, $pF, $pF, $pF));
     } else {
         $cnt = run($dbConnect, "
             SELECT
               (SELECT COUNT(DISTINCT cia+'|'+negocio) FROM #base WHERE siembra>0)    negocios_con_siembra,
-              (SELECT COUNT(DISTINCT cia+'-'+bodega)   FROM #base WHERE siembra>0)    tiendas_con_siembra,
-              (SELECT COUNT(DISTINCT cia+'-'+bodega)   FROM #base WHERE disponible>0) tiendas_con_inv,
-              (SELECT COUNT(DISTINCT cia+'-'+bodega)   FROM #base WHERE ventas<>0)    tiendas_con_venta");
+              (SELECT COUNT(DISTINCT cia+'-'+bodega)   FROM #base WHERE siembra>0    AND bodega<>'CEDI') tiendas_con_siembra,
+              (SELECT COUNT(DISTINCT cia+'-'+bodega)   FROM #base WHERE disponible>0 AND bodega<>'CEDI') tiendas_con_inv,
+              (SELECT COUNT(DISTINCT cia+'-'+bodega)   FROM #base WHERE ventas<>0    AND bodega<>'CEDI') tiendas_con_venta");
     }
     if (!isset($cnt['error']) && $cnt) {
         $kpi['negocios_con_siembra']=(int)$cnt[0]['negocios_con_siembra'];
