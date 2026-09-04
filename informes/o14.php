@@ -4,7 +4,7 @@
   <div class="o14-kpis">
     <div class="o14-kpi"><span class="o14-kpi-lbl">Negocios</span><span class="o14-kpi-val" id="o14-kpi-negocios">0</span></div>
     <div class="o14-kpi"><span class="o14-kpi-lbl">Siembra</span><span class="o14-kpi-val" id="o14-kpi-siembra">0</span></div>
-    <div class="o14-kpi"><span class="o14-kpi-lbl">Tiendas c/ Siembra</span><span class="o14-kpi-val" id="o14-kpi-tiendas-siembra">0</span></div>
+    <div class="o14-kpi"><span class="o14-kpi-lbl">TIENDAS CON SIEMBRA ACTUAL</span><span class="o14-kpi-val" id="o14-kpi-tiendas-siembra">0</span></div>
     <div class="o14-kpi"><span class="o14-kpi-lbl">Negocios c/ Siembra</span><span class="o14-kpi-val" id="o14-kpi-negocios-siembra">0</span></div>
     <div class="o14-kpi"><span class="o14-kpi-lbl">Total Stock</span><span class="o14-kpi-val" id="o14-kpi-stock">0</span></div>
     <div class="o14-kpi"><span class="o14-kpi-lbl">Tiendas c/ Inv</span><span class="o14-kpi-val" id="o14-kpi-tiendas-inv">0</span></div>
@@ -252,9 +252,13 @@
           aSi+=si; aDi+=di;
           const vo=v.ventas||{}; for(const t in vo) if(vo[t]!==0) aVeAny=true;
         });
-        if(aSi>0) tdaSiem.add(a.llave);
-        if(aDi>0) tdaInv.add(a.llave);
-        if(aVeAny) tdaVta.add(a.llave);
+        // El CEDI se ve en el arbol (grupo BODEGA) pero no es tienda: no entra en los conteos.
+        // Mismo criterio que kpiCounts() en api/informe_o14.php.
+        if(a.bodega!=='CEDI'){
+          if(aSi>0) tdaSiem.add(a.llave);
+          if(aDi>0) tdaInv.add(a.llave);
+          if(aVeAny) tdaVta.add(a.llave);
+        }
       });
     });
     k.total_stock=k.disponible+k.hold;

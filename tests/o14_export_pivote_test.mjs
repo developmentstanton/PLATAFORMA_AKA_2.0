@@ -8,7 +8,9 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 const raiz = join(dirname(fileURLToPath(import.meta.url)), '..');
-const src = readFileSync(join(raiz, 'informes', 'o14.php'), 'utf8');
+// Normalizado a LF: git puede dejar el working copy en CRLF (autocrlf en Windows) y los
+// marcadores de corte de abajo llevan \n literal; sin esto la prueba revienta segun como se clono.
+const src = readFileSync(join(raiz, 'informes', 'o14.php'), 'utf8').replace(/\r\n/g, '\n');
 
 function cortar(inicio, fin) {
   const i = src.indexOf(inicio);

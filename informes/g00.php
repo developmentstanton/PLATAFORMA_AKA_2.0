@@ -300,7 +300,7 @@
         <!-- Franja de 3 KPIs (estilo Power BI) -->
         <div class="stats-grid" style="grid-template-columns: repeat(4, 1fr);">
             <div class="g00-kpi info" title="tiendas con siembra de cualquier marca del proveedor (según filtros)">
-                <div class="g00-kpi-head"><span class="g00-kpi-label">Tiendas con Siembra</span></div>
+                <div class="g00-kpi-head"><span class="g00-kpi-label">TIENDAS CON SIEMBRA ACTUAL</span></div>
                 <div class="g00-kpi-value" id="g00-kpi-siembra"><span class="g00-skeleton" style="width:60px;height:26px;"></span></div>
             </div>
             <div class="g00-kpi accent" title="bodegas con venta">
@@ -347,7 +347,7 @@
     <div class="g00-tab-panel" id="g00-panel-tiendas">
         <div class="stats-grid" style="grid-template-columns: repeat(4, 1fr);">
             <div class="g00-kpi info" title="tiendas con siembra de cualquier marca del proveedor (según filtros)">
-                <div class="g00-kpi-head"><span class="g00-kpi-label">Tiendas con Siembra</span></div>
+                <div class="g00-kpi-head"><span class="g00-kpi-label">TIENDAS CON SIEMBRA ACTUAL</span></div>
                 <div class="g00-kpi-value" id="g00t-kpi-siembra"><span class="g00-skeleton" style="width:60px;height:26px;"></span></div>
             </div>
             <div class="g00-kpi accent" title="bodegas con venta">
