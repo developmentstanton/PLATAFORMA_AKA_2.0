@@ -18,8 +18,57 @@
  *
  * @return array{proveedor: ?string, nit: ?string, fuente: ?string}  fuente ∈ {'t202','items',null}
  */
+/**
+ * ¿El aliado está acotado a una MARCA en vez de a un proveedor?
+ * Devuelve el nombre de la marca (tal cual está en ITEMS.MARCA) o null.
+ *
+ * Consulta aparte y tolerante a propósito: si `marca_items` todavía no existe (migración
+ * sql/007 sin aplicar), esto devuelve null y TODA la resolución de abajo sigue intacta.
+ * Si se colara en la consulta del curado, un error de columna la tumbaría entera y todos
+ * los aliados pasarían a resolverse por t202 — un cambio de conducta general y silencioso.
+ */
+function login_marca_curada($conn, string $usuario): ?string {
+    static $hayColumna = null;
+    if ($hayColumna === null) {
+        $st = sqlsrv_query($conn, "SELECT COL_LENGTH('dbo.usuarios_portal_aka','marca_items') AS c");
+        $hayColumna = false;
+        if ($st !== false) {
+            $r = sqlsrv_fetch_array($st, SQLSRV_FETCH_ASSOC);
+            $hayColumna = $r && $r['c'] !== null;
+            sqlsrv_free_stmt($st);
+        }
+    }
+    if (!$hayColumna) return null;
+
+    $st = sqlsrv_query($conn, "SELECT TOP 1 RTRIM(marca_items) AS marca
+                               FROM usuarios_portal_aka WHERE nombre_usuario = ?", array($usuario));
+    if ($st === false) return null;
+    $row = sqlsrv_fetch_array($st, SQLSRV_FETCH_ASSOC);
+    sqlsrv_free_stmt($st);
+    $marca = $row ? trim((string)$row['marca']) : '';
+    return $marca !== '' ? $marca : null;
+}
+
 function login_resolver_proveedor($conn, string $usuario): array {
     $busqueda = str_replace('_', ' ', $usuario);
+
+    // 0-bis) Aliado de MARCA (usuarios_portal_aka.marca_items). Va ANTES del curado por
+    //   proveedor porque para estos aliados la marca ES su identidad: el caso Ibiza vive
+    //   bajo el proveedor STANTON, así que resolver por proveedor le mostraría el catálogo
+    //   entero de Stanton. El nombre devuelto es la marca, y de ahí sale todo lo demás
+    //   gratis: los títulos ("... - IBIZA") y las claves de caché, que son md5 del nombre.
+    //   Quien filtra por marca es #refs; ver refs_marca_curada() en api/lib_refs.php.
+    $marca = login_marca_curada($conn, $usuario);
+    if ($marca !== null) {
+        $nit = null;
+        $stN = sqlsrv_query($conn, "SELECT TOP 1 RTRIM(link2) AS nit FROM usuarios_portal_aka WHERE nombre_usuario = ?", array($usuario));
+        if ($stN !== false) {
+            $rN = sqlsrv_fetch_array($stN, SQLSRV_FETCH_ASSOC);
+            sqlsrv_free_stmt($stN);
+            if ($rN && trim((string)$rN['nit']) !== '') $nit = trim((string)$rN['nit']);
+        }
+        return array('proveedor' => $marca, 'nit' => $nit, 'fuente' => 'curado-marca', 'marca' => $marca);
+    }
 
     // 0) Nombre canónico CURADO (usuarios_portal_aka.proveedor_items). Prioridad máxima:
     //    los informes filtran ITEMS.PROVEEDOR por match exacto, y la razón social de t202
