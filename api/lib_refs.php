@@ -1,5 +1,49 @@
 <?php
 /** Helpers compartidos para materializar las referencias del proveedor en #refs. */
+
+if (!function_exists('refs_marca_curada')) {
+    /**
+     * ¿El nombre que traen los informes es en realidad una MARCA y no un proveedor?
+     *
+     * Un aliado puede estar acotado a una marca (usuarios_portal_aka.marca_items); en ese caso
+     * el login deja esa marca en $_SESSION['proveedor'] — ver login_resolver_proveedor(). Aquí
+     * se decide con qué columna de Items_Mat/ITEMS se arma su universo.
+     *
+     * La comprobación se hace AQUÍ, dentro del constructor de #refs, y no como parámetro nuevo:
+     * así los 5 endpoints, lib_prewarm y los tests siguen llamando igual y todos quedan
+     * correctos a la vez. Un parámetro habría que acordarse de pasarlo en cada sitio, y el que
+     * se olvidara construiría un #refs VACÍO en silencio (informes en blanco, sin error).
+     *
+     * Si la columna aún no existe (migración sql/007 sin aplicar) devuelve false y todo se
+     * comporta como antes.
+     */
+    function refs_marca_curada($conn, string $nombre): bool {
+        static $memo = [];
+        static $hayColumna = null;
+        if ($nombre === '') return false;
+        if ($hayColumna === null) {
+            $st = sqlsrv_query($conn, "SELECT COL_LENGTH('dbo.usuarios_portal_aka','marca_items') AS c");
+            $hayColumna = false;
+            if ($st !== false) {
+                $r = sqlsrv_fetch_array($st, SQLSRV_FETCH_ASSOC);
+                $hayColumna = $r && $r['c'] !== null;
+                sqlsrv_free_stmt($st);
+            }
+        }
+        if (!$hayColumna) return false;
+        if (array_key_exists($nombre, $memo)) return $memo[$nombre];
+
+        $st = sqlsrv_query($conn, "SELECT TOP 1 1 AS hay FROM usuarios_portal_aka
+                                   WHERE RTRIM(ISNULL(marca_items,'')) = ?", array($nombre));
+        $es = false;
+        if ($st !== false) {
+            $es = (bool) sqlsrv_fetch_array($st, SQLSRV_FETCH_ASSOC);
+            sqlsrv_free_stmt($st);
+        }
+        return $memo[$nombre] = $es;
+    }
+}
+
 if (!function_exists('getRefsCached')) {
     function getRefsCached($conn, $proveedor) {
         $cacheDir = __DIR__ . '/../cache';
@@ -10,12 +54,15 @@ if (!function_exists('getRefsCached')) {
             // Validar esquema: una caché vieja (sin las dims nuevas) se ignora y se reconstruye.
             if (is_array($data) && (!count($data) || array_key_exists('PUBLICO_OBJETIVO', $data[0]))) return $data;
         }
+        // Aliado de marca (p.ej. Ibiza, que vive bajo el proveedor STANTON): su universo es
+        // la MARCA, no el PROVEEDOR. Ver refs_marca_curada().
+        $col = refs_marca_curada($conn, $proveedor) ? 'MARCA' : 'PROVEEDOR';
         $sql = "SELECT REFERENCIA,
                     ISNULL(MARCA,'SIN MARCA') AS MARCA, ISNULL(TIPO,'SIN TIPO') AS TIPO,
                     ISNULL(LINEA,'SIN LINEA') AS LINEA, ISNULL(SUBLINEA,'') AS SUBLINEA,
                     ISNULL(CATEGORIA,'') AS CATEGORIA, ISNULL(SUBCATEGORIA,'') AS SUBCATEGORIA,
                     ISNULL(GENERO,'') AS GENERO, ISNULL(PUBLICO_OBJETIVO,'') AS PUBLICO_OBJETIVO
-                FROM INTEGRACION.dbo.ITEMS WITH (NOLOCK) WHERE PROVEEDOR = ?";
+                FROM INTEGRACION.dbo.ITEMS WITH (NOLOCK) WHERE $col = ?";
         $stmt = sqlsrv_query($conn, $sql, [$proveedor]);
         if ($stmt === false) return [];
         $rows = [];
@@ -78,10 +125,14 @@ if (!function_exists('buildRefsFromMat')) {
             CATEGORIA varchar(40), SUBCATEGORIA varchar(60), GENERO varchar(40), PUBLICO_OBJETIVO varchar(60))");
         if ($ok === false) return false;
         sqlsrv_free_stmt($ok);
+        // Aliado de marca (p.ej. Ibiza, que vive bajo el proveedor STANTON): su universo es la
+        // MARCA, no el PROVEEDOR. Sin esto veria el catalogo entero de su proveedor.
+        // El nombre de columna se elige de una lista cerrada, nunca sale del parametro.
+        $col = refs_marca_curada($conn, $proveedor) ? 'MARCA' : 'PROVEEDOR';
         $ins = sqlsrv_query($conn,
             "INSERT INTO #refs (REFERENCIA,MARCA,TIPO,LINEA,SUBLINEA,CATEGORIA,SUBCATEGORIA,GENERO,PUBLICO_OBJETIVO)
              SELECT REFERENCIA,MARCA,TIPO,LINEA,SUBLINEA,CATEGORIA,SUBCATEGORIA,GENERO,PUBLICO_OBJETIVO
-             FROM INTEGRACION.dbo.Items_Mat WITH (NOLOCK) WHERE PROVEEDOR = ?",
+             FROM INTEGRACION.dbo.Items_Mat WITH (NOLOCK) WHERE $col = ?",
             [$proveedor]);
         if ($ins === false) return false;
         sqlsrv_free_stmt($ins);

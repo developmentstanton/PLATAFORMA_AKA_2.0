@@ -31,6 +31,13 @@ function chk($cond, $msg) {
     if (!$cond) $fail = 1;
 }
 
+// Calentamiento: la pestana C sin filtros se sirve de un payload en disco, y construirlo en
+// frio es lento. Si el cache esta vacio (recien desplegado, o tras borrar los o14c_*), la
+// primera llamada puede tardar lo bastante como para que alguna de las siguientes se quede
+// corta y la prueba falle sin que nada este mal. Esta llamada paga ese coste una vez y se
+// tira; a partir de aqui todas leen del mismo payload ya construido.
+ep($php, '_endpoint_run_o14.php', $prov, 'tab=c', $nul);
+
 // ---- Esperados derivados del arbol de la pestana C (la matriz), descartando el CEDI ----
 $c = ep($php, '_endpoint_run_o14.php', $prov, 'tab=c', $nul);
 if (!($c['ok'] ?? false)) { echo "No se pudo cargar o14 tab=c\n"; exit(1); }
