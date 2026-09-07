@@ -241,66 +241,12 @@ function ensamblarArbolProd($rows, $gidTotal, $gidPadre, $padreKey, $hijoLabel, 
     return ['rows' => $out, 'total' => $total];
 }
 
-/**
- * Refs del proveedor (REFERENCIA + atributos), cacheadas en archivo con frescura
- * diaria (válido mientras el archivo se generó hoy → expira de hecho a medianoche,
- * alineado con la actualización del ERP). Evita evaluar la vista ITEMS por request.
- */
-function getRefsCached($conn, $proveedor) {
-    $cacheDir = __DIR__ . '/../cache';
-    if (!is_dir($cacheDir)) @mkdir($cacheDir, 0755, true);
-    $cacheFile = $cacheDir . '/g00_refs_' . md5($proveedor) . '.json';
-    if (file_exists($cacheFile) && date('Y-m-d', filemtime($cacheFile)) === date('Y-m-d')) {
-        $data = json_decode(file_get_contents($cacheFile), true);
-        // Validar esquema: caché vieja (sin las dims nuevas) se ignora y se reconstruye. (Caché compartida con O14/lib_refs.)
-        if (is_array($data) && (!count($data) || array_key_exists('PUBLICO_OBJETIVO', $data[0]))) return $data;
-    }
-    $sql = "SELECT REFERENCIA,
-                ISNULL(MARCA,    'SIN MARCA')         AS MARCA,
-                ISNULL(TIPO,     'SIN TIPO')          AS TIPO,
-                ISNULL(LINEA,    'SIN LINEA')         AS LINEA,
-                ISNULL(SUBLINEA, '')                  AS SUBLINEA,
-                ISNULL(CATEGORIA,'')                  AS CATEGORIA,
-                ISNULL(SUBCATEGORIA,'')               AS SUBCATEGORIA,
-                ISNULL(GENERO,'')                     AS GENERO,
-                ISNULL(PUBLICO_OBJETIVO,'')           AS PUBLICO_OBJETIVO
-            FROM INTEGRACION.dbo.ITEMS WITH (NOLOCK)
-            WHERE PROVEEDOR = ?";
-    $rows = run($conn, $sql, [$proveedor]);
-    if (isset($rows['error'])) return [];   // fallo suave → #refs vacío → resultados vacíos
-    @file_put_contents($cacheFile, json_encode($rows));
-    return $rows;
-}
-
-/**
- * Crea la temp table #refs y la puebla desde el arreglo cacheado.
- * El CREATE TABLE va SIN parámetros (vive en el scope de la sesión); si se usara
- * SELECT...INTO con un `?`, el driver lo envuelve en sp_executesql y la temp table
- * se destruye al cerrar ese batch. El INSERT batched (200 filas / 1000 placeholders)
- * a una tabla preexistente sí persiste y respeta el límite de 2100 params.
- */
-function buildRefsTemp($conn, $refs) {
-    $ok = sqlsrv_query($conn, "CREATE TABLE #refs (
-        REFERENCIA varchar(50) NOT NULL PRIMARY KEY,
-        MARCA varchar(40), TIPO varchar(40), LINEA varchar(40), SUBLINEA varchar(40), CATEGORIA varchar(40),
-        SUBCATEGORIA varchar(60), GENERO varchar(40), PUBLICO_OBJETIVO varchar(60))");
-    if ($ok === false) return false;
-    sqlsrv_free_stmt($ok);
-    if (empty($refs)) return true;
-    foreach (array_chunk($refs, 200) as $chunk) {
-        $vals = []; $params = [];
-        foreach ($chunk as $r) {
-            $vals[] = '(?,?,?,?,?,?,?,?,?)';
-            array_push($params, $r['REFERENCIA'], $r['MARCA'], $r['TIPO'], $r['LINEA'], $r['SUBLINEA'], $r['CATEGORIA'],
-                       $r['SUBCATEGORIA'], $r['GENERO'], $r['PUBLICO_OBJETIVO']);
-        }
-        $sql = "INSERT INTO #refs (REFERENCIA,MARCA,TIPO,LINEA,SUBLINEA,CATEGORIA,SUBCATEGORIA,GENERO,PUBLICO_OBJETIVO) VALUES " . implode(',', $vals);
-        $ins = sqlsrv_query($conn, $sql, $params);
-        if ($ins === false) return false;
-        sqlsrv_free_stmt($ins);
-    }
-    return true;
-}
+/* getRefsCached() y buildRefsTemp() vivian aqui, duplicadas de lib_refs.php. Como lib_refs se
+   protege con function_exists() y este archivo las definia ANTES de requerirlo, en G00 ganaban
+   estas y se saltaban los acotes por MARCA (sql/007) y por CATEGORIA (sql/009): filtraban solo
+   por PROVEEDOR. Estaba dormido porque solo se usan como respaldo si Items_Mat no existe, pero
+   era una fuga de aislamiento entre aliados esperando el dia que ese respaldo entrara. Se
+   borran: la unica definicion valida es la de lib_refs.php, que se requiere mas abajo. */
 
 /**
  * Catálogos (grupos y marcas) por proveedor, cacheados en archivo TTL 12h.

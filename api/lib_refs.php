@@ -44,11 +44,81 @@ if (!function_exists('refs_marca_curada')) {
     }
 }
 
+if (!function_exists('refs_categoria_acotada')) {
+    /**
+     * ¿A este aliado se le acota además la CATEGORIA? Devuelve la categoría, o '' si no.
+     *
+     * Hermana de refs_marca_curada(): aquella elige la COLUMNA con la que se arma el universo
+     * (MARCA vs PROVEEDOR), ésta le añade un filtro ENCIMA. Los dos acotes se combinan con AND,
+     * no se pisan.
+     *
+     * Vive aquí, dentro del constructor de #refs, por la misma razón que refs_marca_curada():
+     * los 5 endpoints, lib_prewarm y los tests siguen llamando igual y todos quedan correctos a
+     * la vez. Como parámetro, el sitio que se olvidara de pasarlo serviría el universo SIN acotar
+     * —y en un acote de aislamiento entre aliados eso es enseñar de más, en silencio.
+     *
+     * Si la columna aún no existe (migración sql/009 sin aplicar) devuelve '' y todo se comporta
+     * como antes. Se consulta tolerando el fallo a propósito: un error aquí no puede tumbar el
+     * armado de #refs de TODOS los aliados.
+     */
+    function refs_categoria_acotada($conn, string $nombre): string {
+        static $memo = [];
+        static $hayColumna = null;
+        if ($nombre === '') return '';
+        if ($hayColumna === null) {
+            $st = sqlsrv_query($conn, "SELECT COL_LENGTH('dbo.usuarios_portal_aka','categoria_items') AS c");
+            $hayColumna = false;
+            if ($st !== false) {
+                $r = sqlsrv_fetch_array($st, SQLSRV_FETCH_ASSOC);
+                $hayColumna = $r && $r['c'] !== null;
+                sqlsrv_free_stmt($st);
+            }
+        }
+        if (!$hayColumna) return '';
+        if (array_key_exists($nombre, $memo)) return $memo[$nombre];
+
+        // El acote va colgado del aliado, y el aliado se identifica aquí por su marca curada
+        // (login_resolver_proveedor deja la MARCA en $_SESSION['proveedor'] cuando la tiene).
+        //
+        // Se pregunta por MIN/MAX en vez de por un TOP 1: un mismo proveedor_items puede estar
+        // repartido entre VARIOS usuarios (hoy 'DYNAMO DISTRIBUTION S.A' lo comparten
+        // Dynamo_new_era y Dynamo_vans), y un TOP 1 sin ORDER BY ahí es una moneda al aire.
+        // Si los que comparten nombre no coinciden en el acote, no se aplica ninguno: eso es
+        // una configuración contradictoria, y ante la duda vale más dejar el comportamiento de
+        // antes que recortarle el catálogo a un aliado que no lo pidió.
+        $st = sqlsrv_query($conn, "SELECT MIN(cat) AS minc, MAX(cat) AS maxc FROM (
+                                       SELECT RTRIM(ISNULL(categoria_items,'')) AS cat
+                                       FROM usuarios_portal_aka
+                                       WHERE RTRIM(ISNULL(marca_items,''))     = ?
+                                          OR RTRIM(ISNULL(proveedor_items,'')) = ?
+                                   ) t", array($nombre, $nombre));
+        $cat = '';
+        if ($st !== false) {
+            $r = sqlsrv_fetch_array($st, SQLSRV_FETCH_ASSOC);
+            if ($r && $r['minc'] !== null && $r['minc'] === $r['maxc']) $cat = (string) $r['minc'];
+            sqlsrv_free_stmt($st);
+        }
+        return $memo[$nombre] = $cat;
+    }
+}
+
+if (!function_exists('refs_cache_clave')) {
+    /**
+     * Clave del fichero de caché de refs. Incorpora el acote de categoría a propósito: sin eso,
+     * el día que se aplica sql/009 se seguiría sirviendo el universo SIN acotar desde el JSON
+     * de ayer (la caché sólo caduca por fecha), o sea justo lo que el acote quiere evitar.
+     */
+    function refs_cache_clave(string $proveedor, string $categoria): string {
+        return md5($proveedor . ($categoria !== '' ? '|cat=' . $categoria : ''));
+    }
+}
+
 if (!function_exists('getRefsCached')) {
     function getRefsCached($conn, $proveedor) {
         $cacheDir = __DIR__ . '/../cache';
         if (!is_dir($cacheDir)) @mkdir($cacheDir, 0755, true);
-        $cacheFile = $cacheDir . '/g00_refs_' . md5($proveedor) . '.json';
+        $categoria = refs_categoria_acotada($conn, $proveedor);
+        $cacheFile = $cacheDir . '/g00_refs_' . refs_cache_clave($proveedor, $categoria) . '.json';
         if (file_exists($cacheFile) && date('Y-m-d', filemtime($cacheFile)) === date('Y-m-d')) {
             $data = json_decode(file_get_contents($cacheFile), true);
             // Validar esquema: una caché vieja (sin las dims nuevas) se ignora y se reconstruye.
@@ -57,13 +127,16 @@ if (!function_exists('getRefsCached')) {
         // Aliado de marca (p.ej. Ibiza, que vive bajo el proveedor STANTON): su universo es
         // la MARCA, no el PROVEEDOR. Ver refs_marca_curada().
         $col = refs_marca_curada($conn, $proveedor) ? 'MARCA' : 'PROVEEDOR';
+        // Y, encima, puede estar acotado a una CATEGORIA (sql/009). Ver refs_categoria_acotada().
+        $filtroCat = $categoria !== '' ? ' AND RTRIM(ISNULL(CATEGORIA,\'\')) = ?' : '';
+        $params    = $categoria !== '' ? [$proveedor, $categoria] : [$proveedor];
         $sql = "SELECT REFERENCIA,
                     ISNULL(MARCA,'SIN MARCA') AS MARCA, ISNULL(TIPO,'SIN TIPO') AS TIPO,
                     ISNULL(LINEA,'SIN LINEA') AS LINEA, ISNULL(SUBLINEA,'') AS SUBLINEA,
                     ISNULL(CATEGORIA,'') AS CATEGORIA, ISNULL(SUBCATEGORIA,'') AS SUBCATEGORIA,
                     ISNULL(GENERO,'') AS GENERO, ISNULL(PUBLICO_OBJETIVO,'') AS PUBLICO_OBJETIVO
-                FROM INTEGRACION.dbo.ITEMS WITH (NOLOCK) WHERE $col = ?";
-        $stmt = sqlsrv_query($conn, $sql, [$proveedor]);
+                FROM INTEGRACION.dbo.ITEMS WITH (NOLOCK) WHERE $col = ?" . $filtroCat;
+        $stmt = sqlsrv_query($conn, $sql, $params);
         if ($stmt === false) return [];
         $rows = [];
         while ($r = sqlsrv_fetch_array($stmt, SQLSRV_FETCH_ASSOC)) $rows[] = $r;
@@ -129,11 +202,16 @@ if (!function_exists('buildRefsFromMat')) {
         // MARCA, no el PROVEEDOR. Sin esto veria el catalogo entero de su proveedor.
         // El nombre de columna se elige de una lista cerrada, nunca sale del parametro.
         $col = refs_marca_curada($conn, $proveedor) ? 'MARCA' : 'PROVEEDOR';
+        // Encima del acote de marca puede haber uno de CATEGORIA (sql/009): se combinan con AND.
+        // El caso Ibiza deja 7 referencias de las 560 de su marca; es lo pedido, no un fallo.
+        $categoria = refs_categoria_acotada($conn, $proveedor);
+        $filtroCat = $categoria !== '' ? ' AND RTRIM(ISNULL(CATEGORIA,\'\')) = ?' : '';
+        $params    = $categoria !== '' ? [$proveedor, $categoria] : [$proveedor];
         $ins = sqlsrv_query($conn,
             "INSERT INTO #refs (REFERENCIA,MARCA,TIPO,LINEA,SUBLINEA,CATEGORIA,SUBCATEGORIA,GENERO,PUBLICO_OBJETIVO)
              SELECT REFERENCIA,MARCA,TIPO,LINEA,SUBLINEA,CATEGORIA,SUBCATEGORIA,GENERO,PUBLICO_OBJETIVO
-             FROM INTEGRACION.dbo.Items_Mat WITH (NOLOCK) WHERE $col = ?",
-            [$proveedor]);
+             FROM INTEGRACION.dbo.Items_Mat WITH (NOLOCK) WHERE $col = ?" . $filtroCat,
+            $params);
         if ($ins === false) return false;
         sqlsrv_free_stmt($ins);
         return true;
