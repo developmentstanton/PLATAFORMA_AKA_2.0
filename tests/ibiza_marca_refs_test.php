@@ -67,9 +67,22 @@ chk(refs_marca_curada($dbConnect, 'IBIZA') === true, "'IBIZA' se reconoce como m
 chk(buildRefsFromMat($dbConnect, 'IBIZA') !== false, "se le arma #refs sin error");
 $nI = (int) unaCol($dbConnect, "SELECT COUNT(*) FROM #refs");
 $otras = (int) unaCol($dbConnect, "SELECT COUNT(*) FROM #refs WHERE RTRIM(MARCA) <> 'IBIZA'");
-$esperado = (int) unaCol($dbConnect, "SELECT COUNT(*) FROM INTEGRACION.dbo.Items_Mat WITH (NOLOCK) WHERE RTRIM(MARCA) = 'IBIZA'");
+
+// Desde sql/009 el aliado puede llevar ENCIMA un acote de CATEGORIA. Esta prueba es la del
+// acote de MARCA, asi que lo que comprueba es "solo su marca", no un total fijo: el total lo
+// fija ibiza_categoria_refs_test.php. Sin esto, aplicar sql/009 rompia esta prueba (Ibiza pasa
+// de 560 a 7) y el fallo habria parecido una regresion del acote de marca, que no lo es.
+$catAcote = function_exists('refs_categoria_acotada') ? refs_categoria_acotada($dbConnect, 'IBIZA') : '';
+$sqlEsperado = "SELECT COUNT(*) FROM INTEGRACION.dbo.Items_Mat WITH (NOLOCK) WHERE RTRIM(MARCA) = 'IBIZA'";
+$parEsperado = [];
+if ($catAcote !== '') {
+    $sqlEsperado .= " AND RTRIM(ISNULL(CATEGORIA,'')) = ?";
+    $parEsperado[] = $catAcote;
+    echo "  (ademas esta acotado a CATEGORIA='$catAcote' por sql/009)\n";
+}
+$esperado = (int) unaCol($dbConnect, $sqlEsperado, $parEsperado);
 echo "  #refs = $nI referencias (se esperaban $esperado); de otras marcas: $otras\n";
-chk($nI === $esperado, "trae exactamente las referencias de MARCA='IBIZA'");
+chk($nI === $esperado, "trae exactamente las referencias de MARCA='IBIZA'" . ($catAcote !== '' ? " acotadas a '$catAcote'" : ""));
 chk($otras === 0, "NO se le cuela ni una referencia de otra marca");
 
 // Lo que se estaba viendo antes, para dejar constancia del tamano del problema.

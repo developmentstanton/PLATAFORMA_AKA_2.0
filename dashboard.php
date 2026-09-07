@@ -670,7 +670,10 @@
         </nav>
         <div class="sidebar-footer">
             <?php if ($imagenUsuario): ?>
-                <img src="img/<?php echo htmlspecialchars($imagenUsuario); ?>" alt="Avatar" style="width:34px;height:34px;border-radius:6px;object-fit:cover;background:rgba(255,255,255,0.85);padding:2px;">
+                <!-- contain, no cover: los logos de los aliados son apaisados (hasta 3.9:1) y con
+                     cover se escalaban hasta cubrir el cuadro, recortando los bordes (Intertenis se
+                     leia ":RT", Ibiza "DIZA"). flex:0 0 34px impide que un nombre largo lo encoja. -->
+                <img src="img/<?php echo htmlspecialchars($imagenUsuario); ?>" alt="Avatar" style="width:34px;height:34px;flex:0 0 34px;border-radius:6px;object-fit:contain;background:rgba(255,255,255,0.85);padding:2px;">
             <?php else: ?>
                 <div class="avatar"><?php echo strtoupper(substr($nombreUsuario, 0, 2)); ?></div>
             <?php endif; ?>
